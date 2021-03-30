@@ -3,10 +3,15 @@
 #include <utility>
 #include <math.h>
 
+#include "common/simple-profiler.h"
 #include "common/vec.h"
 #include "render_chunk.h"
 
 
+
+ChunkPos::ChunkPos() : x(0), y(0), z(0) {
+
+}
 
 ChunkPos::ChunkPos(int x, int y, int z) : x(x), y(y), z(z) {
 
@@ -41,6 +46,10 @@ VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) {
     rSizeY = sizeY / SUB_REGION_TOTAL_SIZE;
     rSizeZ = sizeZ / SUB_REGION_TOTAL_SIZE;
     renderBuffer = new unsigned int[renderBufferLen = SUB_REGION_BUFFER_SIZE_2 * rSizeX * rSizeY * rSizeZ];
+}
+
+void VoxelChunk::setPos(const ChunkPos &pos) {
+    position = pos;
 }
 
 unsigned int VoxelChunk::calcNormal(int x, int y, int z) {
@@ -186,8 +195,11 @@ void VoxelChunk::rebuildRenderBuffer() {
     }
 }
 
-void VoxelChunk::attachRenderChunk(RenderChunk* renderChunk) {
-    this->renderChunk = renderChunk;
+void VoxelChunk::attachRenderChunk(RenderChunk* newRenderChunk) {
+    if (renderChunk != nullptr) {
+        renderChunk->_attach(nullptr);
+    }
+    renderChunk = newRenderChunk;
     if (renderChunk != nullptr) {
         renderChunk->_attach(this);
     }
@@ -314,25 +326,86 @@ void Camera::sendParametersToShader(gl::Shader& shader) {
 
 void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap) {
     Vec3 forward(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
-    Vec3 right = Vec3(forward.z, 0, -forward.x);
+    Vec3 right = VecMath::normalize(Vec3(forward.z, 0, -forward.x));
     Vec3 up = VecMath::cross(forward, right);
 
     float w = viewport[2], h = viewport[3];
-    int width = (int) ceil(w / VoxelChunk::DEFAULT_CHUNK_SIZE) + 2;
-    int height = (int) ceil(h / VoxelChunk::DEFAULT_CHUNK_SIZE) + 2;
-    for (int x = 0; x < width; x++) {
-        for (int y = 0; y < height; y++) {
-            Vec3 ray_start = position +
+    int width = (int) ceil(w / VoxelChunk::DEFAULT_CHUNK_SIZE);
+    int height = (int) ceil(h / VoxelChunk::DEFAULT_CHUNK_SIZE);
+    for (int y = 0; y <= height; y++) {
+        for (int x = 0; x <= width; x++) {
+            Vec3 ray_start = position + forward * -128 +
                     right * ((float(x) - float(width) / 2) * VoxelChunk::DEFAULT_CHUNK_SIZE) +
-                    up * ((float(y) - float(width) / 2) * VoxelChunk::DEFAULT_CHUNK_SIZE);
-            for (int i = 0; i < 10; i++) {
-                ChunkPos ray_pos(ray_start + forward * (i * 20));
-                if (ray_pos.y == 0) {
-                    visibilityMap.emplace(ray_pos, 2);
+                    up * ((float(y) - float(height) / 2) * VoxelChunk::DEFAULT_CHUNK_SIZE);
+
+            Vec3 position_f = ray_start / VoxelChunk::DEFAULT_CHUNK_SIZE;
+            Vec3i position = VecMath::floor_to_int(position_f);
+
+            Vec3i step(
+                    forward.x > 0 ? 1 : -1,
+                    forward.y > 0 ? 1 : -1,
+                    forward.z > 0 ? 1 : -1
+            );
+
+            Vec3 rSqr = forward * forward;
+            if (rSqr.x == 0) rSqr.x = 1e-8;
+            if (rSqr.y == 0) rSqr.y = 1e-8;
+            if (rSqr.z == 0) rSqr.z = 1e-8;
+
+            Vec3 rayS(
+                    sqrt(1.0 + rSqr.y / rSqr.x + rSqr.z / rSqr.x),
+                    sqrt(1.0 + rSqr.x / rSqr.y + rSqr.z / rSqr.y),
+                    sqrt(1.0 + rSqr.x / rSqr.z + rSqr.y / rSqr.z)
+            );
+
+            Vec3 rayL(
+                    (forward.x > 0 ? (float(position.x) + 1 - position_f.x) : (position_f.x - float(position.x))) * rayS.x,
+                    (forward.y > 0 ? (float(position.y) + 1 - position_f.y) : (position_f.y - float(position.y))) * rayS.y,
+                    (forward.z > 0 ? (float(position.z) + 1 - position_f.z) : (position_f.z - float(position.z))) * rayS.z
+            );
+
+            float distance = 0;
+            while (distance < 5) {
+                if (position.y == 0)
+                    visibilityMap.emplace(ChunkPos(position.x, position.y, position.z), 2);
+
+                if (rayL.x < rayL.y) {
+                    if (rayL.x < rayL.z) {
+                        position.x += step.x;
+                        distance = rayL.x;
+                        rayL.x += rayS.x;
+                    } else {
+                        position.z += step.z;
+                        distance = rayL.z;
+                        rayL.z += rayS.z;
+                    }
+                } else {
+                    if (rayL.y < rayL.z) {
+                        position.y += step.y;
+                        distance = rayL.y;
+                        rayL.y += rayS.y;
+                    } else {
+                        position.z += step.z;
+                        distance = rayL.z;
+                        rayL.z += rayS.z;
+                    }
                 }
             }
         }
     }
+    /*
+    for (int z = -5; z <= 5; z++) {
+        for (int x = -5; x <= 5; x++) {
+            ChunkPos p(x, 0, z);
+            if (visibilityMap.find(p) != visibilityMap.end()) {
+                std::cout << (visibilityMap[p] == 2 ? "#" : ".");
+            } else {
+                std::cout << " ";
+            }
+        }
+        std::cout << "\n";
+    }
+    std::cout << "\n"; */
 }
 
 
@@ -368,6 +441,7 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<ChunkSource> chunkSource, s
     chunkBuffer = new gl::BufferTexture(bufferSize * sizeof(unsigned int), nullptr);
     chunkBufferSize = bufferSize / VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE;
 
+
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
 }
 
@@ -377,7 +451,8 @@ RenderChunk* VoxelRenderEngine::getNewRenderChunk(int reuseVisibilityLevel) {
         renderChunkPool.pop_front();
         return result;
     } else {
-        if (totalRenderChunkInstances < MAX_RENDER_CHUNK_INSTANCES) {
+        if (totalRenderChunkInstances < chunkBufferSize) {
+            totalRenderChunkInstances++;
             RenderChunk* renderChunk = new RenderChunk(this);
             for (int i = 0; i < chunkBufferSize; i++) {
                 if (!chunkBufferUsage[i]) {
@@ -388,7 +463,13 @@ RenderChunk* VoxelRenderEngine::getNewRenderChunk(int reuseVisibilityLevel) {
             }
             return renderChunk;
         } else {
-            // TODO: search for chunk to reuse
+            for (auto it = renderChunkMap.begin(); it != renderChunkMap.end(); it++) {
+                if (it->second->visibilityLevel <= reuseVisibilityLevel) {
+                    RenderChunk* renderChunk = it->second;
+                    renderChunkMap.erase(it);
+                    return renderChunk;
+                }
+            }
             return nullptr;
         }
     }
@@ -400,13 +481,15 @@ GLuint VoxelRenderEngine::getChunkBufferHandle() {
 }
 
 void VoxelRenderEngine::updateVisibleChunks() {
+    PROFILER_BEGIN(VoxelRenderEngine_updateVisibleChunks);
+
     std::unordered_map<ChunkPos, int> visibilityUpdatesMap;
     camera->addAllVisiblePositions(visibilityUpdatesMap);
     std::list<std::pair<ChunkPos, int>> newVisibleChunks;
-    for (auto const &posAndChunk : renderChunkMap) {
+    for (auto const& posAndChunk : renderChunkMap) {
         posAndChunk.second->visibilityLevel = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE;
     }
-    for (auto const &posAndLevel : visibilityUpdatesMap) {
+    for (auto const& posAndLevel : visibilityUpdatesMap) {
         auto it = renderChunkMap.find(posAndLevel.first);
         if (it != renderChunkMap.end()) {
             it->second->visibilityLevel = posAndLevel.second;
@@ -426,13 +509,38 @@ void VoxelRenderEngine::updateVisibleChunks() {
                     renderChunkMap.emplace(posAndLevel.first, renderChunk);
                     renderChunk->setPos(posAndLevel.first.x, posAndLevel.first.y, posAndLevel.first.z);
                     chunk->attachRenderChunk(renderChunk);
+                    renderChunk->runAllUpdates();
                 }
             }
         }
     }
+
+    /*
+    int visible_count = 0;
+    int near_visible_count = 0;
+    int not_visible_count = 0;
+    int pooled_count = renderChunkPool.size();
+
+    for (auto const& posAndChunk : renderChunkMap) {
+        if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
+            visible_count++;
+        }
+        if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_NEAR_VIEW) {
+            near_visible_count++;
+        }
+        if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE) {
+            not_visible_count++;
+        }
+    }
+
+    std::cout << "visible=" << visible_count << " near_visible=" << near_visible_count << " not_visible=" << not_visible_count << " pooled=" << pooled_count << "\n";
+    */
+
 }
 
 void VoxelRenderEngine::prepareForRender(gl::Shader& shader) {
+    PROFILER_BEGIN(VoxelRenderEngine_prepareForRender);
+
     int minX = 0x7FFFFFFF, minY = 0x7FFFFFFF, minZ = 0x7FFFFFFF;
     int maxX = -0x7FFFFFFF, maxY = -0x7FFFFFFF, maxZ = -0x7FFFFFFF;
 
@@ -484,13 +592,13 @@ void VoxelRenderEngine::prepareForRender(gl::Shader& shader) {
         int offset[3] = {minX + (maxX - minX - count[0]) / 2, minY + (maxY - minY - count[1]) / 2,
                          minZ + (maxZ - minZ - count[2]) / 2};
 
-        GLint chunkTextureOffsets[MAX_RENDER_CHUNK_INSTANCES];
-        for (auto const &posAndChunk : renderChunkMap) {
+        GLint chunkTextureOffsets[MAX_RENDER_CHUNK_INSTANCES] { 1 };
+        for (auto const& posAndChunk : renderChunkMap) {
             if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
                 ChunkPos pos = posAndChunk.first;
                 if (pos.x >= offset[0] && pos.y >= offset[1] && pos.z >= offset[2] &&
                     pos.x < offset[0] + count[0] && pos.y < offset[1] + count[1] && pos.z < offset[2] + count[2]) {
-                    chunkTextureOffsets[(pos.x - offset[0]) + ((pos.z - offset[1]) + (pos.y - offset[2]) * count[2]) *
+                    chunkTextureOffsets[(pos.x - offset[0]) + ((pos.z - offset[2]) + (pos.y - offset[1]) * count[2]) *
                                                               count[0]] = posAndChunk.second->chunkBufferOffset;
                 }
             }

@@ -23,6 +23,7 @@ public:
     int x, y, z;
     ChunkPos(int x, int y, int z);
     explicit ChunkPos(Vec3 v);
+    ChunkPos();
     bool operator==(ChunkPos const& other) const;
 };
 
@@ -80,10 +81,12 @@ public:
 
     RenderChunk* renderChunk = nullptr;
 
+    ChunkPos position;
 private:
     VoxelChunk(int sizeX, int sizeY, int sizeZ);
 public:
     VoxelChunk();
+    void setPos(ChunkPos const& pos);
 
     void rebuildRenderBuffer();
     unsigned int calcNormal(int x, int y, int z);
@@ -177,7 +180,7 @@ public:
 
 
 class VoxelRenderEngine {
-    static const int MAX_RENDER_CHUNK_INSTANCES = 32;
+    static const int MAX_RENDER_CHUNK_INSTANCES = 64;
 
     std::mutex mutex;
 

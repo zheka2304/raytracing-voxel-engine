@@ -10,6 +10,7 @@
 
 #include "renderer/util.h"
 #include "renderer/render_chunk.h"
+#include "common/simple-profiler.h"
 
 
 long long get_time_milliseconds() {
@@ -45,40 +46,37 @@ float pos_rand(int x, int z) {
 
 
 int main(int argc, char* argv[]) {
-    VoxelChunk chunk;
-    VoxelChunk chunk2;
-    int i = 0;
-    int voxel_count = 0;
-    for (int x = 0; x < 128; x++) {
-        for (int z = 0; z < 128; z++) {
-            float r00 = pos_rand(x / 16, z / 16);
-            float r01 = pos_rand(x / 16, z / 16 + 1);
-            float r10 = pos_rand(x / 16 + 1, z / 16);
-            float r11 = pos_rand(x / 16 + 1, z / 16 + 1);
-            float fx = float(x % 16) / 16;
-            float fz = float(z % 16) / 16;
-            float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
-            float h = r * 16 + 8;
-            for (int y = 0; y < 128; y++) {
-                int dx = x - 64;
-                int dy = y - 64;
-                int dz = z - 64;
-                int d = dx * dx + dy * dy + dz * dz;
-                int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
-                int v = chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h; // dx * dx + dy * dy + dz * dz < 32 * 32; //x / 4 + y / 4 + z / 4 < 16 ? 1 : 0;
-                voxel_count += v;
-                chunk2.voxelBuffer[x + (z + y * 128) * 128] = y < 16;
-            }
-        }
-    }
-
-    std::cout << "completed building chunk voxels=" << voxel_count << " rendered_buffer_len=" << chunk.renderBufferLen << "\n";
-    chunk.rebuildRenderBuffer();
-    chunk2.rebuildRenderBuffer();
-    std::cout << "completed rebuild chunk\n";
-
     std::shared_ptr<ChunkSource> chunkSource = std::make_shared<DebugChunkSource>([&] (ChunkPos const& pos) -> VoxelChunk* {
-        return pos.x == 0 ? &chunk2 : &chunk;
+        static VoxelChunk* chunk;
+        if (chunk == nullptr) {
+            chunk = new VoxelChunk();
+            std::cout << "building chunk " << pos.x << " " << pos.y << " " << pos.z << "\n";
+            chunk->setPos(pos);
+            for (int x = 0; x < 128; x++) {
+                for (int z = 0; z < 128; z++) {
+                    float r00 = pos_rand(x / 16, z / 16);
+                    float r01 = pos_rand(x / 16, z / 16 + 1);
+                    float r10 = pos_rand(x / 16 + 1, z / 16);
+                    float r11 = pos_rand(x / 16 + 1, z / 16 + 1);
+                    float fx = float(x % 16) / 16;
+                    float fz = float(z % 16) / 16;
+                    float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
+                    float h = r * 10 + 2;
+                    for (int y = 0; y < 128; y++) {
+                        int dx = x - 64;
+                        int dy = y - 64;
+                        int dz = z - 64;
+                        int d = dx * dx + dy * dy + dz * dz;
+                        int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
+                        int v = chunk->voxelBuffer[x + (z + y * 128) * 128] = y <
+                                                                              h; // dx * dx + dy * dy + dz * dz < 32 * 32; //x / 4 + y / 4 + z / 4 < 16 ? 1 : 0;
+                    }
+                }
+            }
+            chunk->rebuildRenderBuffer();
+            std::cout << "complete\n";
+        }
+        return chunk;
     });
     std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 
@@ -126,17 +124,13 @@ int main(int argc, char* argv[]) {
     std::cout << "chunk region tier 1 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_1 << "\n";
     std::cout << "chunk region tier 2 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_2 << "\n";
 
-    int maxBufferTextureSize;
-    glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxBufferTextureSize);
-    std::cout << "max buffer texture size " << (maxBufferTextureSize / 128 / 128 / 128) << "\n";
-
     // init shader and uniforms
     gl::Shader shader("../test_shader.vertex", "../test_shader.fragment");
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 
     // start
-    float posX = 0, posY = 64, posZ = 0, cameraYaw = 0;
+    float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
 
     int frame = 0;
     float last_fps_time = get_time_since_start();
@@ -150,10 +144,11 @@ int main(int argc, char* argv[]) {
 
         renderEngine.updateVisibleChunks();
         renderEngine.prepareForRender(shader);
+
         camera->sendParametersToShader(shader);
         glUniform1f(shader.getUniform("TIME"), get_time_since_start());
 
-        float unitMove = 2.0, unitRotation = -0.025;
+        float unitMove = 10.0, unitRotation = -0.1;
         if (glfwGetKey(window, GLFW_KEY_Q)) {
             cameraYaw -= unitRotation;
         }
