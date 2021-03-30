@@ -335,6 +335,11 @@ void Camera::sendParametersToShader(gl::Shader& shader) {
 }
 
 
+void OrthographicCamera::setNearAndFarPlane(float near, float far) {
+    this->near = near;
+    this->far = far;
+}
+
 void OrthographicCamera::_addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap, int level, float viewExpand, bool useEmplace) {
     Vec3 forward(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
     Vec3 right = VecMath::normalize(Vec3(forward.z, 0, -forward.x));
@@ -363,7 +368,7 @@ void OrthographicCamera::_addAllVisiblePositions(std::unordered_map<ChunkPos, in
 
     for (int y = 0; y <= height; y++) {
         for (int x = 0; x <= width; x++) {
-            Vec3 ray_start = position + forward * -128 +
+            Vec3 ray_start = position + forward * near +
                     right * ((float(x) - float(width) / 2) * VoxelChunk::DEFAULT_CHUNK_SIZE) +
                     up * ((float(y) - float(height) / 2) * VoxelChunk::DEFAULT_CHUNK_SIZE);
 
@@ -377,7 +382,8 @@ void OrthographicCamera::_addAllVisiblePositions(std::unordered_map<ChunkPos, in
             );
 
             float distance = 0;
-            while (distance < 5) {
+            float maxDistance = (far - near) / VoxelChunk::DEFAULT_CHUNK_SIZE;
+            while (distance < maxDistance) {
                 if (useEmplace) {
                     visibilityMap.emplace(ChunkPos(position.x, position.y, position.z), level);
                 } else {

@@ -175,7 +175,9 @@ public:
 
 class OrthographicCamera : public Camera {
 public:
-    float near = 0, far = 100;
+    float near = -128, far = 384;
+
+    void setNearAndFarPlane(float near, float far);
 
 private:
     void _addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap, int level, float viewExpand, bool useEmplace);
