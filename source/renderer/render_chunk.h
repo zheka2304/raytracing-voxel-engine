@@ -86,6 +86,8 @@ private:
     VoxelChunk(int sizeX, int sizeY, int sizeZ);
 public:
     VoxelChunk();
+    VoxelChunk(VoxelChunk const& other);
+
     void setPos(ChunkPos const& pos);
 
     void rebuildRenderBuffer();
@@ -100,6 +102,8 @@ public:
 
 class RenderChunk {
 public:
+    static const int FULL_CHUNK_UPDATE = 64;
+
     static const int VISIBILITY_LEVEL_NOT_VISIBLE = 0;
     static const int VISIBILITY_LEVEL_NEAR_VIEW = 1;
     static const int VISIBILITY_LEVEL_VISIBLE = 2;
@@ -114,9 +118,9 @@ private:
     // reload queue contains region indices to update
     std::unordered_map<int, int> regionUpdateQueue;
     // separately queueing full update is an option
-    std::atomic<bool> fullUpdateQueued = false;
 
 public:
+    std::atomic<bool> fullUpdateQueued = false;
     VoxelRenderEngine* renderEngine;
     int chunkBufferOffset = -1;
 
@@ -130,7 +134,7 @@ public:
     void setPos(int x, int y, int z);
     void setChunkBufferOffset(int offset);
     void _attach(VoxelChunk* chunk);
-    void runAllUpdates(int maxRegionUpdates = -1);
+    int runAllUpdates(int maxRegionUpdates = -1);
     ~RenderChunk();
 };
 
@@ -173,6 +177,9 @@ class OrthographicCamera : public Camera {
 public:
     float near = 0, far = 100;
 
+private:
+    void _addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap, int level, float viewExpand, bool useEmplace);
+public:
     void addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap) override;
 
 };

@@ -48,6 +48,12 @@ VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) {
     renderBuffer = new unsigned int[renderBufferLen = SUB_REGION_BUFFER_SIZE_2 * rSizeX * rSizeY * rSizeZ];
 }
 
+VoxelChunk::VoxelChunk(const VoxelChunk &other) : VoxelChunk(other.sizeX, other.sizeY, other.sizeZ) {
+    setPos(other.position);
+    memcpy(voxelBuffer, other.voxelBuffer, voxelBufferLen * sizeof(unsigned int));
+    memcpy(renderBuffer, other.renderBuffer, renderBufferLen * sizeof(unsigned int));
+}
+
 void VoxelChunk::setPos(const ChunkPos &pos) {
     position = pos;
 }
@@ -240,7 +246,7 @@ void RenderChunk::_attach(VoxelChunk* newChunk) {
     chunkMutex.unlock();
 }
 
-void RenderChunk::runAllUpdates(int maxRegionUpdates) {
+int RenderChunk::runAllUpdates(int maxRegionUpdates) {
     if (fullUpdateQueued) {
         // clear all other queued updates
         chunkMutex.lock();
@@ -255,9 +261,12 @@ void RenderChunk::runAllUpdates(int maxRegionUpdates) {
                         chunk->renderBufferLen * sizeof(unsigned int),
                         chunk->renderBuffer);
         glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+        return FULL_CHUNK_UPDATE;
     } else {
-        glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
         int update_count = 0;
+
+        glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
         while(maxRegionUpdates < 0 || update_count < maxRegionUpdates) {
             // lock and pop first element of the map
             chunkMutex.lock();
@@ -279,6 +288,8 @@ void RenderChunk::runAllUpdates(int maxRegionUpdates) {
             update_count++;
         }
         glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+        return update_count;
     }
 }
 
@@ -324,14 +335,32 @@ void Camera::sendParametersToShader(gl::Shader& shader) {
 }
 
 
-void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap) {
+void OrthographicCamera::_addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap, int level, float viewExpand, bool useEmplace) {
     Vec3 forward(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
     Vec3 right = VecMath::normalize(Vec3(forward.z, 0, -forward.x));
     Vec3 up = VecMath::cross(forward, right);
 
     float w = viewport[2], h = viewport[3];
-    int width = (int) ceil(w / VoxelChunk::DEFAULT_CHUNK_SIZE);
-    int height = (int) ceil(h / VoxelChunk::DEFAULT_CHUNK_SIZE);
+    int width = (int) ceil(w / VoxelChunk::DEFAULT_CHUNK_SIZE + viewExpand);
+    int height = (int) ceil(h / VoxelChunk::DEFAULT_CHUNK_SIZE + viewExpand);
+
+    Vec3i step(
+            forward.x > 0 ? 1 : -1,
+            forward.y > 0 ? 1 : -1,
+            forward.z > 0 ? 1 : -1
+    );
+
+    Vec3 rSqr = forward * forward;
+    if (rSqr.x == 0) rSqr.x = 1e-8;
+    if (rSqr.y == 0) rSqr.y = 1e-8;
+    if (rSqr.z == 0) rSqr.z = 1e-8;
+
+    Vec3 rayS(
+            sqrt(1.0 + rSqr.y / rSqr.x + rSqr.z / rSqr.x),
+            sqrt(1.0 + rSqr.x / rSqr.y + rSqr.z / rSqr.y),
+            sqrt(1.0 + rSqr.x / rSqr.z + rSqr.y / rSqr.z)
+    );
+
     for (int y = 0; y <= height; y++) {
         for (int x = 0; x <= width; x++) {
             Vec3 ray_start = position + forward * -128 +
@@ -341,23 +370,6 @@ void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int
             Vec3 position_f = ray_start / VoxelChunk::DEFAULT_CHUNK_SIZE;
             Vec3i position = VecMath::floor_to_int(position_f);
 
-            Vec3i step(
-                    forward.x > 0 ? 1 : -1,
-                    forward.y > 0 ? 1 : -1,
-                    forward.z > 0 ? 1 : -1
-            );
-
-            Vec3 rSqr = forward * forward;
-            if (rSqr.x == 0) rSqr.x = 1e-8;
-            if (rSqr.y == 0) rSqr.y = 1e-8;
-            if (rSqr.z == 0) rSqr.z = 1e-8;
-
-            Vec3 rayS(
-                    sqrt(1.0 + rSqr.y / rSqr.x + rSqr.z / rSqr.x),
-                    sqrt(1.0 + rSqr.x / rSqr.y + rSqr.z / rSqr.y),
-                    sqrt(1.0 + rSqr.x / rSqr.z + rSqr.y / rSqr.z)
-            );
-
             Vec3 rayL(
                     (forward.x > 0 ? (float(position.x) + 1 - position_f.x) : (position_f.x - float(position.x))) * rayS.x,
                     (forward.y > 0 ? (float(position.y) + 1 - position_f.y) : (position_f.y - float(position.y))) * rayS.y,
@@ -366,9 +378,11 @@ void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int
 
             float distance = 0;
             while (distance < 5) {
-                if (position.y == 0)
-                    visibilityMap.emplace(ChunkPos(position.x, position.y, position.z), 2);
-
+                if (useEmplace) {
+                    visibilityMap.emplace(ChunkPos(position.x, position.y, position.z), level);
+                } else {
+                    visibilityMap[ChunkPos(position.x, position.y, position.z)] = level;
+                }
                 if (rayL.x < rayL.y) {
                     if (rayL.x < rayL.z) {
                         position.x += step.x;
@@ -393,7 +407,14 @@ void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int
             }
         }
     }
+}
+
+void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap) {
+    _addAllVisiblePositions(visibilityMap, RenderChunk::VISIBILITY_LEVEL_NEAR_VIEW, 3, true);
+    _addAllVisiblePositions(visibilityMap, RenderChunk::VISIBILITY_LEVEL_VISIBLE, 0, false);
+
     /*
+    std::cout << "visibility debug (y = 0, -5 <= x,z <= 5): \n";
     for (int z = -5; z <= 5; z++) {
         for (int x = -5; x <= 5; x++) {
             ChunkPos p(x, 0, z);
@@ -407,7 +428,6 @@ void OrthographicCamera::addAllVisiblePositions(std::unordered_map<ChunkPos, int
     }
     std::cout << "\n"; */
 }
-
 
 DebugChunkSource::DebugChunkSource(std::function<VoxelChunk *(ChunkPos)> providerFunc) : chunkProviderFunc(std::move(providerFunc)) {
 
@@ -441,7 +461,6 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<ChunkSource> chunkSource, s
     chunkBuffer = new gl::BufferTexture(bufferSize * sizeof(unsigned int), nullptr);
     chunkBufferSize = bufferSize / VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE;
 
-
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
 }
 
@@ -454,20 +473,29 @@ RenderChunk* VoxelRenderEngine::getNewRenderChunk(int reuseVisibilityLevel) {
         if (totalRenderChunkInstances < chunkBufferSize) {
             totalRenderChunkInstances++;
             RenderChunk* renderChunk = new RenderChunk(this);
+
+            bool bufferOffsetFound = false;
             for (int i = 0; i < chunkBufferSize; i++) {
                 if (!chunkBufferUsage[i]) {
                     chunkBufferUsage[i] = true;
                     renderChunk->setChunkBufferOffset(i * VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE);
+                    bufferOffsetFound = true;
                     break;
                 }
             }
+            if (!bufferOffsetFound) {
+                std::cout << "failed to find buffer offset!\n";
+            }
+
             return renderChunk;
         } else {
-            for (auto it = renderChunkMap.begin(); it != renderChunkMap.end(); it++) {
-                if (it->second->visibilityLevel <= reuseVisibilityLevel) {
-                    RenderChunk* renderChunk = it->second;
-                    renderChunkMap.erase(it);
-                    return renderChunk;
+            for (int reuseLevel = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE; reuseLevel <= reuseVisibilityLevel; reuseLevel++) {
+                for (auto it = renderChunkMap.begin(); it != renderChunkMap.end(); it++) {
+                    if (it->second->visibilityLevel == reuseLevel) {
+                        RenderChunk *renderChunk = it->second;
+                        renderChunkMap.erase(it);
+                        return renderChunk;
+                    }
                 }
             }
             return nullptr;
@@ -486,30 +514,48 @@ void VoxelRenderEngine::updateVisibleChunks() {
     std::unordered_map<ChunkPos, int> visibilityUpdatesMap;
     camera->addAllVisiblePositions(visibilityUpdatesMap);
     std::list<std::pair<ChunkPos, int>> newVisibleChunks;
-    for (auto const& posAndChunk : renderChunkMap) {
+    for (auto const &posAndChunk : renderChunkMap) {
         posAndChunk.second->visibilityLevel = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE;
     }
-    for (auto const& posAndLevel : visibilityUpdatesMap) {
+
+    int visibilityUpdateCount = 0;
+    std::list<RenderChunk *> nonUrgentVisibilityUpdates;
+
+    for (auto const &posAndLevel : visibilityUpdatesMap) {
         auto it = renderChunkMap.find(posAndLevel.first);
         if (it != renderChunkMap.end()) {
             it->second->visibilityLevel = posAndLevel.second;
             if (posAndLevel.second == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
-                it->second->runAllUpdates();
+                visibilityUpdateCount += it->second->runAllUpdates();
+            } else if (posAndLevel.second == RenderChunk::VISIBILITY_LEVEL_NEAR_VIEW) {
+                nonUrgentVisibilityUpdates.emplace_back(it->second);
             }
         } else {
             newVisibleChunks.emplace_back(posAndLevel);
         }
     }
+
+    // TODO: maybe calculate this value instead of using constant
+    int maxVisibilityUpdates = 16;
+    for (auto it = nonUrgentVisibilityUpdates.begin(); visibilityUpdateCount < maxVisibilityUpdates && it != nonUrgentVisibilityUpdates.end(); it++) {
+        visibilityUpdateCount += (*it)->runAllUpdates();
+    }
+
     for (auto const &posAndLevel : newVisibleChunks) {
-        if (posAndLevel.second == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
-            VoxelChunk* chunk = chunkSource->getChunkAt(posAndLevel.first);
+        if (posAndLevel.second > RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE) {
+            VoxelChunk *chunk = chunkSource->getChunkAt(posAndLevel.first);
             if (chunk != nullptr) {
-                RenderChunk* renderChunk = getNewRenderChunk();
+                RenderChunk *renderChunk = getNewRenderChunk(posAndLevel.second - 1);
                 if (renderChunk != nullptr) {
-                    renderChunkMap.emplace(posAndLevel.first, renderChunk);
+                    renderChunkMap[posAndLevel.first] = renderChunk;
                     renderChunk->setPos(posAndLevel.first.x, posAndLevel.first.y, posAndLevel.first.z);
+                    renderChunk->visibilityLevel = posAndLevel.second;
                     chunk->attachRenderChunk(renderChunk);
-                    renderChunk->runAllUpdates();
+
+                    // update new chunk only if it is visible
+                    if (renderChunk->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
+                        renderChunk->runAllUpdates();
+                    }
                 }
             }
         }
@@ -535,7 +581,6 @@ void VoxelRenderEngine::updateVisibleChunks() {
 
     std::cout << "visible=" << visible_count << " near_visible=" << near_visible_count << " not_visible=" << not_visible_count << " pooled=" << pooled_count << "\n";
     */
-
 }
 
 void VoxelRenderEngine::prepareForRender(gl::Shader& shader) {

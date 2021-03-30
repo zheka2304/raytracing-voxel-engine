@@ -46,38 +46,41 @@ float pos_rand(int x, int z) {
 
 
 int main(int argc, char* argv[]) {
-    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<DebugChunkSource>([&] (ChunkPos const& pos) -> VoxelChunk* {
-        static VoxelChunk* chunk;
-        if (chunk == nullptr) {
-            chunk = new VoxelChunk();
-            std::cout << "building chunk " << pos.x << " " << pos.y << " " << pos.z << "\n";
-            chunk->setPos(pos);
-            for (int x = 0; x < 128; x++) {
-                for (int z = 0; z < 128; z++) {
-                    float r00 = pos_rand(x / 16, z / 16);
-                    float r01 = pos_rand(x / 16, z / 16 + 1);
-                    float r10 = pos_rand(x / 16 + 1, z / 16);
-                    float r11 = pos_rand(x / 16 + 1, z / 16 + 1);
-                    float fx = float(x % 16) / 16;
-                    float fz = float(z % 16) / 16;
-                    float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
-                    float h = r * 32 + 8;
-                    for (int y = 0; y < 128; y++) {
-                        int dx = x - 64;
-                        int dy = y - 64;
-                        int dz = z - 64;
-                        int d = dx * dx + dy * dy + dz * dz;
-                        int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
-                        int v = chunk->voxelBuffer[x + (z + y * 128) * 128] = y <
-                                                                              h; // dx * dx + dy * dy + dz * dz < 32 * 32; //x / 4 + y / 4 + z / 4 < 16 ? 1 : 0;
-                    }
-                }
+
+    VoxelChunk baseChunk;
+    std::cout << "building chunk\n";
+    for (int x = 0; x < 128; x++) {
+        for (int z = 0; z < 128; z++) {
+            float r00 = pos_rand(x / 16, z / 16);
+            float r01 = pos_rand(x / 16, z / 16 + 1);
+            float r10 = pos_rand(x / 16 + 1, z / 16);
+            float r11 = pos_rand(x / 16 + 1, z / 16 + 1);
+            float fx = float(x % 16) / 16;
+            float fz = float(z % 16) / 16;
+            float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
+            float h = r * 32 + 8;
+            for (int y = 0; y < 128; y++) {
+                int dx = x - 64;
+                int dy = y - 64;
+                int dz = z - 64;
+                int d = dx * dx + dy * dy + dz * dz;
+                int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
+                int v = baseChunk.voxelBuffer[x + (z + y * 128) * 128] = y < h;
             }
-            chunk->rebuildRenderBuffer();
-            std::cout << "complete\n";
         }
-        return chunk;
+    }
+    baseChunk.rebuildRenderBuffer();
+    std::cout << "complete\n";
+
+    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<DebugChunkSource>([&] (ChunkPos const& pos) -> VoxelChunk* {
+        if (pos.y == 0) {
+            VoxelChunk* chunk = new VoxelChunk(baseChunk);
+            chunk->setPos(pos);
+            return chunk;
+        }
+        return nullptr;
     });
+
     std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 
 
