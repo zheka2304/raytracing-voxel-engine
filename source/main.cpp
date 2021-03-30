@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
                     float fx = float(x % 16) / 16;
                     float fz = float(z % 16) / 16;
                     float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
-                    float h = r * 10 + 2;
+                    float h = r * 32 + 8;
                     for (int y = 0; y < 128; y++) {
                         int dx = x - 64;
                         int dy = y - 64;
@@ -123,6 +123,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "chunk region tier 1 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_1 << "\n";
     std::cout << "chunk region tier 2 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_2 << "\n";
+    std::cout << "chunk total region size " << VoxelChunk::SUB_REGION_TOTAL_SIZE << "\n";
 
     // init shader and uniforms
     gl::Shader shader("../test_shader.vertex", "../test_shader.fragment");
@@ -132,6 +133,7 @@ int main(int argc, char* argv[]) {
     // start
     float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
 
+    int f = 5;
     int frame = 0;
     float last_fps_time = get_time_since_start();
     while(!glfwWindowShouldClose(window)) {
@@ -142,8 +144,10 @@ int main(int argc, char* argv[]) {
         camera->setRotation(cameraYaw, -3.1415f / 4);
         camera->setViewport(0, 0, 480 / 2, 270 / 2);
 
-        renderEngine.updateVisibleChunks();
-        renderEngine.prepareForRender(shader);
+        if (f > 0) {
+            renderEngine.updateVisibleChunks();
+            renderEngine.prepareForRender(shader);
+        }
 
         camera->sendParametersToShader(shader);
         glUniform1f(shader.getUniform("TIME"), get_time_since_start());

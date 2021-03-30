@@ -43,7 +43,7 @@ public:
     static const int DEFAULT_CHUNK_SIZE = 128;
 
     // 8x8x8 of sub regions of tier 1
-    static const int SUB_REGION_SIZE_2_BITS = 3;
+    static const int SUB_REGION_SIZE_2_BITS = 2;
     static const int SUB_REGION_SIZE_2 = 1 << SUB_REGION_SIZE_2_BITS;
     static const int SUB_REGION_SIZE_2_MASK = SUB_REGION_SIZE_2 - 1;
     // 4x4x4 of voxels
