@@ -71,8 +71,6 @@ float get_end_region_distance(vec3 start, vec3 ray, vec3 rayS, float region_size
 }
 
 uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) {
-    ivec3 unit_pos_step = raytrace_data.pos_step;
-
     float end_region_distance_chunk = get_end_region_distance(raytrace_data.start, raytrace_data.ray, raytrace_data.rayS, 128.0);
     float end_region_distance_tier2 = get_end_region_distance(raytrace_data.start, raytrace_data.ray, raytrace_data.rayS, 32.0);
     float end_region_distance_tier1 = get_end_region_distance(raytrace_data.start, raytrace_data.ray, raytrace_data.rayS, 8.0);
@@ -91,8 +89,9 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
 
         // if in bound of chunk, raytrace it
         if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < CHUNK_COUNT.x && chunk_pos_off.y < CHUNK_COUNT.y && chunk_pos_off.z < CHUNK_COUNT.z) {
+            // get buffer offset from chunk
             int chunk_buffer_offset = CHUNK_DATA_OFFSETS_IN_BUFFER[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * CHUNK_COUNT.z) * CHUNK_COUNT.z];
-
+            // iterate while inside this chunk
             while (i < max_steps) {
                 if (raytrace_data.distance < end_region_distance_chunk) {
                     // raytrace over tier 2 region
@@ -158,12 +157,11 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
                     break;
                 }
             }
-
         } else {
             RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 128); i++;
         }
 
-        // find next chunk
+        // find next chunk bound
         end_region_distance_chunk = raytrace_data.distance + get_end_region_distance(raytrace_data.start + raytrace_data.distance * raytrace_data.ray, raytrace_data.ray, raytrace_data.rayS, 128.0);
     }
     distance_to_voxel = raytrace_data.distance;
