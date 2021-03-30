@@ -204,10 +204,16 @@ void VoxelRenderEngine::prepareForRender(gl::Shader& shader) {
         chunkBuffer->bind();
 
         shader.use();
-        glUniform3i(shader.getUniform("CHUNK_OFFSET"), offset[0], offset[1], offset[2]);
-        glUniform3i(shader.getUniform("CHUNK_COUNT"), count[0], count[1], count[2]);
-        glUniform1ui(shader.getUniform("CHUNK_BUFFER"), 1);
-        glUniform1iv(shader.getUniform("CHUNK_DATA_OFFSETS_IN_BUFFER"), MAX_RENDER_CHUNK_INSTANCES, chunkTextureOffsets);
+
+        UNIFORM_HANDLE(chunk_offset_uniform, shader, "CHUNK_OFFSET");
+        UNIFORM_HANDLE(chunk_count_uniform, shader, "CHUNK_COUNT");
+        UNIFORM_HANDLE(chunk_buffer_uniform, shader, "CHUNK_BUFFER");
+        UNIFORM_HANDLE(chunk_buffer_offsets_uniform, shader, "CHUNK_DATA_OFFSETS_IN_BUFFER");
+
+        glUniform3i(chunk_offset_uniform, offset[0], offset[1], offset[2]);
+        glUniform3i(chunk_count_uniform, count[0], count[1], count[2]);
+        glUniform1ui(chunk_buffer_uniform, 1);
+        glUniform1iv(chunk_buffer_offsets_uniform, MAX_RENDER_CHUNK_INSTANCES, chunkTextureOffsets);
     } else {
         // no chunks in view
         glUniform3i(shader.getUniform("CHUNK_COUNT"), 0, 0, 0);
