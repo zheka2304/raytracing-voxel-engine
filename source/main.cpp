@@ -8,9 +8,9 @@
 #include <iostream>
 #include <chrono>
 
-#include "renderer/util.h"
-#include "renderer/render_chunk.h"
 #include "common/simple-profiler.h"
+#include "engine/voxel_chunk.h"
+#include "renderer/render_engine.h"
 
 
 long long get_time_milliseconds() {

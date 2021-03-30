@@ -1,8 +1,5 @@
-//
-// Created by zheka on 3/29/2021.
-//
-
 #include "vec.h"
+
 
 Vec2::Vec2() : x(0), y(0) {
 

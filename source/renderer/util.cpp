@@ -1,9 +1,9 @@
-
 #include <iostream>
 #include <fstream>
 #include <streambuf>
 
 #include "util.h"
+
 
 namespace gl {
     Texture::Texture(int width, int height, int mode, GLbyte *data) {
