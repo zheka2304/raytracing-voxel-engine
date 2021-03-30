@@ -42,9 +42,6 @@ struct RaytraceData {
     vec3 rayS; // S value for each coordinate
     float distance; // total distance
     ivec3 pos; // cell position
-    int index; // cell index
-    ivec3 pos_step;
-    ivec3 index_step;
 };
 
 #define RAYTRACE_DDA_STEP_OVER(RAYTRACE_DATA, END_DIS) { \
