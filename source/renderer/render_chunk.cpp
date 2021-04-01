@@ -23,7 +23,9 @@ void RenderChunk::setChunkBufferOffset(int offset) {
 void RenderChunk::_attach(VoxelChunk* newChunk) {
     chunkMutex.lock();
     if (chunk != newChunk) {
+        if (chunk != nullptr) chunk->renderChunk = nullptr;
         chunk = newChunk;
+        if (chunk != nullptr) chunk->renderChunk = this;
         if (chunk != nullptr) {
             fullUpdateQueued = true;
         } else {

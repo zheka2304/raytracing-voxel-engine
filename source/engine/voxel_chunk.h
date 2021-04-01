@@ -6,9 +6,16 @@
 
 
 class RenderChunk;
+class ChunkSource;
 
 class VoxelChunk {
 public:
+    enum ChunkState : int {
+        STATE_INITIALIZED = 0,
+        STATE_GENERATED = 1,
+        STATE_BAKED = 2
+    };
+
     // 8x8x8 of sub regions of tier 1
     static const int SUB_REGION_SIZE_2_BITS = 2;
     static const int SUB_REGION_SIZE_2 = 1 << SUB_REGION_SIZE_2_BITS;
@@ -49,13 +56,18 @@ public:
     RenderChunk* renderChunk = nullptr;
 
     ChunkPos position;
+    ChunkState state = STATE_INITIALIZED;
+    ChunkSource* chunkSource = nullptr;
 private:
     VoxelChunk(int sizeX, int sizeY, int sizeZ);
 public:
     VoxelChunk();
     VoxelChunk(VoxelChunk const& other);
+    bool copyFrom(VoxelChunk const& other);
 
+    void setChunkSource(ChunkSource* source);
     void setPos(ChunkPos const& pos);
+    void setState(ChunkState newState);
 
     void rebuildRenderBuffer();
     unsigned int calcNormal(int x, int y, int z);

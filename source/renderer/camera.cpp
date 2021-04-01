@@ -1,5 +1,6 @@
 #include "camera.h"
 #include "render_chunk.h"
+#include "engine/chunk_source.h"
 
 
 void Camera::setPosition(Vec3 const& pos) {
@@ -19,6 +20,7 @@ void Camera::setViewport(float x, float y, float w, float h) {
 }
 
 void Camera::addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap) {
+    // add debug chunks
     visibilityMap.emplace(ChunkPos(0, 0, 0), 2);
     visibilityMap.emplace(ChunkPos(1, 0, 0), 2);
     visibilityMap.emplace(ChunkPos(0, 0, 1), 2);
@@ -33,6 +35,14 @@ void Camera::sendParametersToShader(gl::Shader& shader) {
     glUniform4f(viewport_uniform, viewport[0], viewport[1], viewport[2], viewport[3]);
     glUniform3f(camera_position_uniform, position.x, position.y, position.z);
     glUniform3f(camera_ray_uniform, cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
+}
+
+void Camera::requestChunksFromSource(std::shared_ptr<ChunkSource> chunkSource) {
+    std::unordered_map<ChunkPos, int> visibilityMap;
+    addAllVisiblePositions(visibilityMap);
+    for (auto const& posAndVisibility : visibilityMap) {
+        chunkSource->requestChunk(posAndVisibility.first);
+    }
 }
 
 

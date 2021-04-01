@@ -21,14 +21,30 @@ VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) {
     renderBuffer = new unsigned int[renderBufferLen = SUB_REGION_BUFFER_SIZE_2 * rSizeX * rSizeY * rSizeZ];
 }
 
-VoxelChunk::VoxelChunk(const VoxelChunk &other) : VoxelChunk(other.sizeX, other.sizeY, other.sizeZ) {
-    setPos(other.position);
-    memcpy(voxelBuffer, other.voxelBuffer, voxelBufferLen * sizeof(unsigned int));
-    memcpy(renderBuffer, other.renderBuffer, renderBufferLen * sizeof(unsigned int));
+VoxelChunk::VoxelChunk(VoxelChunk const& other) : VoxelChunk(other.sizeX, other.sizeY, other.sizeZ) {
+    copyFrom(other);
 }
 
-void VoxelChunk::setPos(const ChunkPos &pos) {
+bool VoxelChunk::copyFrom(VoxelChunk const& other) {
+    if (other.sizeX == sizeX && other.sizeY == sizeY && other.sizeZ == sizeZ) {
+        setPos(other.position);
+        memcpy(voxelBuffer, other.voxelBuffer, voxelBufferLen * sizeof(unsigned int));
+        memcpy(renderBuffer, other.renderBuffer, renderBufferLen * sizeof(unsigned int));
+        return true;
+    }
+    return false;
+}
+
+void VoxelChunk::setChunkSource(ChunkSource* source) {
+    chunkSource = source;
+}
+
+void VoxelChunk::setPos(ChunkPos const& pos) {
     position = pos;
+}
+
+void VoxelChunk::setState(ChunkState newState) {
+    state = newState;
 }
 
 unsigned int VoxelChunk::calcNormal(int x, int y, int z) {
@@ -185,6 +201,7 @@ void VoxelChunk::attachRenderChunk(RenderChunk* newRenderChunk) {
 }
 
 VoxelChunk::~VoxelChunk() {
+    attachRenderChunk(nullptr);
     delete(voxelBuffer);
     delete(renderBuffer);
 }

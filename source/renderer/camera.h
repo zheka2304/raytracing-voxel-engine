@@ -3,11 +3,14 @@
 #define VOXEL_ENGINE_CAMERA_H
 
 #include <unordered_map>
+#include <memory>
 
 #include "common/vec.h"
 #include "common/chunk_pos.h"
 #include "util.h"
 
+
+class ChunkSource;
 
 class Camera {
 public:
@@ -23,6 +26,8 @@ public:
     virtual void addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap);
     virtual void sendParametersToShader(gl::Shader& shader);
 
+    // checks current visibility and requests chunks from source
+    virtual void requestChunksFromSource(std::shared_ptr<ChunkSource> chunkSource);
 };
 
 class OrthographicCamera : public Camera {
