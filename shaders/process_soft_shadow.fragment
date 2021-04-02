@@ -10,23 +10,45 @@ varying vec4 color;
 varying vec2 uv;
 
 #define MUL_0 1.0
-#define MUL_1 0.7
-#define MUL_2 0.4
+#define MUL_1 1.0
+#define MUL_2 1.0
 
-#define MUL_SUM (MUL_0 + MUL_1 * 4 + MUL_2 * 4)
-#define N_MUL_0 (MUL_0 / MUL_SUM)
-#define N_MUL_1 (MUL_1 / MUL_SUM)
-#define N_MUL_2 (MUL_2 / MUL_SUM)
+#define ADD_TO_BLEND0(LIGHT_VAR, SUM_VAR, F_VAR, BASE_DEPTH, UV_DELTA, FACTOR, NEXT_SAMPLE) \
+    { \
+        float F_VAR = exp(-abs(texture(TEXTURE_2, uv + UV_DELTA).r - BASE_DEPTH) * 100.0) * FACTOR; \
+        LIGHT_VAR += texture(TEXTURE_1, uv + UV_DELTA) * F_VAR; \
+        SUM_VAR += F_VAR; \
+        NEXT_SAMPLE \
+    }
+
+#ifdef HIGH_QUALITY_SHADOWS
+#define ADD_TO_BLEND(LIGHT_VAR, SUM_VAR, BASE_DEPTH, UV_DELTA, FACTOR) \
+    ADD_TO_BLEND0(LIGHT_VAR, SUM_VAR, f0, BASE_DEPTH, UV_DELTA, FACTOR, { \
+        ADD_TO_BLEND0(LIGHT_VAR, SUM_VAR, f1, BASE_DEPTH, UV_DELTA * 2, (FACTOR) * f0, {}) \
+    })
+#else
+#define ADD_TO_BLEND(LIGHT_VAR, SUM_VAR, BASE_DEPTH, UV_DELTA, FACTOR) \
+    ADD_TO_BLEND0(LIGHT_VAR, SUM_VAR, f0, BASE_DEPTH, UV_DELTA, FACTOR, {})
+#endif
 
 void main() {
-    vec4 light = texture(TEXTURE_1, uv) * N_MUL_0 +
-                  texture(TEXTURE_1, uv + vec2(BLEND_RADIUS.x, 0)) * N_MUL_1 +
-                  texture(TEXTURE_1, uv + vec2(-BLEND_RADIUS.x, 0)) * N_MUL_1 +
-                  texture(TEXTURE_1, uv + vec2(0, BLEND_RADIUS.y)) * N_MUL_1 +
-                  texture(TEXTURE_1, uv + vec2(0, -BLEND_RADIUS.y)) * N_MUL_1 +
-                  texture(TEXTURE_1, uv + vec2(BLEND_RADIUS.x, BLEND_RADIUS.y)) * N_MUL_2 +
-                  texture(TEXTURE_1, uv + vec2(-BLEND_RADIUS.x, BLEND_RADIUS.y)) * N_MUL_2 +
-                  texture(TEXTURE_1, uv + vec2(BLEND_RADIUS.x, -BLEND_RADIUS.y)) * N_MUL_2 +
-                  texture(TEXTURE_1, uv + vec2(-BLEND_RADIUS.x, -BLEND_RADIUS.y)) * N_MUL_2;
+    #ifdef SOFT_SHADOWS
+        vec4 light = vec4(0.0);
+        float s = 0.0;
+        float base_depth = texture(TEXTURE_2, uv).r;
+        ADD_TO_BLEND(light, s, base_depth, vec2(0, 0), MUL_0);
+        ADD_TO_BLEND(light, s, base_depth, vec2(BLEND_RADIUS.x, 0), MUL_1);
+        ADD_TO_BLEND(light, s, base_depth, vec2(-BLEND_RADIUS.x, 0), MUL_1);
+        ADD_TO_BLEND(light, s, base_depth, vec2(0, BLEND_RADIUS.y), MUL_1);
+        ADD_TO_BLEND(light, s, base_depth, vec2(0, -BLEND_RADIUS.y), MUL_1);
+        ADD_TO_BLEND(light, s, base_depth, vec2(BLEND_RADIUS.x, BLEND_RADIUS.y), MUL_2);
+        ADD_TO_BLEND(light, s, base_depth, vec2(-BLEND_RADIUS.x, BLEND_RADIUS.y), MUL_2);
+        ADD_TO_BLEND(light, s, base_depth, vec2(BLEND_RADIUS.x, -BLEND_RADIUS.y), MUL_2);
+        ADD_TO_BLEND(light, s, base_depth, vec2(-BLEND_RADIUS.x, -BLEND_RADIUS.y), MUL_2);
+        light /= s;
+    #else
+        vec4 light = texture(TEXTURE_1, uv);
+    #endif
+
     gl_FragColor = texture(TEXTURE_0, uv) * light;
 }

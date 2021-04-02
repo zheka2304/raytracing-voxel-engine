@@ -189,6 +189,7 @@ void raytrace(
         vec3 ray,
         int max_steps,
         float max_distance,
+        float max_distance_light,
         out vec3 out_color,
         out float out_depth,
         out vec3 out_light
@@ -207,8 +208,9 @@ void raytrace(
         return;
     }
 
-    vec3 light_dir = normalize(vec3(sin(TIME), 0.4, cos(TIME)));
-    float shadow = raytrace_direct(floor(start + ray * (distance_to_voxel - 1.0)) + 0.5, light_dir, max_steps, max_distance, steps_made, distance_to_voxel) == 0u ? 1.0 : 0.5;
+    vec3 ray_end = floor(start + ray * (distance_to_voxel - 1.0)) + 0.5;
+    vec3 light_dir = -normalize(ray_end + vec3(0.0, -100.0, 0.0)); //normalize(vec3(sin(TIME), 0.4, cos(TIME)));
+    float shadow = raytrace_direct(ray_end, light_dir, max_steps - steps_made, max_distance_light, steps_made, distance_to_voxel) == 0u ? 1.0 : 0.5;
 
     uint packed_normal = result >> 8;
     uint nx = (packed_normal >> 16) & 0xFFu;
@@ -216,7 +218,7 @@ void raytrace(
     uint nz = (packed_normal >> 0) & 0xFFu;
     vec3 normal = vec3(float(nx), float(ny), float(nz)) / 127.0 - 1.0;
 
-    out_light = vec3((dot(normalize(vec3(1.0, -1.0, 0.5)), normal) * 0.5 + 0.5) * shadow);
+    out_light = vec3(max(0.0, dot(-light_dir, normal) * 0.5 + 0.5) * shadow);
     out_color = vec3(1.0);
 }
 
@@ -237,11 +239,13 @@ void main() {
         CAMERA_RAY,           // ray
         200,                  // max steps
         300,                  // max distance
+        75,                   // max light distance
         out_color,            // result color
         out_depth,            // result depth
         out_light             // result light color
     );
     gl_FragData[0] = vec4(out_color, 1.0);
     gl_FragData[1] = vec4(out_light, 1.0);
+    gl_FragData[2] = vec4(vec3(out_depth / 300.0), 1.0);
     gl_FragDepth = out_depth / 300.0;
 }

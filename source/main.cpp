@@ -143,11 +143,11 @@ int main(int argc, char* argv[]) {
 
     // init shader and uniforms
     gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
-    gl::Shader textureShader("texture.vertex", "process_soft_shadow.fragment");
+    gl::Shader textureShader("texture.vertex", "process_soft_shadow.fragment", { "SOFT_SHADOWS", "HIGH_QUALITY_SHADOWS" });
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 
-    gl::RenderToTexture renderToTexture(480, 270, 3);
+    gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
 
     // start
     float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) {
         glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
         glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
         glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
-        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 1 / 480.0f, 1 / 270.0f);
+        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 2 / 480.0f, 2 / 270.0f);
         renderToTexture.drawFullScreenQuad();
 
         glUseProgram(0);
