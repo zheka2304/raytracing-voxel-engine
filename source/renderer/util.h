@@ -5,13 +5,15 @@
 #define VOXEL_ENGINE_UTIL_H
 
 namespace gl {
+    const std::string SHADER_DIR = "../shaders/";
+
     class Texture {
     public:
         GLuint handle = 0;
         int width, height;
         int mode;
 
-        Texture(int width, int height, int mode, GLbyte* data = nullptr);
+        Texture(int width, int height, int internalFormat, int format, int dataType, void* data = nullptr);
         ~Texture();
     };
 
@@ -52,15 +54,26 @@ namespace gl {
     class Shader {
         GLuint programHandle;
     public:
-        Shader(const char* vertexFile, const char* fragmentFile);
+        Shader(std::string const& vertex, std::string const& fragment, std::vector<std::string> const& defines = {});
+        Shader(std::string const& name, std::vector<std::string> const& defines = {});
         void use() const;
         ~Shader();
 
         GLuint getUniform(char const* name) const;
     };
 
-    class UniformHandle {
+    class RenderToTexture {
+    public:
+        int width, height;
 
+        GLuint frameBufferHandle;
+        GLuint depthBufferHandle;
+        Texture renderedTexture;
+
+        RenderToTexture(int width, int height);
+        void startRenderToTexture();
+        void drawFullScreenQuad();
+        void endRenderToTexture();
     };
 }
 

@@ -45,6 +45,11 @@ float pos_rand(int x, int z) {
 }
 
 
+void generatorThread() {
+
+}
+
+
 int main(int argc, char* argv[]) {
 
     VoxelChunk baseChunk;
@@ -58,7 +63,7 @@ int main(int argc, char* argv[]) {
             float fx = float(x % 16) / 16;
             float fz = float(z % 16) / 16;
             float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
-            float h = r * 32 + 8;
+            float h =  r * 32 + 8;
             for (int y = 0; y < 128; y++) {
                 int dx = x - 64;
                 int dy = y - 64;
@@ -72,14 +77,21 @@ int main(int argc, char* argv[]) {
     baseChunk.rebuildRenderBuffer();
     std::cout << "complete\n";
 
-    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<DebugChunkSource>([&] (ChunkPos const& pos) -> VoxelChunk* {
+    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<DebugChunkSource>([&] (ChunkPos pos) -> VoxelChunk* {
         if (pos.y == 0) {
-            VoxelChunk* chunk = new VoxelChunk(baseChunk);
-            chunk->setPos(pos);
-            return chunk;
+            return new VoxelChunk(baseChunk);
         }
         return nullptr;
     });
+
+    /*
+    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>([&] (VoxelChunk* chunk) -> bool {
+        if (chunk->position.y == 0) {
+            chunk->copyFrom(baseChunk);
+            return true;
+        }
+        return true;
+    }, 4);*/
 
     std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 
@@ -116,22 +128,27 @@ int main(int argc, char* argv[]) {
 
     gl::Mesh mesh;
     float r = 1920 / 1080.0;
-    mesh.vertices.push_back({-1, -1, 0, 1, 0, 0, 1, 0, 0});
-    mesh.vertices.push_back({1, -1, 0, 1, 1, 0, 1, 1, 0});
-    mesh.vertices.push_back({1, 1, 0, 1, 0, 1, 1, 1, 1});
-    mesh.vertices.push_back({-1, -1, 0, 1, 0, 0, 1, 0, 0});
-    mesh.vertices.push_back({1, 1, 0, 1, 0, 1, 1, 1, 1});
-    mesh.vertices.push_back({-1, 1, 0, 1, 1, 0, 1, 0, 1});
+    mesh.vertices.push_back({-1, -1, -1, 1, 0, 0, 1, 0, 0});
+    mesh.vertices.push_back({1, -1, -1, 1, 1, 0, 1, 1, 0});
+    mesh.vertices.push_back({1, 1, -1, 1, 0, 1, 1, 1, 1});
+    mesh.vertices.push_back({-1, -1, -1, 1, 0, 0, 1, 0, 0});
+    mesh.vertices.push_back({1, 1, -1, 1, 0, 1, 1, 1, 1});
+    mesh.vertices.push_back({-1, 1, -1, 1, 1, 0, 1, 0, 1});
     mesh.rebuild();
 
     std::cout << "chunk region tier 1 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_1 << "\n";
     std::cout << "chunk region tier 2 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_2 << "\n";
     std::cout << "chunk total region size " << VoxelChunk::SUB_REGION_TOTAL_SIZE << "\n";
+    std::cout << "bytes per chunk " << (VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE + ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE) * sizeof(unsigned int) << "\n";
 
     // init shader and uniforms
-    gl::Shader shader("../test_shader.vertex", "../test_shader.fragment");
+    gl::Shader depthAndColorRaytraceShader("raytrace", std::vector<std::string>({ "RAYTRACE_DEPTH" }));
+    gl::Shader shadowRaytraceShader("raytrace", std::vector<std::string>({ "RAYTRACE_SHADOW" }));
+    gl::Shader textureShader("texture");
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
+
+    gl::RenderToTexture renderToTexture(480, 270);
 
     // start
     float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
@@ -140,8 +157,13 @@ int main(int argc, char* argv[]) {
     int frame = 0;
     float last_fps_time = get_time_since_start();
     while(!glfwWindowShouldClose(window)) {
-        glClearColor(1.0, 1.0, 1.0, 1.0);
+        glClearColor(1.0, 0.0, 1.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+
+        depthAndColorRaytraceShader.use();
 
         camera->setPosition(Vec3(posX, posY, posZ));
         camera->setRotation(cameraYaw, -3.1415f / 4);
@@ -149,11 +171,15 @@ int main(int argc, char* argv[]) {
 
         if (f > 0) {
             renderEngine.updateVisibleChunks();
-            renderEngine.prepareForRender(shader);
+            renderEngine.prepareForRender(depthAndColorRaytraceShader);
+            if (frame % 10 == 0) {
+                camera->requestChunksFromSource(chunkSource);
+            }
+
         }
 
-        camera->sendParametersToShader(shader);
-        glUniform1f(shader.getUniform("TIME"), get_time_since_start());
+        camera->sendParametersToShader(depthAndColorRaytraceShader);
+        glUniform1f(depthAndColorRaytraceShader.getUniform("TIME"), get_time_since_start());
 
         float unitMove = 10.0, unitRotation = -0.1;
         if (glfwGetKey(window, GLFW_KEY_Q)) {
@@ -179,7 +205,28 @@ int main(int argc, char* argv[]) {
             posZ -= unitMove * sin(cameraYaw);
         }
 
-        mesh.render();
+        renderToTexture.startRenderToTexture();
+        renderToTexture.drawFullScreenQuad();
+        renderToTexture.endRenderToTexture();
+        textureShader.use();
+
+        glViewport(0, 0, 480 * 3, 270 * 3);
+        glEnable(GL_TEXTURE_2D);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, renderToTexture.renderedTexture.handle);
+        glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
+        renderToTexture.drawFullScreenQuad();
+
+        glUseProgram(0);
+        glBegin(GL_QUADS);
+        float z = sin(get_time_since_start());
+        glColor3f(1.0, 0.0, 0.0);
+        glVertex3f(0.0, 0.0, z);
+        glVertex3f(1.0, 0.0, z);
+        glVertex3f(1.0, 1.0, 0.0);
+        glVertex3f(0.0, 1.0, 0.0);
+        glColor3f(1.0, 0.0, 0.0);
+        glEnd();
 
         glfwSwapBuffers(window);
         glfwPollEvents();

@@ -6,14 +6,14 @@
 
 
 namespace gl {
-    Texture::Texture(int width, int height, int mode, GLbyte *data) {
+    Texture::Texture(int width, int height, int internalFormat, int format, int dataType, void* data) {
         this->width = width;
         this->height = height;
         this->mode = mode;
 
         glGenTextures(1, &handle);
         glBindTexture(GL_TEXTURE_2D, handle);
-        glTexImage2D(GL_TEXTURE_2D, 0, mode, width, height, 0, mode, GL_UNSIGNED_BYTE, data);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, dataType, data);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     }
@@ -108,21 +108,33 @@ namespace gl {
     }
 
 
-    Shader::Shader(const char *vertexS, const char *fragmentS) {
-        std::string vertex = vertexS;
-        std::string fragment = fragmentS;
-        std::ifstream vertexInputStream(vertexS), fragmentInputStream(fragment);
-        if (vertexInputStream.good()) {
-            vertex = std::string(std::istreambuf_iterator<char>(vertexInputStream), std::istreambuf_iterator<char>());
+    std::string resolveShaderSource(std::string const& source) {
+        std::ifstream inputStream(source);
+        if (inputStream.good()) {
+            return std::string(std::istreambuf_iterator<char>(inputStream), std::istreambuf_iterator<char>());
+        } else {
+            std::ifstream inputStream2(SHADER_DIR + source);
+            if (inputStream2.good()) {
+                return std::string(std::istreambuf_iterator<char>(inputStream2), std::istreambuf_iterator<char>());
+            }
         }
-        if (fragmentInputStream.good()) {
-            fragment = std::string(std::istreambuf_iterator<char>(fragmentInputStream), std::istreambuf_iterator<char>());
+        return source;
+    }
+
+    Shader::Shader(std::string const& vertexS, std::string const& fragmentS, std::vector<std::string> const& defines) {
+        std::string vertex = resolveShaderSource(vertexS);
+        std::string fragment = resolveShaderSource(fragmentS);
+
+        std::string definesSource = "";
+        for (auto const& define : defines) {
+            definesSource += "#define " + define + "\n";
         }
 
         GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        const char* vertexCS = vertex.c_str();
-        glShaderSource(vertexShader, 1, &vertexCS, nullptr);
+        const char* vertexSources[2] = { definesSource.c_str(), vertex.c_str() };
+        glShaderSource(vertexShader, 2, vertexSources, nullptr);
         glCompileShader(vertexShader);
+
         // Check for compile time errors
         GLint success;
         GLchar infoLog[512];
@@ -131,30 +143,39 @@ namespace gl {
             glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
             std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
         }
+
         // Fragment shader
         GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        const char* fragmentCS = fragment.c_str();
-        glShaderSource(fragmentShader, 1, &fragmentCS, nullptr);
+        const char* fragmentSources[2] = { definesSource.c_str(), fragment.c_str() };
+        glShaderSource(fragmentShader, 2, fragmentSources, nullptr);
         glCompileShader(fragmentShader);
+
         // Check for compile time errors
         glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
         if (!success) {
             glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
             std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
         }
+
         // Link shaders
         programHandle = glCreateProgram();
         glAttachShader(programHandle, vertexShader);
         glAttachShader(programHandle, fragmentShader);
         glLinkProgram(programHandle);
+
         // Check for linking errors
         glGetProgramiv(programHandle, GL_LINK_STATUS, &success);
         if (!success) {
             glGetProgramInfoLog(programHandle, 512, nullptr, infoLog);
             std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
         }
+
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
+    }
+
+    Shader::Shader(std::string const& name, std::vector<std::string> const& defines) : Shader(name + ".vertex", name + ".fragment", defines) {
+
     }
 
     void Shader::use() const {
@@ -170,4 +191,57 @@ namespace gl {
             glDeleteProgram(programHandle);
         }
     }
+
+
+    RenderToTexture::RenderToTexture(int width, int height) :
+        width(width), height(height),
+        renderedTexture(width, height, GL_RGB, GL_RGB, GL_FLOAT, nullptr) {
+
+        glGenFramebuffers(1, &frameBufferHandle);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBufferHandle);
+
+        glGenRenderbuffers(1, &depthBufferHandle);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthBufferHandle);
+        glad_glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBufferHandle);
+
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.handle, 0);
+        GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+        glDrawBuffers(1, drawBuffers);
+
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cerr << "failed to create framebuffer!\n";
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    }
+
+    void RenderToTexture::startRenderToTexture() {
+        glClearColor(1.0, 0.0, 1.0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBufferHandle);
+        glViewport(0, 0, width, height);
+    }
+
+    void RenderToTexture::drawFullScreenQuad() {
+        static Mesh mesh;
+        static bool isCreated = false;
+        if (!isCreated) {
+            mesh.vertices.push_back({-1, -1, -1, 1, 1, 1, 1, 0, 0});
+            mesh.vertices.push_back({1, -1, -1, 1, 1, 1, 1, 1, 0});
+            mesh.vertices.push_back({1, 1, -1, 1, 1, 1, 1, 1, 1});
+            mesh.vertices.push_back({-1, -1, -1, 1, 1, 1, 1, 0, 0});
+            mesh.vertices.push_back({1, 1, -1, 1, 1, 1, 1, 1, 1});
+            mesh.vertices.push_back({-1, 1, -1, 1, 1, 1, 1, 0, 1});
+            mesh.rebuild();
+            isCreated = true;
+        }
+        mesh.render();
+    }
+
+    void RenderToTexture::endRenderToTexture() {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
 }
