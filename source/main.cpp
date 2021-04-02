@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
 
     // init shader and uniforms
     gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
-    gl::Shader textureShader("texture.vertex", "process_soft_shadow.fragment", { "SOFT_SHADOWS", "HIGH_QUALITY_SHADOWS" });
+    gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "SOFT_SHADOWS", "HIGH_QUALITY_SHADOWS" });
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 

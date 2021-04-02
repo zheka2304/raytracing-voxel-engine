@@ -180,7 +180,7 @@ namespace gl {
         glDeleteShader(fragmentShader);
     }
 
-    Shader::Shader(std::string const& name, std::vector<std::string> const& defines) : Shader(name + ".vertex", name + ".fragment", defines) {
+    Shader::Shader(std::string const& name, std::vector<std::string> const& defines) : Shader(name + ".vert", name + ".frag", defines) {
 
     }
 
