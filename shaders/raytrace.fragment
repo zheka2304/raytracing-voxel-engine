@@ -8,22 +8,11 @@ varying vec2 uv;
 
 #define HIGHP_RAYTRACING
 
-// Chunk buffer structure:
-// root: (sub_region_tier_2*) [x + (y + z * 4) * 4]
-// sub_region_tier_2: header_uint, (sub_region_tier_1*) [x + (y + z * 4) * 4]
-// sub_region_tier_1: header_uint, (uint*) [x + (y + z * 8) * 8]
-// header_uint for each region: 0 - empty, 1 - non-empty
-//
 // In this structure we split chunk into 2 tiers of regions,
 // first tier is 8x8x8, second tier is 4x4x4 of first tier (32x32x32) and
 // total chunk size is 4x4x4 of second tier (128x128x128)
 // This structure allow us to send data to GPU by chunks and
 // run much more efficient raytracing algorithm, that skips empty regions
-
-// size:
-// tier1: 1 + 8 * 8 * 8
-// tier2: 1 + 4 * 4 * 4 * tier1
-// total: 4 * 4 * 4 * tier2
 
 uniform highp float TIME;
 uniform usamplerBuffer CHUNK_BUFFER;
@@ -34,6 +23,11 @@ uniform ivec3 CHUNK_COUNT;
 uniform vec4 VIEWPORT;
 uniform vec3 CAMERA_POSITION;
 uniform vec3 CAMERA_RAY;
+uniform vec2 CAMERA_NEAR_AND_FAR;
+
+uniform vec3 DIRECT_LIGHT_RAY;
+uniform vec4 DIRECT_LIGHT_COLOR; // alpha value is light intensity
+uniform vec4 AMBIENT_LIGHT_COLOR; // alpha value is in-shadow direct light multiplier
 
 
 struct RaytraceData {
@@ -209,16 +203,22 @@ void raytrace(
     }
 
     vec3 ray_end = floor(start + ray * (distance_to_voxel - 1.0)) + 0.5;
-    vec3 light_dir = -normalize(ray_end + vec3(0.0, -100.0, 0.0)); //normalize(vec3(sin(TIME), 0.4, cos(TIME)));
-    float shadow = raytrace_direct(ray_end, light_dir, max_steps - steps_made, max_distance_light, steps_made, distance_to_voxel) == 0u ? 1.0 : 0.5;
+    vec3 light_dir = normalize(DIRECT_LIGHT_RAY);
 
-    uint packed_normal = result >> 8;
-    uint nx = (packed_normal >> 16) & 0xFFu;
-    uint ny = (packed_normal >> 8) & 0xFFu;
-    uint nz = (packed_normal >> 0) & 0xFFu;
-    vec3 normal = vec3(float(nx), float(ny), float(nz)) / 127.0 - 1.0;
+    if (DIRECT_LIGHT_COLOR.a > 0.01) {
+        uint packed_normal = result >> 8;
+        uint nx = (packed_normal >> 16) & 0xFFu;
+        uint ny = (packed_normal >> 8) & 0xFFu;
+        uint nz = (packed_normal >> 0) & 0xFFu;
+        vec3 normal = vec3(float(nx), float(ny), float(nz)) / 127.0 - 1.0;
 
-    out_light = vec3(max(0.0, dot(-light_dir, normal) * 0.5 + 0.5) * shadow);
+        float direct_light_intensity = raytrace_direct(ray_end, -light_dir, max_steps - steps_made, max_distance_light, steps_made, distance_to_voxel) == 0u ? 1.0 : AMBIENT_LIGHT_COLOR.a;
+        direct_light_intensity *= DIRECT_LIGHT_COLOR.a * (dot(light_dir, normal) * 0.5 + 0.5);
+        out_light = mix(AMBIENT_LIGHT_COLOR.rgb, DIRECT_LIGHT_COLOR.rgb, direct_light_intensity);
+    } else {
+        out_light = AMBIENT_LIGHT_COLOR.rgb;
+    }
+
     out_color = vec3(1.0);
 }
 
@@ -231,18 +231,20 @@ void main() {
     vec2 xy = (uv - 0.5) * VIEWPORT.zw + VIEWPORT.xy;
     start += (xy.x * normalize(right) + xy.y * normalize(up));
 
+    float max_depth = CAMERA_NEAR_AND_FAR.y - CAMERA_NEAR_AND_FAR.x;
+
     vec3 out_color;
     float out_depth;
     vec3 out_light;
     raytrace(
-        start - forward * 50, // start
-        CAMERA_RAY,           // ray
-        200,                  // max steps
-        300,                  // max distance
-        75,                   // max light distance
-        out_color,            // result color
-        out_depth,            // result depth
-        out_light             // result light color
+        start + forward * CAMERA_NEAR_AND_FAR.x, // start
+        CAMERA_RAY,                              // ray
+        200,                                     // max steps
+        max_depth,                               // max distance
+        75,                                      // max light distance
+        out_color,                               // result color
+        out_depth,                               // result depth
+        out_light                                // result light color
     );
     gl_FragData[0] = vec4(out_color, 1.0);
     gl_FragData[1] = vec4(out_light, 1.0);

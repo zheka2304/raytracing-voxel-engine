@@ -31,10 +31,17 @@ void Camera::sendParametersToShader(gl::Shader& shader) {
     UNIFORM_HANDLE(viewport_uniform, shader, "VIEWPORT");
     UNIFORM_HANDLE(camera_position_uniform, shader, "CAMERA_POSITION");
     UNIFORM_HANDLE(camera_ray_uniform, shader, "CAMERA_RAY");
+    UNIFORM_HANDLE(camera_near_far_uniform, shader, "CAMERA_NEAR_AND_FAR");
 
     glUniform4f(viewport_uniform, viewport[0], viewport[1], viewport[2], viewport[3]);
     glUniform3f(camera_position_uniform, position.x, position.y, position.z);
     glUniform3f(camera_ray_uniform, cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
+    glUniform2f(camera_near_far_uniform, near, far);
+}
+
+void Camera::setNearAndFarPlane(float near, float far) {
+    this->near = near;
+    this->far = far;
 }
 
 void Camera::requestChunksFromSource(std::shared_ptr<ChunkSource> chunkSource) {
@@ -45,11 +52,6 @@ void Camera::requestChunksFromSource(std::shared_ptr<ChunkSource> chunkSource) {
     }
 }
 
-
-void OrthographicCamera::setNearAndFarPlane(float near, float far) {
-    this->near = near;
-    this->far = far;
-}
 
 void OrthographicCamera::_addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap, int level, float viewExpand, bool useEmplace) {
     Vec3 forward(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));

@@ -16,11 +16,13 @@ class Camera {
 public:
     Vec3 position = Vec3(0, 0, 0);
     float yaw = 0, pitch = 0;
+    float near = -64, far = 256;
     float viewport[4] = { 0 };
 
     void setPosition(Vec3 const& position);
     void setRotation(float yaw, float pitch);
     void setViewport(float x, float y, float w, float h);
+    void setNearAndFarPlane(float near, float far);
 
     // iterates over all visible chunk positions
     virtual void addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap);
@@ -31,11 +33,6 @@ public:
 };
 
 class OrthographicCamera : public Camera {
-public:
-    float near = -128, far = 384;
-
-    void setNearAndFarPlane(float near, float far);
-
 private:
     void _addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap, int level, float viewExpand, bool useEmplace);
 public:

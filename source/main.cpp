@@ -147,7 +147,7 @@ int main(int argc, char* argv[]) {
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 
-    gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
+    gl::RenderToTexture renderToTexture(480 * 1, 270 * 1, 3);
 
     // start
     float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
@@ -179,6 +179,9 @@ int main(int argc, char* argv[]) {
 
         camera->sendParametersToShader(raytraceShader);
         glUniform1f(raytraceShader.getUniform("TIME"), get_time_since_start());
+        glUniform4f(raytraceShader.getUniform("DIRECT_LIGHT_COLOR"), 0.7, 0.7, 1.0, 1.0);
+        glUniform4f(raytraceShader.getUniform("AMBIENT_LIGHT_COLOR"), 0.1, 0.0, 0.0, 0.2);
+        glUniform3f(raytraceShader.getUniform("DIRECT_LIGHT_RAY"), 1.0, -0.4, 1.0);
 
         float unitMove = 10.0, unitRotation = -0.1;
         if (glfwGetKey(window, GLFW_KEY_Q)) {
@@ -223,16 +226,6 @@ int main(int argc, char* argv[]) {
         glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 2 / 480.0f, 2 / 270.0f);
         renderToTexture.drawFullScreenQuad();
 
-        glUseProgram(0);
-        glBegin(GL_QUADS);
-        float z = sin(get_time_since_start());
-        glColor3f(1.0, 0.0, 0.0);
-        glVertex3f(0.0, 0.0, z);
-        glVertex3f(1.0, 0.0, z);
-        glVertex3f(1.0, 1.0, 0.0);
-        glVertex3f(0.0, 1.0, 0.0);
-        glColor3f(1.0, 0.0, 0.0);
-        glEnd();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
