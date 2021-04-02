@@ -11,9 +11,10 @@ namespace gl {
     public:
         GLuint handle = 0;
         int width, height;
-        int mode;
 
         Texture(int width, int height, int internalFormat, int format, int dataType, void* data = nullptr);
+        Texture(Texture&& texture);
+        Texture(const Texture&) = delete;
         ~Texture();
     };
 
@@ -68,9 +69,9 @@ namespace gl {
 
         GLuint frameBufferHandle;
         GLuint depthBufferHandle;
-        Texture renderedTexture;
+        std::vector<Texture> outputTextures;
 
-        RenderToTexture(int width, int height);
+        RenderToTexture(int width, int height, int textureCount);
         void startRenderToTexture();
         void drawFullScreenQuad();
         void endRenderToTexture();

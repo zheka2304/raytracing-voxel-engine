@@ -9,13 +9,19 @@ namespace gl {
     Texture::Texture(int width, int height, int internalFormat, int format, int dataType, void* data) {
         this->width = width;
         this->height = height;
-        this->mode = mode;
 
         glGenTextures(1, &handle);
         glBindTexture(GL_TEXTURE_2D, handle);
         glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, dataType, data);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+
+    Texture::Texture(Texture&& other) {
+        this->width = other.width;
+        this->height = other.height;
+        this->handle = other.handle;
+        other.handle = 0;
     }
 
     Texture::~Texture() {
@@ -193,9 +199,8 @@ namespace gl {
     }
 
 
-    RenderToTexture::RenderToTexture(int width, int height) :
-        width(width), height(height),
-        renderedTexture(width, height, GL_RGB, GL_RGB, GL_FLOAT, nullptr) {
+    RenderToTexture::RenderToTexture(int width, int height, int textureCount) :
+        width(width), height(height) {
 
         glGenFramebuffers(1, &frameBufferHandle);
         glBindFramebuffer(GL_FRAMEBUFFER, frameBufferHandle);
@@ -205,9 +210,20 @@ namespace gl {
         glad_glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBufferHandle);
 
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.handle, 0);
-        GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-        glDrawBuffers(1, drawBuffers);
+        // create textures
+        for (int i = 0; i < textureCount; i++) {
+            outputTextures.emplace_back(Texture(width, height, GL_RGB, GL_RGB, GL_FLOAT, nullptr));
+        }
+
+        // attach textures to framebuffer
+        GLenum attachment = GL_COLOR_ATTACHMENT0;
+        std::vector<GLenum> drawBuffers;
+        for (Texture const& texture : outputTextures) {
+            glFramebufferTexture(GL_FRAMEBUFFER, attachment, texture.handle, 0);
+            drawBuffers.emplace_back(attachment);
+            attachment++;
+        }
+        glDrawBuffers(drawBuffers.size(), &drawBuffers[0]);
 
         if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cerr << "failed to create framebuffer!\n";
@@ -218,9 +234,9 @@ namespace gl {
     }
 
     void RenderToTexture::startRenderToTexture() {
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBufferHandle);
         glClearColor(1.0, 0.0, 1.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBufferHandle);
         glViewport(0, 0, width, height);
     }
 

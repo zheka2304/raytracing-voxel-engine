@@ -142,13 +142,12 @@ int main(int argc, char* argv[]) {
     std::cout << "bytes per chunk " << (VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE + ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE) * sizeof(unsigned int) << "\n";
 
     // init shader and uniforms
-    gl::Shader depthAndColorRaytraceShader("raytrace", std::vector<std::string>({ "RAYTRACE_DEPTH" }));
-    gl::Shader shadowRaytraceShader("raytrace", std::vector<std::string>({ "RAYTRACE_SHADOW" }));
-    gl::Shader textureShader("texture");
+    gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
+    gl::Shader textureShader("texture.vertex", "process_soft_shadow.fragment");
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 
-    gl::RenderToTexture renderToTexture(480, 270);
+    gl::RenderToTexture renderToTexture(480, 270, 3);
 
     // start
     float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
@@ -163,7 +162,7 @@ int main(int argc, char* argv[]) {
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
 
-        depthAndColorRaytraceShader.use();
+        raytraceShader.use();
 
         camera->setPosition(Vec3(posX, posY, posZ));
         camera->setRotation(cameraYaw, -3.1415f / 4);
@@ -171,15 +170,15 @@ int main(int argc, char* argv[]) {
 
         if (f > 0) {
             renderEngine.updateVisibleChunks();
-            renderEngine.prepareForRender(depthAndColorRaytraceShader);
+            renderEngine.prepareForRender(raytraceShader);
             if (frame % 10 == 0) {
                 camera->requestChunksFromSource(chunkSource);
             }
 
         }
 
-        camera->sendParametersToShader(depthAndColorRaytraceShader);
-        glUniform1f(depthAndColorRaytraceShader.getUniform("TIME"), get_time_since_start());
+        camera->sendParametersToShader(raytraceShader);
+        glUniform1f(raytraceShader.getUniform("TIME"), get_time_since_start());
 
         float unitMove = 10.0, unitRotation = -0.1;
         if (glfwGetKey(window, GLFW_KEY_Q)) {
@@ -213,8 +212,15 @@ int main(int argc, char* argv[]) {
         glViewport(0, 0, 480 * 3, 270 * 3);
         glEnable(GL_TEXTURE_2D);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderToTexture.renderedTexture.handle);
+        glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[0].handle);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[1].handle);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[2].handle);
         glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
+        glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
+        glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
+        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 1 / 480.0f, 1 / 270.0f);
         renderToTexture.drawFullScreenQuad();
 
         glUseProgram(0);

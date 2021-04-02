@@ -1,0 +1,32 @@
+#version 330 core
+
+uniform sampler2D TEXTURE_0; // color
+uniform sampler2D TEXTURE_1; // light
+uniform sampler2D TEXTURE_2; // lowp depth
+
+uniform vec2 BLEND_RADIUS;
+
+varying vec4 color;
+varying vec2 uv;
+
+#define MUL_0 1.0
+#define MUL_1 0.7
+#define MUL_2 0.4
+
+#define MUL_SUM (MUL_0 + MUL_1 * 4 + MUL_2 * 4)
+#define N_MUL_0 (MUL_0 / MUL_SUM)
+#define N_MUL_1 (MUL_1 / MUL_SUM)
+#define N_MUL_2 (MUL_2 / MUL_SUM)
+
+void main() {
+    vec4 light = texture(TEXTURE_1, uv) * N_MUL_0 +
+                  texture(TEXTURE_1, uv + vec2(BLEND_RADIUS.x, 0)) * N_MUL_1 +
+                  texture(TEXTURE_1, uv + vec2(-BLEND_RADIUS.x, 0)) * N_MUL_1 +
+                  texture(TEXTURE_1, uv + vec2(0, BLEND_RADIUS.y)) * N_MUL_1 +
+                  texture(TEXTURE_1, uv + vec2(0, -BLEND_RADIUS.y)) * N_MUL_1 +
+                  texture(TEXTURE_1, uv + vec2(BLEND_RADIUS.x, BLEND_RADIUS.y)) * N_MUL_2 +
+                  texture(TEXTURE_1, uv + vec2(-BLEND_RADIUS.x, BLEND_RADIUS.y)) * N_MUL_2 +
+                  texture(TEXTURE_1, uv + vec2(BLEND_RADIUS.x, -BLEND_RADIUS.y)) * N_MUL_2 +
+                  texture(TEXTURE_1, uv + vec2(-BLEND_RADIUS.x, -BLEND_RADIUS.y)) * N_MUL_2;
+    gl_FragColor = texture(TEXTURE_0, uv) * light;
+}
