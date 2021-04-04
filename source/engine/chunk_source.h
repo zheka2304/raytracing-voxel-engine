@@ -65,6 +65,7 @@ public:
         // if lock failed, should task be discarded of re-added at the end of task queue
         bool discardIfLockFailed = false;
 
+        Task();
         Task(std::function<void()> task, std::list<ChunkPos>&& regionLock, bool discardIfLockFailed);
         Task(std::function<void()> task, std::function<bool()> preCheck, std::list<ChunkPos>&& regionLock, bool discardIfLockFailed);
         void run() const;
@@ -148,14 +149,11 @@ public:
     //
     void startUnload() override;
 
-    // use this before destroying chunk source to make all threads run unload tasks and join
-    // this will invalidate chunk source
-    void unloadAllImmediately();
-
 private:
     RegionLock tryLockRegion(std::list<ChunkPos> const& regionLock);
     void unlockRegion(RegionLock& lock);
-    void threadLoop();
+    void threadLoop(int);
+    void _runTask(Task t);
 
     static inline unsigned long long getCurrentTime() {
         using namespace std::chrono;

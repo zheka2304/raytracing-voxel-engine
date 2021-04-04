@@ -42,6 +42,9 @@ DebugChunkSource::~DebugChunkSource() {
 }
 
 
+ThreadedChunkSource::Task::Task() {
+
+}
 
 ThreadedChunkSource::Task::Task(std::function<void()> task, std::list<ChunkPos>&& regionLock, bool discardIfLockFailed) :
         task(std::move(task)), regionLock(regionLock), discardIfLockFailed(discardIfLockFailed) {
@@ -79,7 +82,6 @@ void ThreadedChunkSource::RegionLock::unlock() {
 
 ThreadedChunkSource::ChunkLock::~ChunkLock() {
     if (lock != nullptr) {
-        std::cout << "destroying not released ChunkLock, this will cause it to wait unlock\n";
         lock->lock();
         std::mutex* _lock = lock;
         lock = nullptr;
@@ -91,25 +93,43 @@ ThreadedChunkSource::ChunkLock::~ChunkLock() {
 
 ThreadedChunkSource::ThreadedChunkSource(std::shared_ptr<ChunkHandler> chunkHandler, int maxWorkerThreads, int minIdleTimeToUnload) :
     chunkHandler(std::move(chunkHandler)), minIdleTimeToUnload(minIdleTimeToUnload) {
+
     for (int i = 0; i < maxWorkerThreads; i++) {
-        workerThreads.emplace_back(std::thread(&ThreadedChunkSource::threadLoop, this));
+        workerThreads.emplace_back(std::thread(&ThreadedChunkSource::threadLoop, this, i));
     }
 }
 
-void ThreadedChunkSource::threadLoop() {
-    while (!isDestroyPending) {
-        Task task = taskQueue.pop();
-        if (!task.preCheck()) {
-            continue;
+void ThreadedChunkSource::_runTask(Task task) {
+    if (!task.preCheck()) {
+        return;
+    }
+    RegionLock lock = tryLockRegion(task.regionLock);
+    if (lock.owns()) {
+        task.run();
+        unlockRegion(lock);
+        releaseExcessChunkLocks();
+    } else if (!task.discardIfLockFailed) {
+        taskQueue.push(task);
+    }
+}
+
+void ThreadedChunkSource::threadLoop(int threadIndex) {
+    int terminationTasks = 0;
+    while (true) {
+        Task task;
+        if (isDestroyPending) {
+            if (!taskQueue.try_pop(task, false)) {
+                std::cout << "ChunkSource: worker thread " << threadIndex <<
+                    " completed " << terminationTasks << " termination tasks and finished\n";
+                return;
+            }
+            terminationTasks++;
+        } else {
+            if (!taskQueue.try_pop(task, true)) {
+                continue;
+            }
         }
-        RegionLock lock = tryLockRegion(task.regionLock);
-        if (lock.owns()) {
-            task.run();
-            unlockRegion(lock);
-            releaseExcessChunkLocks();
-        } else if (!task.discardIfLockFailed) {
-            addTask(task);
-        }
+        _runTask(task);
     }
 }
 
@@ -325,42 +345,37 @@ std::list<ChunkPos> ThreadedChunkSource::makeRegionLock(ChunkPos pos, int xzRadi
     return regionLock;
 }
 
-
-void ThreadedChunkSource::unloadAllImmediately() {
+ThreadedChunkSource::~ThreadedChunkSource() {
     // invalidate chunk source to block adding new tasks
     isChunkSourceValid = false;
+    isDestroyPending = true;
+
+    // clear existing queued tasks
     taskQueue.clear();
 
     // manually queue unload tasks for every chunk
     std::unique_lock<std::mutex> lock(chunkMapMutex);
+    std::cout << "ChunkSource: destroying threaded chunk source, unloading " << chunkMap.size() << " chunks\n";
     for (auto const& posAndChunk : chunkMap) {
         VoxelChunk* chunk = posAndChunk.second.chunk;
         std::list<ChunkPos> regionLock; regionLock.emplace_back(posAndChunk.first);
-        taskQueue.push(Task([=] () -> void { chunkHandler->unloadChunk(*chunk); removeChunkAt(chunk->position); }, std::move(regionLock), false));
+        taskQueue.push(Task([=] () -> void {
+            chunkHandler->unloadChunk(*chunk);
+            removeChunkAt(chunk->position);
+        }, std::move(regionLock), false));
     }
     lock.unlock();
+
+    // this will discard all blocking requests from the queue
+    taskQueue.release();
 
     // wait all threads to join
     for (std::thread& thread : workerThreads) {
         thread.join();
     }
-}
 
-ThreadedChunkSource::~ThreadedChunkSource() {
-    // mark chunk source destroyed and clear queue
-    isDestroyPending = true;
-    isChunkSourceValid = false;
-    taskQueue.clear();
-    // add empty task for each thread, to assure, that queue wont be blocked
-    // each thread will consume exactly one task and then check and exist
-    for (std::thread& thread : workerThreads) {
-        addTask(Task([] () -> void {}, std::list<ChunkPos>(), false));
-    }
-    // join every thread to complete current task for each one
-    for (std::thread& thread : workerThreads) {
-        thread.join();
-    }
-    // delete all chunks
+    // delete all chunks, if some left
+    std::cout << "ChunkSource: deleting remaining chunks " << chunkMap.size() << " (non-zero value is an error)\n";
     for (auto const& posAndChunk : chunkMap) {
         delete(posAndChunk.second.chunk);
     }

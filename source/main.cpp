@@ -105,7 +105,7 @@ public:
 
 int main(int argc, char* argv[]) {
 
-    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(std::make_shared<DebugChunkHandler>(), 2, 5000);
+    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(std::make_shared<DebugChunkHandler>(), 3, 5000);
 
     std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 
