@@ -81,7 +81,7 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
         // if in bound of chunk, raytrace it
         if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < CHUNK_COUNT.x && chunk_pos_off.y < CHUNK_COUNT.y && chunk_pos_off.z < CHUNK_COUNT.z) {
             // get buffer offset from chunk
-            int chunk_buffer_offset = CHUNK_DATA_OFFSETS_IN_BUFFER[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * CHUNK_COUNT.z) * CHUNK_COUNT.z];
+            int chunk_buffer_offset = CHUNK_DATA_OFFSETS_IN_BUFFER[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * CHUNK_COUNT.z) * CHUNK_COUNT.x];
             // iterate while inside this chunk
             while (i < max_steps) {
                 if (raytrace_data.distance < end_region_distance_chunk) {

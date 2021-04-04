@@ -9,6 +9,10 @@ ChunkPos::ChunkPos(int x, int y, int z) : x(x), y(y), z(z) {
 
 }
 
+ChunkPos::ChunkPos(ChunkPos const& o) : x(o.x), y(o.y), z(o.z) {
+
+}
+
 ChunkPos::ChunkPos(Vec3 v) :
         x(int(floor(v.x / ChunkPos::CHUNK_SIZE))),
         y(int(floor(v.y / ChunkPos::CHUNK_SIZE))),

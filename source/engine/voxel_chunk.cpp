@@ -47,6 +47,10 @@ void VoxelChunk::setState(ChunkState newState) {
     state = newState;
 }
 
+bool VoxelChunk::isAvailableForRender() {
+    return state == STATE_BAKED;
+}
+
 unsigned int VoxelChunk::calcNormal(int x, int y, int z) {
     float nx = 0;
     float ny = 0;
@@ -148,7 +152,7 @@ bool VoxelChunk::rebuildTier1Region(int rx1, int ry1, int rz1, int r2offset) {
                 int volume_voxel = x + (z + y * sizeZ) * sizeX;
                 unsigned int voxel_val = voxelBuffer[volume_voxel];
                 if (voxel_val != 0) {
-                    unsigned int voxel_normal = calcNormal(x, y, z);
+                    unsigned int voxel_normal = 0x80FF80;// calcNormal(x, y, z);
                     renderBuffer[render_voxel] = voxel_val | (voxel_normal << 8);
                     any = true;
                 }

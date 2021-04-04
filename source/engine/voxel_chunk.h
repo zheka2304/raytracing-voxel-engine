@@ -12,7 +12,7 @@ class VoxelChunk {
 public:
     enum ChunkState : int {
         STATE_INITIALIZED = 0,
-        STATE_GENERATED = 1,
+        STATE_POPULATED = 1,
         STATE_BAKED = 2
     };
 
@@ -68,6 +68,7 @@ public:
     void setChunkSource(ChunkSource* source);
     void setPos(ChunkPos const& pos);
     void setState(ChunkState newState);
+    bool isAvailableForRender();
 
     void rebuildRenderBuffer();
     unsigned int calcNormal(int x, int y, int z);

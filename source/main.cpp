@@ -50,48 +50,97 @@ void generatorThread() {
 }
 
 
-int main(int argc, char* argv[]) {
 
+
+class DebugChunkHandler : public ChunkHandler {
+public:
     VoxelChunk baseChunk;
-    std::cout << "building chunk\n";
-    for (int x = 0; x < 128; x++) {
-        for (int z = 0; z < 128; z++) {
-            float r00 = pos_rand(x / 16, z / 16);
-            float r01 = pos_rand(x / 16, z / 16 + 1);
-            float r10 = pos_rand(x / 16 + 1, z / 16);
-            float r11 = pos_rand(x / 16 + 1, z / 16 + 1);
-            float fx = float(x % 16) / 16;
-            float fz = float(z % 16) / 16;
-            float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
-            float h =  r * 32 + 8;
-            for (int y = 0; y < 128; y++) {
-                int dx = x - 64;
-                int dy = y - 64;
-                int dz = z - 64;
-                int d = dx * dx + dy * dy + dz * dz;
-                int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
-                int v = baseChunk.voxelBuffer[x + (z + y * 128) * 128] = y < h;
+
+    DebugChunkHandler() {
+        std::cout << "starting building chunk\n";
+        long long start = get_time_milliseconds();
+        for (int x = 0; x < 128; x++) {
+            for (int z = 0; z < 128; z++) {
+                float r00 = pos_rand(x / 16, z / 16);
+                float r01 = pos_rand(x / 16, z / 16 + 1);
+                float r10 = pos_rand(x / 16 + 1, z / 16);
+                float r11 = pos_rand(x / 16 + 1, z / 16 + 1);
+                float fx = float(x % 16) / 16;
+                float fz = float(z % 16) / 16;
+                float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
+                float h =  r * 32 + 8;
+                for (int y = 0; y < 128; y++) {
+                    int dx = x - 64;
+                    int dy = y - 64;
+                    int dz = z - 64;
+                    int d = dx * dx + dy * dy + dz * dz;
+                    int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
+                    int v = baseChunk.voxelBuffer[x + (z + y * 128) * 128] = y < h;
+                }
             }
         }
+        long long rebuild_start = get_time_milliseconds();
+        std::cout << "baking chunk\n";
+        baseChunk.rebuildRenderBuffer();
+        long long finish = get_time_milliseconds();
+        std::cout << "completed: generation " << (rebuild_start - start) << "ms baking " << (finish - rebuild_start) << "ms\n";
     }
-    baseChunk.rebuildRenderBuffer();
-    std::cout << "complete\n";
 
+    bool isValidPosition(ChunkPos const& pos) override {
+        return pos.y == 0;
+    }
+
+    bool requestChunk(VoxelChunk& chunk) override {
+        std::cout << "generating chunk " << chunk.position.x << " " << chunk.position.y << " " << chunk.position.z << "\n";
+//        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        int px = chunk.position.x * 8, pz = chunk.position.z * 8;
+        for (int x = 0; x < 128; x++) {
+            for (int z = 0; z < 128; z++) {
+                float r00 = pos_rand(x / 16 + px, z / 16 + pz);
+                float r01 = pos_rand(x / 16 + px, z / 16 + 1 + pz);
+                float r10 = pos_rand(x / 16 + 1 + px, z / 16 + pz);
+                float r11 = pos_rand(x / 16 + 1 + px, z / 16 + 1 + pz);
+                float fx = float(x % 16) / 16;
+                float fz = float(z % 16) / 16;
+                float r = (r00 * (1 - fz) + r01 * fz) * (1 - fx) + (r10 * (1 - fz) + r11 * fz) * fx;
+                float h =  r * 16 + 8;
+                for (int y = 0; y < 128; y++) {
+                    int dx = x - 64;
+                    int dy = y - 64;
+                    int dz = z - 64;
+                    int d = dx * dx + dy * dy + dz * dz;
+                    int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
+                    int v = chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h;
+                }
+            }
+        }
+        return true;
+    }
+
+    void bakeChunk(VoxelChunk& chunk) override {
+        chunk.rebuildRenderBuffer();
+    }
+
+    Vec2i getBakeLockRadius() override {
+        return Vec2i(0, 0);
+    }
+
+};
+
+
+int main(int argc, char* argv[]) {
+
+
+
+    /*
     std::shared_ptr<ChunkSource> chunkSource = std::make_shared<DebugChunkSource>([&] (ChunkPos pos) -> VoxelChunk* {
         if (pos.y == 0) {
             return new VoxelChunk(baseChunk);
         }
         return nullptr;
-    });
+    }); */
 
-    /*
-    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>([&] (VoxelChunk* chunk) -> bool {
-        if (chunk->position.y == 0) {
-            chunk->copyFrom(baseChunk);
-            return true;
-        }
-        return true;
-    }, 4);*/
+    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(std::make_shared<DebugChunkHandler>(), 1);
 
     std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 

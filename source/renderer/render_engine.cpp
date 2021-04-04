@@ -94,9 +94,9 @@ void VoxelRenderEngine::updateVisibleChunks() {
 
     for (auto const &posAndLevel : newVisibleChunks) {
         if (posAndLevel.second > RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE) {
-            VoxelChunk *chunk = chunkSource->getChunkAt(posAndLevel.first);
-            if (chunk != nullptr) {
-                RenderChunk *renderChunk = getNewRenderChunk(posAndLevel.second - 1);
+            VoxelChunk* chunk = chunkSource->getChunkAt(posAndLevel.first);
+            if (chunk != nullptr && chunk->isAvailableForRender()) {
+                RenderChunk* renderChunk = getNewRenderChunk(posAndLevel.second - 1);
                 if (renderChunk != nullptr) {
                     renderChunkMap[posAndLevel.first] = renderChunk;
                     renderChunk->setPos(posAndLevel.first.x, posAndLevel.first.y, posAndLevel.first.z);
@@ -188,7 +188,7 @@ void VoxelRenderEngine::prepareForRender(gl::Shader& shader) {
         int offset[3] = {minX + (maxX - minX - count[0]) / 2, minY + (maxY - minY - count[1]) / 2,
                          minZ + (maxZ - minZ - count[2]) / 2};
 
-        GLint chunkTextureOffsets[MAX_RENDER_CHUNK_INSTANCES] { 1 };
+        GLint chunkTextureOffsets[MAX_RENDER_CHUNK_INSTANCES] { 128 };
         for (auto const& posAndChunk : renderChunkMap) {
             if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
                 ChunkPos pos = posAndChunk.first;
@@ -199,6 +199,8 @@ void VoxelRenderEngine::prepareForRender(gl::Shader& shader) {
                 }
             }
         }
+
+        // std::cout << " total=" << renderChunkMap.size() << " visible=" << chunksInView << " rendered=" << visible_count << "/" << (count[0] * count[1] * count[2]) << "\n";
 
         glActiveTexture(GL_TEXTURE0);
         chunkBuffer->bind();

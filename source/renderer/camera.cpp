@@ -81,7 +81,7 @@ void OrthographicCamera::_addAllVisiblePositions(std::unordered_map<ChunkPos, in
 
     for (int y = 0; y <= height; y++) {
         for (int x = 0; x <= width; x++) {
-            Vec3 ray_start = position + forward * near +
+            Vec3 ray_start = position + forward * (near - ChunkPos::CHUNK_SIZE) +
                              right * ((float(x) - float(width) / 2) * ChunkPos::CHUNK_SIZE) +
                              up * ((float(y) - float(height) / 2) * ChunkPos::CHUNK_SIZE);
 
