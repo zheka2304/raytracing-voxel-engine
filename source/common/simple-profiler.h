@@ -42,9 +42,12 @@ namespace Profiler {
 
 //#define ENABLE_PROFILER
 
+#define PROFILER_BEGIN0(NAME) Profiler::ProfilerSection NAME(# NAME);
+#define PROFILER_END0(NAME) NAME.endSection();
+
 #ifdef ENABLE_PROFILER
-#define PROFILER_BEGIN(NAME) Profiler::ProfilerSection NAME(# NAME);
-#define PROFILER_END(NAME) NAME.endSection();
+#define PROFILER_BEGIN(NAME) PROFILER_BEGIN0(NAME)
+#define PROFILER_END(NAME) PROFILER_END0(NAME)
 #else
 #define PROFILER_BEGIN(NAME)
 #define PROFILER_END(NAME)

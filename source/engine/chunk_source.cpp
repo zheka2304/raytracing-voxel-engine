@@ -42,6 +42,7 @@ DebugChunkSource::~DebugChunkSource() {
 }
 
 
+
 ThreadedChunkSource::Task::Task(std::function<void()> task, std::list<ChunkPos>&& regionLock, bool discardIfLockFailed) :
         task(std::move(task)), regionLock(regionLock), discardIfLockFailed(discardIfLockFailed) {
 
@@ -55,10 +56,6 @@ ThreadedChunkSource::Task::Task(std::function<void()> task, std::function<bool()
 
 void ThreadedChunkSource::Task::run() const {
     task();
-}
-
-ThreadedChunkSource::ChunkLock::ChunkLock() : lock(_mutex, std::defer_lock) {
-
 }
 
 ThreadedChunkSource::RegionLock::RegionLock(std::unordered_map<ChunkPos, ChunkLock*> &&ownedLocks, bool owns) : _ownedChunks(ownedLocks), _owns(owns) {
@@ -80,8 +77,20 @@ void ThreadedChunkSource::RegionLock::unlock() {
     }
 }
 
+ThreadedChunkSource::ChunkLock::~ChunkLock() {
+    if (lock != nullptr) {
+        std::cout << "destroying not released ChunkLock, this will cause it to wait unlock\n";
+        lock->lock();
+        std::mutex* _lock = lock;
+        lock = nullptr;
+        _lock->unlock();
+        delete(_lock);
+    }
+}
 
-ThreadedChunkSource::ThreadedChunkSource(std::shared_ptr<ChunkHandler> chunkHandler, int maxWorkerThreads) : chunkHandler(std::move(chunkHandler)) {
+
+ThreadedChunkSource::ThreadedChunkSource(std::shared_ptr<ChunkHandler> chunkHandler, int maxWorkerThreads, int minIdleTimeToUnload) :
+    chunkHandler(std::move(chunkHandler)), minIdleTimeToUnload(minIdleTimeToUnload) {
     for (int i = 0; i < maxWorkerThreads; i++) {
         workerThreads.emplace_back(std::thread(&ThreadedChunkSource::threadLoop, this));
     }
@@ -96,7 +105,7 @@ void ThreadedChunkSource::threadLoop() {
         RegionLock lock = tryLockRegion(task.regionLock);
         if (lock.owns()) {
             task.run();
-            lock.unlock();
+            unlockRegion(lock);
             releaseExcessChunkLocks();
         } else if (!task.discardIfLockFailed) {
             addTask(task);
@@ -111,7 +120,7 @@ void ThreadedChunkSource::addTask(Task const& task) {
 }
 
 ThreadedChunkSource::RegionLock ThreadedChunkSource::tryLockRegion(std::list<ChunkPos> const& regionLock) {
-    if (true || regionLock.empty()) {
+    if (regionLock.empty()) {
         return RegionLock(true);
     }
     std::unique_lock<std::mutex> lock(lockedChunksMutex);
@@ -130,17 +139,21 @@ ThreadedChunkSource::RegionLock ThreadedChunkSource::tryLockRegion(std::list<Chu
     return RegionLock(std::move(ownedChunks), true);
 }
 
+void ThreadedChunkSource::unlockRegion(RegionLock& regionLock) {
+    std::unique_lock<std::mutex> lock(lockedChunksMutex);
+    regionLock.unlock();
+}
+
 void ThreadedChunkSource::releaseExcessChunkLocks() {
     std::unique_lock<std::mutex> lock(lockedChunksMutex);
     if (lockedChunks.size() >= MAX_CHUNK_LOCKS) {
-
-        /* for (auto it = lockedChunks.begin(); it != lockedChunks.end();) {
-            if (!it->second.owns()) {
+        for (auto it = lockedChunks.begin(); it != lockedChunks.end();) {
+            if (it->second.try_release()) {
                 it = lockedChunks.erase(it);
             } else {
                 it++;
             }
-        } */
+        }
     }
 }
 
@@ -224,6 +237,8 @@ void ThreadedChunkSource::requestChunk(ChunkPos const& pos) {
                     chunk->state = VoxelChunk::STATE_POPULATED;
                     requestChunkBaking(pos);
                 }
+                // if chunk was not requested successfully, it will be requested again
+                // or unloaded after some time, so just leave it and dont delete
             },
             // pre check before locking, if chunk still can be requested
             [this, pos] () -> bool { return canChunkBeRequested(pos, false); },
@@ -269,7 +284,33 @@ void ThreadedChunkSource::requestChunkBaking(ChunkPos const& pos) {
 }
 
 void ThreadedChunkSource::startUnload() {
+    unsigned long long unloadTime = getCurrentTime() - minIdleTimeToUnload;
+    std::unique_lock<std::mutex> lock(chunkMapMutex);
+    for (auto const& posAndChunk : chunkMap) {
+        if (posAndChunk.second.lastRequestTime < unloadTime) {
+            ChunkPos pos = posAndChunk.first;
+            addTask(Task([pos, this] () -> void {
+                // check if chunk still must be unloaded
+                std::unique_lock<std::mutex> lock(chunkMapMutex);
+                auto it = chunkMap.find(pos);
+                if (it != chunkMap.end()) {
+                    if (it->second.lastRequestTime > getCurrentTime() - minIdleTimeToUnload) {
+                        return;
+                    }
+                } else {
+                    return;
+                }
+                lock.unlock();
 
+                // unload chunk
+                VoxelChunk* chunk = getChunkAt(pos);
+                if (chunk != nullptr) {
+                    chunkHandler->unloadChunk(*chunk);
+                    removeChunkAt(pos);
+                }
+            }, std::list<ChunkPos>({ pos }), true));
+        }
+    }
 }
 
 std::list<ChunkPos> ThreadedChunkSource::makeRegionLock(ChunkPos pos, int xzRadius, int yRadius) {

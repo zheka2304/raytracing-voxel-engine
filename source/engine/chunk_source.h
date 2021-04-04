@@ -81,14 +81,22 @@ private:
 
     struct ChunkLock {
     private:
-        std::unique_lock<std::mutex> lock;
-        std::mutex _mutex;
+        std::mutex* lock = new std::mutex;
 
     public:
-        ChunkLock();
-        inline bool try_lock() { return lock.try_lock(); }
-        inline void unlock() { lock.unlock(); }
-        inline bool owns() const { return lock.owns_lock(); }
+        inline bool try_lock() { return lock->try_lock(); }
+        inline void unlock() { lock->unlock(); }
+        inline bool try_release() {
+            if (lock->try_lock()) {
+                std::mutex* _lock = lock;
+                lock = nullptr;
+                _lock->unlock();
+                delete(_lock);
+                return true;
+            }
+            return false;
+        }
+        ~ChunkLock();
     };
 
     struct RegionLock {
@@ -113,9 +121,10 @@ private:
     std::unordered_map<ChunkPos, ChunkContainer> chunkMap;
 
     std::shared_ptr<ChunkHandler> chunkHandler;
+    int minIdleTimeToUnload;
 
 public:
-    ThreadedChunkSource(std::shared_ptr<ChunkHandler> chunkHandler, int maxWorkerThreads);
+    ThreadedChunkSource(std::shared_ptr<ChunkHandler> chunkHandler, int maxWorkerThreads, int minIdleTimeToUnload);
     void addTask(Task const& task);
     void releaseExcessChunkLocks();
     ~ThreadedChunkSource() override;
@@ -145,6 +154,7 @@ public:
 
 private:
     RegionLock tryLockRegion(std::list<ChunkPos> const& regionLock);
+    void unlockRegion(RegionLock& lock);
     void threadLoop();
 
     static inline unsigned long long getCurrentTime() {
