@@ -34,20 +34,90 @@ struct RaytraceData {
     vec3 start; // starting position
     vec3 ray; // ray is normalized
     vec3 rayS; // S value for each coordinate
+    vec3 rayL;
     float distance; // total distance
+    int voxel_distance; // counter for voxel steps to check for region end
     ivec3 pos; // cell position
+    ivec3 pos_step;
 };
 
-#define RAYTRACE_DDA_STEP_OVER(RAYTRACE_DATA, END_DIS) { \
-        RAYTRACE_DATA.distance += (END_DIS); \
-        vec3 _end_pos = RAYTRACE_DATA.distance * RAYTRACE_DATA.ray + RAYTRACE_DATA.start; \
-        RAYTRACE_DATA.pos = ivec3(floor(_end_pos)); \
+struct RegTraverseData {
+    vec3 add_f;
+    ivec3 add_i;
+    int region_end;
+};
+
+
+#define BINARY_CHOICE_AB_A(A, B) A
+#define BINARY_CHOICE_AB_B(A, B) B
+
+#define RAYTRACE_DDA_STEP(RAYTRACE_DATA) \
+    if (RAYTRACE_DATA.rayL.x < RAYTRACE_DATA.rayL.z) { \
+        if (RAYTRACE_DATA.rayL.x < RAYTRACE_DATA.rayL.y) { \
+            RAYTRACE_DATA.pos.x += RAYTRACE_DATA.pos_step.x; \
+            RAYTRACE_DATA.rayL.x += RAYTRACE_DATA.rayS.x; \
+        } else { \
+            RAYTRACE_DATA.pos.y += RAYTRACE_DATA.pos_step.y; \
+            RAYTRACE_DATA.rayL.y += RAYTRACE_DATA.rayS.y; \
+        } \
+    } else { \
+        if (RAYTRACE_DATA.rayL.z < RAYTRACE_DATA.rayL.y) { \
+            RAYTRACE_DATA.pos.z += RAYTRACE_DATA.pos_step.z; \
+            RAYTRACE_DATA.rayL.z += RAYTRACE_DATA.rayS.z; \
+        } else { \
+            RAYTRACE_DATA.pos.y += RAYTRACE_DATA.pos_step.y; \
+            RAYTRACE_DATA.rayL.y += RAYTRACE_DATA.rayS.y; \
+        } \
+    } \
+    RAYTRACE_DATA.voxel_distance++;
+
+#define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK) \
+    { \
+        int COUNT_X = RAYTRACE_DATA.ray.x > 0 ? REGION_SIZE - (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) : (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) + 1;  \
+        float _rayL_x = RAYTRACE_DATA.rayL.x + RAYTRACE_DATA.rayS.x * float(COUNT_X - 1); \
+        vec2 _add_yz = ceil((_rayL_x - RAYTRACE_DATA.rayL.yz) / RAYTRACE_DATA.rayS.yz); \
+        ivec2 _add_yz_i = ivec2(_add_yz); \
+        int _dis_x = _add_yz_i.x + _add_yz_i.y + COUNT_X;  \
+        \
+        int COUNT_Y = RAYTRACE_DATA.ray.y > 0 ? REGION_SIZE - (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) : (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) + 1;  \
+        float _rayL_y = RAYTRACE_DATA.rayL.y + RAYTRACE_DATA.rayS.y * float(COUNT_Y - 1); \
+        vec2 _add_xz = ceil((_rayL_y - RAYTRACE_DATA.rayL.xz) / RAYTRACE_DATA.rayS.xz); \
+        ivec2 _add_xz_i = ivec2(_add_xz); \
+        int _dis_y = _add_xz_i.x + _add_xz_i.y + COUNT_Y;  \
+        \
+        int COUNT_Z = RAYTRACE_DATA.ray.z > 0 ? REGION_SIZE - (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) : (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) + 1; \
+        float _rayL_z = RAYTRACE_DATA.rayL.z + RAYTRACE_DATA.rayS.z * float(COUNT_Z - 1); \
+        vec2 _add_xy = ceil((_rayL_z - RAYTRACE_DATA.rayL.xy) / RAYTRACE_DATA.rayS.xy); \
+        ivec2 _add_xy_i = ivec2(_add_xy); \
+        int _dis_z = _add_xy_i.x + _add_xy_i.y + COUNT_Z;  \
+        \
+        if (_dis_x < _dis_y) {  \
+            if (_dis_z < _dis_x) { \
+                DATA_VAR.add_i = ivec3(_add_xy_i, COUNT_Z); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_z; \
+            } else { \
+                DATA_VAR.add_i = ivec3(COUNT_X, _add_yz_i); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_x; \
+            } \
+        } else { \
+            if (_dis_z < _dis_y) { \
+                DATA_VAR.add_i = ivec3(_add_xy_i, COUNT_Z); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_z; \
+            } else { \
+                DATA_VAR.add_i = ivec3(_add_xz_i.x, COUNT_Y, _add_xz_i.y); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_y; \
+            } \
+        } \
     }
 
-#define RAYTRACE_DDA_STEP_OVER_AUTO(RAYTRACE_DATA, REGION_SIZE) { \
-        float _end_dis = 1e-1 + get_end_region_distance(raytrace_data.start + raytrace_data.distance * raytrace_data.ray, raytrace_data.ray, raytrace_data.rayS, REGION_SIZE); \
-        RAYTRACE_DDA_STEP_OVER(raytrace_data, _end_dis); \
+#define DO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR) \
+    { \
+        RAYTRACE_DATA.rayL += DATA_VAR.add_i * RAYTRACE_DATA.rayS; \
+        RAYTRACE_DATA.pos += DATA_VAR.add_i * RAYTRACE_DATA.pos_step; \
+        RAYTRACE_DATA.voxel_distance = DATA_VAR.region_end; \
     }
+
+#define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
 
 // returns distance from position to the end of given region
@@ -62,9 +132,9 @@ float get_end_region_distance(vec3 start, vec3 ray, vec3 rayS, float region_size
 }
 
 uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) {
-    float end_region_distance_chunk = get_end_region_distance(raytrace_data.start, raytrace_data.ray, raytrace_data.rayS, 128.0);
-    float end_region_distance_tier2 = get_end_region_distance(raytrace_data.start, raytrace_data.ray, raytrace_data.rayS, 16.0);
-    float end_region_distance_tier1 = get_end_region_distance(raytrace_data.start, raytrace_data.ray, raytrace_data.rayS, 4.0);
+    RegTraverseData tier1_region;
+    RegTraverseData tier2_region;
+    RegTraverseData chunk_region;
 
     int i = 0;
     // chunk level
@@ -72,41 +142,45 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
         ivec3 chunk_pos = raytrace_data.pos >> 7;
         ivec3 chunk_pos_off = chunk_pos - CHUNK_OFFSET;
 
-        if (raytrace_data.distance > max_distance) {
+        if (raytrace_data.voxel_distance > max_distance) {
             steps_made = i;
             distance_to_voxel = max_distance;
             return 0u;
         }
 
+        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 128, 127);
         // if in bound of chunk, raytrace it
         if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < CHUNK_COUNT.x && chunk_pos_off.y < CHUNK_COUNT.y && chunk_pos_off.z < CHUNK_COUNT.z) {
             // get buffer offset from chunk
             int chunk_buffer_offset = CHUNK_DATA_OFFSETS_IN_BUFFER[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * CHUNK_COUNT.z) * CHUNK_COUNT.x];
             // iterate while inside this chunk
             while (i < max_steps) {
-                if (raytrace_data.distance < end_region_distance_chunk) {
+                if (NOT_TRAVERSE_REGION_END(raytrace_data, chunk_region)) {
                     // raytrace over tier 2 region
                     ivec3 r2pos = (raytrace_data.pos >> 4) & 7;
                     int r2offset = chunk_buffer_offset + (r2pos.x | ((r2pos.z | (r2pos.y << 3)) << 3)) * 4161; //
 
-                    if (raytrace_data.distance > max_distance) {
+                    if (raytrace_data.voxel_distance > max_distance) {
                         steps_made = i;
                         distance_to_voxel = max_distance;
                         return 0u;
                     }
 
+                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15);
                     if (texelFetch(CHUNK_BUFFER, r2offset).r != 0u) {
                         // region is non-empty, raytrace over tier 1
                         while (i < max_steps) {
                             // if in bound of tier 2 region
-                            if (raytrace_data.distance < end_region_distance_tier2) {
+                            if (NOT_TRAVERSE_REGION_END(raytrace_data, tier2_region)) {
                                 // raytrace over tier 1 region
                                 ivec3 r1pos = (raytrace_data.pos >> 2) & 3;
                                 int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; //
+
+                                PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3);
                                 if (texelFetch(CHUNK_BUFFER, r1offset).r != 0u) {
                                     // region is non-empty, raytrace over voxels
                                     while (i < max_steps) {
-                                        if (raytrace_data.distance < end_region_distance_tier1) {
+                                        if (NOT_TRAVERSE_REGION_END(raytrace_data, tier1_region)) {
                                             ivec3 voxel_pos = raytrace_data.pos & 3;
                                             int voxel_index = r1offset + 1 + (voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 2)) << 2));
                                             uint voxel = texelFetch(CHUNK_BUFFER, voxel_index).r;
@@ -117,7 +191,8 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
                                                 return voxel;
                                             }
                                             // make voxel step
-                                            RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 1); i++;
+                                            RAYTRACE_DDA_STEP(raytrace_data); i++;
+                                            // RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 1); i++;
                                         } else {
                                             i++;
                                             break;
@@ -126,11 +201,8 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
                                     // return 2;
                                 } else {
                                     // region is empty, skip (make tier 1 step)
-                                    RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 4); i++;
+                                    DO_TRAVERSE_REGION(raytrace_data, tier1_region); i++;
                                 }
-                                // both if branches will reach next tier 1 region, so
-                                // init for next tier 1 region
-                                end_region_distance_tier1 = raytrace_data.distance + get_end_region_distance(raytrace_data.start + raytrace_data.distance * raytrace_data.ray, raytrace_data.ray, raytrace_data.rayS, 4.0);
                             } else {
                                 i++;
                                 break;
@@ -138,22 +210,16 @@ uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance
                         }
                     } else {
                         // region is empty, skip (make tier 2 step)
-                        RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 16); i++;
+                        DO_TRAVERSE_REGION(raytrace_data, tier2_region); i++;
                     }
-                    // both if branches will reach next tier 2 region, so
-                    // init for next tier 2 region
-                    end_region_distance_tier2 = raytrace_data.distance + get_end_region_distance(raytrace_data.start + raytrace_data.distance * raytrace_data.ray, raytrace_data.ray, raytrace_data.rayS, 16.0);
                 } else {
                     i++;
                     break;
                 }
             }
         } else {
-            RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 128); i++;
+            DO_TRAVERSE_REGION(raytrace_data, chunk_region); i++;
         }
-
-        // find next chunk bound
-        end_region_distance_chunk = raytrace_data.distance + get_end_region_distance(raytrace_data.start + raytrace_data.distance * raytrace_data.ray, raytrace_data.ray, raytrace_data.rayS, 128.0);
     }
     distance_to_voxel = raytrace_data.distance;
     steps_made = max_steps;
@@ -173,7 +239,14 @@ uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, ou
     );
 
     raytrace_data.pos = ivec3(floor(start));
+    raytrace_data.pos_step = ivec3(ray.x > 0 ? 1 : -1, ray.y > 0 ? 1 : -1, ray.z > 0 ? 1 : -1);
     raytrace_data.distance = 0.0;
+
+    raytrace_data.rayL = vec3(
+            (ray.x > 0 ? (float(raytrace_data.pos.x + 1) - start.x) : (start.x - float(raytrace_data.pos.x))) * raytrace_data.rayS.x,
+            (ray.y > 0 ? (float(raytrace_data.pos.y + 1) - start.y) : (start.y - float(raytrace_data.pos.y))) * raytrace_data.rayS.y,
+            (ray.z > 0 ? (float(raytrace_data.pos.z + 1) - start.z) : (start.z - float(raytrace_data.pos.z))) * raytrace_data.rayS.z
+        );
 
     return raytrace_next(raytrace_data, max_steps, max_distance, steps_made, distance_to_voxel);
 }
@@ -193,7 +266,6 @@ void raytrace(
     int steps_made;
     float distance_to_voxel;
     uint result = raytrace_direct(start, ray, max_steps, max_distance, steps_made, distance_to_voxel);
-    // return steps_made > 50 ? vec3(1.0, 0.0, 0.0) : vec3(steps_made / 50.0);
     out_depth = distance_to_voxel;
 
     if (result == 0u) {

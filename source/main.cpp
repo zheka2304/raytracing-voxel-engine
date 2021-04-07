@@ -74,14 +74,14 @@ public:
                 float r = smooth_rand(fx, fz) * 0.125 +
                         smooth_rand(fx / 2.0f, fz / 2.0f) * 0.25 +
                         smooth_rand(fx / 4.0f, fz / 4.0f) * 0.5;
-                float h =  r * 64 + 8;
+                float h = 8 + 64 * r;
                 for (int y = 0; y < 128; y++) {
-                    // int dx = x - 64;
-                    // int dy = y - 64;
-                    // int dz = z - 64;
+                     int dx = x - 64;
+                     int dy = y - 64;
+                     int dz = z - 64;
                     // int d = dx * dx + dy * dy + dz * dz;
                     // int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
-                    int v = chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h;
+                     chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h; //(dx * dx + dy * dy + dz * dz) < 32 * 32;
                 }
             }
         }
@@ -157,11 +157,11 @@ int main(int argc, char* argv[]) {
 
     // init shader and uniforms
     gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
-    gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "SOFT_SHADOWS", "HIGH_QUALITY_SHADOWS" });
+    gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "HIGH_QUALITY_SHADOWS" });
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 
-    gl::RenderToTexture renderToTexture(480 * 1, 270 * 1, 3);
+    gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
 
     // start
     float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
         glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
         glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
         glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
-        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 2 / 480.0f, 2 / 270.0f);
+        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 1 / 480.0f, 1 / 270.0f);
         renderToTexture.drawFullScreenQuad();
 
 

@@ -71,12 +71,21 @@ public:
     bool isAvailableForRender();
 
     void rebuildRenderBuffer();
-    unsigned int calcNormal(int x, int y, int z);
     bool rebuildTier2Region(int rx2, int ry2, int rz2);
     bool rebuildTier1Region(int rx1, int ry1, int rz1, int offset = -1);
     ~VoxelChunk();
 
     void attachRenderChunk(RenderChunk* renderChunk);
+
+private:
+    inline unsigned int getVoxelAt(int x, int y, int z) {
+        if ((unsigned(x) >> 7) == 0 && (unsigned(y) >> 7) == 0 && (unsigned(z) >> 7) == 0) {
+            return voxelBuffer[x | ((z | (y << 7)) << 7)];
+        } else {
+            return 0;
+        }
+    }
+    unsigned int calcNormal(int x, int y, int z);
 };
 
 #endif //VOXEL_ENGINE_VOXEL_CHUNK_H

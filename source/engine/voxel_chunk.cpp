@@ -51,36 +51,21 @@ bool VoxelChunk::isAvailableForRender() {
     return state == STATE_BAKED;
 }
 
+
+
 unsigned int VoxelChunk::calcNormal(int x, int y, int z) {
+    if (getVoxelAt(x + 1, y, z) &&
+            getVoxelAt(x - 1, y, z) &&
+            getVoxelAt(x, y - 1, z) &&
+            getVoxelAt(x, y + 1, z) &&
+            getVoxelAt(x, y, z - 1) &&
+            getVoxelAt(x, y, z + 1)) {
+        return 0xFF00FF;
+    }
+
     float nx = 0;
     float ny = 0;
     float nz = 0;
-
-    bool required = false;
-    for (int xs = -2; xs <= 2; xs++) {
-        for (int ys = -2; ys <= 2; ys++) {
-            for (int zs = -2; zs <= 2; zs++) {
-                int xi = x + xs;
-                int yi = y + ys;
-                int zi = z + zs;
-
-                unsigned int voxel;
-                if (xi < 0 || yi < 0 || zi < 0 || xi >= sizeX || yi >= sizeY || zi >= sizeZ) {
-                    required = true;
-                    voxel = 0;
-                } else {
-                    voxel = voxelBuffer[xi + (zi + yi * sizeZ) * sizeX];
-                    if (voxel == 0) {
-                        required = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if (!required) {
-        return 0xFF00FF;
-    }
 
     for (int xs = -4; xs <= 4; xs++) {
         for (int ys = -4; ys <= 4; ys++) {
@@ -152,7 +137,7 @@ bool VoxelChunk::rebuildTier1Region(int rx1, int ry1, int rz1, int r2offset) {
                 int volume_voxel = x + (z + y * sizeZ) * sizeX;
                 unsigned int voxel_val = voxelBuffer[volume_voxel];
                 if (voxel_val != 0) {
-                    unsigned int voxel_normal = 0x80FF80;// calcNormal(x, y, z);
+                    unsigned int voxel_normal = calcNormal(x, y, z);
                     renderBuffer[render_voxel] = voxel_val | (voxel_normal << 8);
                     any = true;
                 }
