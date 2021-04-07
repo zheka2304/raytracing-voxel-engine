@@ -131,100 +131,100 @@ float get_end_region_distance(vec3 start, vec3 ray, vec3 rayS, float region_size
     return min(dis.x, min(dis.y, dis.z)) + 5e-6;
 }
 
-uint raytrace_next(RaytraceData raytrace_data, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) {
-    RegTraverseData tier1_region;
-    RegTraverseData tier2_region;
-    RegTraverseData chunk_region;
-
-    int i = 0;
-    // chunk level
-    while(i < max_steps) {
-        ivec3 chunk_pos = raytrace_data.pos >> 7;
-        ivec3 chunk_pos_off = chunk_pos - CHUNK_OFFSET;
-
-        if (raytrace_data.voxel_distance > max_distance) {
-            steps_made = i;
-            distance_to_voxel = max_distance;
-            return 0u;
-        }
-
-        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 128, 127);
-        // if in bound of chunk, raytrace it
-        if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < CHUNK_COUNT.x && chunk_pos_off.y < CHUNK_COUNT.y && chunk_pos_off.z < CHUNK_COUNT.z) {
-            // get buffer offset from chunk
-            int chunk_buffer_offset = CHUNK_DATA_OFFSETS_IN_BUFFER[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * CHUNK_COUNT.z) * CHUNK_COUNT.x];
-            // iterate while inside this chunk
-            while (i < max_steps) {
-                if (NOT_TRAVERSE_REGION_END(raytrace_data, chunk_region)) {
-                    // raytrace over tier 2 region
-                    ivec3 r2pos = (raytrace_data.pos >> 4) & 7;
-                    int r2offset = chunk_buffer_offset + (r2pos.x | ((r2pos.z | (r2pos.y << 3)) << 3)) * 4161; //
-
-                    if (raytrace_data.voxel_distance > max_distance) {
-                        steps_made = i;
-                        distance_to_voxel = max_distance;
-                        return 0u;
-                    }
-
-                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15);
-                    if (texelFetch(CHUNK_BUFFER, r2offset).r != 0u) {
-                        // region is non-empty, raytrace over tier 1
-                        while (i < max_steps) {
-                            // if in bound of tier 2 region
-                            if (NOT_TRAVERSE_REGION_END(raytrace_data, tier2_region)) {
-                                // raytrace over tier 1 region
-                                ivec3 r1pos = (raytrace_data.pos >> 2) & 3;
-                                int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; //
-
-                                PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3);
-                                if (texelFetch(CHUNK_BUFFER, r1offset).r != 0u) {
-                                    // region is non-empty, raytrace over voxels
-                                    while (i < max_steps) {
-                                        if (NOT_TRAVERSE_REGION_END(raytrace_data, tier1_region)) {
-                                            ivec3 voxel_pos = raytrace_data.pos & 3;
-                                            int voxel_index = r1offset + 1 + (voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 2)) << 2));
-                                            uint voxel = texelFetch(CHUNK_BUFFER, voxel_index).r;
-                                            if (voxel != 0u) {
-                                                // voxel found, end iteration
-                                                steps_made = i;
-                                                distance_to_voxel = raytrace_data.distance;
-                                                return voxel;
-                                            }
-                                            // make voxel step
-                                            RAYTRACE_DDA_STEP(raytrace_data); i++;
-                                            // RAYTRACE_DDA_STEP_OVER_AUTO(raytrace_data, 1); i++;
-                                        } else {
-                                            i++;
-                                            break;
-                                        }
-                                    }
-                                    // return 2;
-                                } else {
-                                    // region is empty, skip (make tier 1 step)
-                                    DO_TRAVERSE_REGION(raytrace_data, tier1_region); i++;
-                                }
-                            } else {
-                                i++;
-                                break;
-                            }
-                        }
-                    } else {
-                        // region is empty, skip (make tier 2 step)
-                        DO_TRAVERSE_REGION(raytrace_data, tier2_region); i++;
-                    }
-                } else {
-                    i++;
-                    break;
-                }
-            }
-        } else {
-            DO_TRAVERSE_REGION(raytrace_data, chunk_region); i++;
-        }
-    }
-    distance_to_voxel = raytrace_data.distance;
-    steps_made = max_steps;
-    return 0u;
+#define MAIN_RAYTRACE_FUNC(FUNC_NAME) \
+uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) { \
+    RegTraverseData tier1_region; \
+    RegTraverseData tier2_region; \
+    RegTraverseData chunk_region; \
+    \
+    int i = 0; \
+    while(i < max_steps) { \
+        ivec3 chunk_pos = raytrace_data.pos >> 7; \
+        ivec3 chunk_pos_off = chunk_pos - CHUNK_OFFSET; \
+        \
+        if (raytrace_data.voxel_distance > max_distance) { \
+            steps_made = i; \
+            distance_to_voxel = max_distance; \
+            return 0u; \
+        } \
+        \
+        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 128, 127); \
+        /* if in bound of chunk, raytrace it */ \
+        if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < CHUNK_COUNT.x && chunk_pos_off.y < CHUNK_COUNT.y && chunk_pos_off.z < CHUNK_COUNT.z) { \
+            /* get buffer offset from chunk */ \
+            int chunk_buffer_offset = CHUNK_DATA_OFFSETS_IN_BUFFER[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * CHUNK_COUNT.z) * CHUNK_COUNT.x]; \
+            /* iterate while inside this chunk */ \
+            while (i < max_steps) { \
+                if (NOT_TRAVERSE_REGION_END(raytrace_data, chunk_region)) { \
+                    /* raytrace over tier 2 region */ \
+                    ivec3 r2pos = (raytrace_data.pos >> 4) & 7; \
+                    int r2offset = chunk_buffer_offset + (r2pos.x | ((r2pos.z | (r2pos.y << 3)) << 3)) * 4161; \
+                    \
+                    if (raytrace_data.voxel_distance > max_distance) { \
+                        steps_made = i; \
+                        distance_to_voxel = max_distance; \
+                        return 0u; \
+                    } \
+                    \
+                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15); \
+                    if (texelFetch(CHUNK_BUFFER, r2offset).r != 0u) { \
+                        /* region is non-empty, raytrace over tier 1 */ \
+                        while (i < max_steps) { \
+                            /* if in bound of tier 2 region */ \
+                            if (NOT_TRAVERSE_REGION_END(raytrace_data, tier2_region)) { \
+                                /* raytrace over tier 1 region */ \
+                                ivec3 r1pos = (raytrace_data.pos >> 2) & 3; \
+                                int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; \
+                                \
+                                PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3); \
+                                if (texelFetch(CHUNK_BUFFER, r1offset).r != 0u) { \
+                                    /* region is non-empty, raytrace over voxels */ \
+                                    while (i < max_steps) { \
+                                        if (NOT_TRAVERSE_REGION_END(raytrace_data, tier1_region)) { \
+                                            ivec3 voxel_pos = raytrace_data.pos & 3; \
+                                            int voxel_index = r1offset + 1 + (voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 2)) << 2)); \
+                                            uint voxel = texelFetch(CHUNK_BUFFER, voxel_index).r; \
+                                            if (voxel != 0u) { \
+                                                /* voxel found, end iteration */ \
+                                                steps_made = i; \
+                                                distance_to_voxel = raytrace_data.distance; \
+                                                return voxel; \
+                                            } \
+                                            /* make voxel step */ \
+                                            RAYTRACE_DDA_STEP(raytrace_data); i++; \
+                                        } else { \
+                                            i++; \
+                                            break; \
+                                        } \
+                                    } \
+                                } else { \
+                                    /* region is empty, skip (make tier 1 step) */ \
+                                    DO_TRAVERSE_REGION(raytrace_data, tier1_region); i++; \
+                                } \
+                            } else { \
+                                i++; \
+                                break; \
+                            } \
+                        } \
+                    } else { \
+                        /* region is empty, skip (make tier 2 step) */ \
+                        DO_TRAVERSE_REGION(raytrace_data, tier2_region); i++; \
+                    } \
+                } else { \
+                    i++; \
+                    break; \
+                } \
+            } \
+        } else { \
+            DO_TRAVERSE_REGION(raytrace_data, chunk_region); i++; \
+        } \
+    } \
+    distance_to_voxel = raytrace_data.distance; \
+    steps_made = max_steps; \
+    return 0u; \
 }
+
+MAIN_RAYTRACE_FUNC(raytrace_next)
 
 uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) {
     RaytraceData raytrace_data;
