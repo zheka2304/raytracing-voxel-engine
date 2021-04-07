@@ -51,41 +51,41 @@ struct RegTraverseData {
 #define BINARY_CHOICE_AB_A(A, B) A
 #define BINARY_CHOICE_AB_B(A, B) B
 
-#define RAYTRACE_DDA_STEP(RAYTRACE_DATA) \
+#define RAYTRACE_DDA_STEP(RAYTRACE_DATA, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     if (RAYTRACE_DATA.rayL.x < RAYTRACE_DATA.rayL.z) { \
         if (RAYTRACE_DATA.rayL.x < RAYTRACE_DATA.rayL.y) { \
-            RAYTRACE_DATA.pos.x += RAYTRACE_DATA.pos_step.x; \
+            RAYTRACE_DATA.pos.x IS_RAY_X_POSITIVE(++, --); \
             RAYTRACE_DATA.rayL.x += RAYTRACE_DATA.rayS.x; \
         } else { \
-            RAYTRACE_DATA.pos.y += RAYTRACE_DATA.pos_step.y; \
+            RAYTRACE_DATA.pos.y IS_RAY_Y_POSITIVE(++, --); \
             RAYTRACE_DATA.rayL.y += RAYTRACE_DATA.rayS.y; \
         } \
     } else { \
         if (RAYTRACE_DATA.rayL.z < RAYTRACE_DATA.rayL.y) { \
-            RAYTRACE_DATA.pos.z += RAYTRACE_DATA.pos_step.z; \
+            RAYTRACE_DATA.pos.z IS_RAY_Z_POSITIVE(++, --); \
             RAYTRACE_DATA.rayL.z += RAYTRACE_DATA.rayS.z; \
         } else { \
-            RAYTRACE_DATA.pos.y += RAYTRACE_DATA.pos_step.y; \
+            RAYTRACE_DATA.pos.y IS_RAY_Y_POSITIVE(++, --); \
             RAYTRACE_DATA.rayL.y += RAYTRACE_DATA.rayS.y; \
         } \
     } \
     RAYTRACE_DATA.voxel_distance++;
 
-#define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK) \
+#define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
-        int COUNT_X = RAYTRACE_DATA.ray.x > 0 ? REGION_SIZE - (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) : (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) + 1;  \
+        int COUNT_X = IS_RAY_X_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) + 1);  \
         float _rayL_x = RAYTRACE_DATA.rayL.x + RAYTRACE_DATA.rayS.x * float(COUNT_X - 1); \
         vec2 _add_yz = ceil((_rayL_x - RAYTRACE_DATA.rayL.yz) / RAYTRACE_DATA.rayS.yz); \
         ivec2 _add_yz_i = ivec2(_add_yz); \
         int _dis_x = _add_yz_i.x + _add_yz_i.y + COUNT_X;  \
         \
-        int COUNT_Y = RAYTRACE_DATA.ray.y > 0 ? REGION_SIZE - (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) : (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) + 1;  \
+        int COUNT_Y = IS_RAY_Y_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) + 1);  \
         float _rayL_y = RAYTRACE_DATA.rayL.y + RAYTRACE_DATA.rayS.y * float(COUNT_Y - 1); \
         vec2 _add_xz = ceil((_rayL_y - RAYTRACE_DATA.rayL.xz) / RAYTRACE_DATA.rayS.xz); \
         ivec2 _add_xz_i = ivec2(_add_xz); \
         int _dis_y = _add_xz_i.x + _add_xz_i.y + COUNT_Y;  \
         \
-        int COUNT_Z = RAYTRACE_DATA.ray.z > 0 ? REGION_SIZE - (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) : (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) + 1; \
+        int COUNT_Z = IS_RAY_Z_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) + 1); \
         float _rayL_z = RAYTRACE_DATA.rayL.z + RAYTRACE_DATA.rayS.z * float(COUNT_Z - 1); \
         vec2 _add_xy = ceil((_rayL_z - RAYTRACE_DATA.rayL.xy) / RAYTRACE_DATA.rayS.xy); \
         ivec2 _add_xy_i = ivec2(_add_xy); \
@@ -110,7 +110,7 @@ struct RegTraverseData {
         } \
     }
 
-#define DO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR) \
+#define DO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         RAYTRACE_DATA.rayL += DATA_VAR.add_i * RAYTRACE_DATA.rayS; \
         RAYTRACE_DATA.pos += DATA_VAR.add_i * RAYTRACE_DATA.pos_step; \
@@ -120,18 +120,8 @@ struct RegTraverseData {
 #define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
 
-// returns distance from position to the end of given region
-float get_end_region_distance(vec3 start, vec3 ray, vec3 rayS, float region_size) {
-    vec3 region_offset = floor(start / region_size) * region_size;
-    vec3 dis = vec3(
-        (ray.x > 0 ? (region_offset.x + region_size - start.x) : (start.x - region_offset.x)) * rayS.x,
-        (ray.y > 0 ? (region_offset.y + region_size - start.y) : (start.y - region_offset.y)) * rayS.y,
-        (ray.z > 0 ? (region_offset.z + region_size - start.z) : (start.z - region_offset.z)) * rayS.z
-    );
-    return min(dis.x, min(dis.y, dis.z)) + 5e-6;
-}
 
-#define MAIN_RAYTRACE_FUNC(FUNC_NAME) \
+#define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
 uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) { \
     RegTraverseData tier1_region; \
     RegTraverseData tier2_region; \
@@ -148,7 +138,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
             return 0u; \
         } \
         \
-        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 128, 127); \
+        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 128, 127, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
         /* if in bound of chunk, raytrace it */ \
         if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < CHUNK_COUNT.x && chunk_pos_off.y < CHUNK_COUNT.y && chunk_pos_off.z < CHUNK_COUNT.z) { \
             /* get buffer offset from chunk */ \
@@ -166,7 +156,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                         return 0u; \
                     } \
                     \
-                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15); \
+                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
                     if (texelFetch(CHUNK_BUFFER, r2offset).r != 0u) { \
                         /* region is non-empty, raytrace over tier 1 */ \
                         while (i < max_steps) { \
@@ -176,7 +166,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                                 ivec3 r1pos = (raytrace_data.pos >> 2) & 3; \
                                 int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; \
                                 \
-                                PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3); \
+                                PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
                                 if (texelFetch(CHUNK_BUFFER, r1offset).r != 0u) { \
                                     /* region is non-empty, raytrace over voxels */ \
                                     while (i < max_steps) { \
@@ -191,7 +181,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                                                 return voxel; \
                                             } \
                                             /* make voxel step */ \
-                                            RAYTRACE_DDA_STEP(raytrace_data); i++; \
+                                            RAYTRACE_DDA_STEP(raytrace_data, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                                         } else { \
                                             i++; \
                                             break; \
@@ -199,7 +189,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                                     } \
                                 } else { \
                                     /* region is empty, skip (make tier 1 step) */ \
-                                    DO_TRAVERSE_REGION(raytrace_data, tier1_region); i++; \
+                                    DO_TRAVERSE_REGION(raytrace_data, tier1_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                                 } \
                             } else { \
                                 i++; \
@@ -208,7 +198,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                         } \
                     } else { \
                         /* region is empty, skip (make tier 2 step) */ \
-                        DO_TRAVERSE_REGION(raytrace_data, tier2_region); i++; \
+                        DO_TRAVERSE_REGION(raytrace_data, tier2_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                     } \
                 } else { \
                     i++; \
@@ -216,7 +206,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                 } \
             } \
         } else { \
-            DO_TRAVERSE_REGION(raytrace_data, chunk_region); i++; \
+            DO_TRAVERSE_REGION(raytrace_data, chunk_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
         } \
     } \
     distance_to_voxel = raytrace_data.distance; \
@@ -224,7 +214,47 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
     return 0u; \
 }
 
-MAIN_RAYTRACE_FUNC(raytrace_next)
+MAIN_RAYTRACE_FUNC(raytrace_next_px_py_pz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_A)
+MAIN_RAYTRACE_FUNC(raytrace_next_nx_py_pz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_A)
+MAIN_RAYTRACE_FUNC(raytrace_next_px_ny_pz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_A)
+MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_pz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_A)
+MAIN_RAYTRACE_FUNC(raytrace_next_px_py_nz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_B)
+MAIN_RAYTRACE_FUNC(raytrace_next_nx_py_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_B)
+MAIN_RAYTRACE_FUNC(raytrace_next_px_ny_nz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B)
+MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B)
+
+
+#define RAYTRACE_FUNC_CALL(RESULT_VAR, RAYTRACE_DATA, PARAMS) \
+    if (RAYTRACE_DATA.ray.x > 0) { \
+        if (RAYTRACE_DATA.ray.y > 0) { \
+            if (RAYTRACE_DATA.ray.z > 0) { \
+                RESULT_VAR = raytrace_next_px_py_pz PARAMS; \
+            } else { \
+                RESULT_VAR = raytrace_next_px_py_nz PARAMS; \
+            } \
+        } else { \
+            if (RAYTRACE_DATA.ray.z > 0) { \
+                RESULT_VAR = raytrace_next_px_ny_pz PARAMS; \
+            } else { \
+                RESULT_VAR = raytrace_next_px_ny_nz PARAMS; \
+            } \
+        } \
+    } else { \
+        if (RAYTRACE_DATA.ray.y > 0) { \
+            if (RAYTRACE_DATA.ray.z > 0) { \
+                RESULT_VAR = raytrace_next_nx_py_pz PARAMS; \
+            } else { \
+                RESULT_VAR = raytrace_next_nx_py_nz PARAMS; \
+            } \
+        } else { \
+            if (RAYTRACE_DATA.ray.z > 0) { \
+                RESULT_VAR = raytrace_next_nx_ny_pz PARAMS; \
+            } else { \
+                RESULT_VAR = raytrace_next_nx_ny_nz PARAMS; \
+            } \
+        } \
+    }
+
 
 uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) {
     RaytraceData raytrace_data;
@@ -248,7 +278,9 @@ uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, ou
             (ray.z > 0 ? (float(raytrace_data.pos.z + 1) - start.z) : (start.z - float(raytrace_data.pos.z))) * raytrace_data.rayS.z
         );
 
-    return raytrace_next(raytrace_data, max_steps, max_distance, steps_made, distance_to_voxel);
+    uint result;
+    RAYTRACE_FUNC_CALL(result, raytrace_data, (raytrace_data, max_steps, max_distance, steps_made, distance_to_voxel));
+    return result;
 }
 
 void raytrace(
