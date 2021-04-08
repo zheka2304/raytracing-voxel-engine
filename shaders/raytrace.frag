@@ -75,19 +75,19 @@ struct RegTraverseData {
     { \
         int COUNT_X = IS_RAY_X_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) + 1);  \
         float _rayL_x = RAYTRACE_DATA.rayL.x + RAYTRACE_DATA.rayS.x * float(COUNT_X - 1); \
-        vec2 _add_yz = ceil((_rayL_x - RAYTRACE_DATA.rayL.yz) / RAYTRACE_DATA.rayS.yz); \
+        vec2 _add_yz = ceil(max(vec2(0), (_rayL_x - RAYTRACE_DATA.rayL.yz) / RAYTRACE_DATA.rayS.yz)); \
         ivec2 _add_yz_i = ivec2(_add_yz); \
         int _dis_x = _add_yz_i.x + _add_yz_i.y + COUNT_X;  \
         \
         int COUNT_Y = IS_RAY_Y_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) + 1);  \
         float _rayL_y = RAYTRACE_DATA.rayL.y + RAYTRACE_DATA.rayS.y * float(COUNT_Y - 1); \
-        vec2 _add_xz = ceil((_rayL_y - RAYTRACE_DATA.rayL.xz) / RAYTRACE_DATA.rayS.xz); \
+        vec2 _add_xz = ceil(max(vec2(0), (_rayL_y - RAYTRACE_DATA.rayL.xz) / RAYTRACE_DATA.rayS.xz)); \
         ivec2 _add_xz_i = ivec2(_add_xz); \
         int _dis_y = _add_xz_i.x + _add_xz_i.y + COUNT_Y;  \
         \
         int COUNT_Z = IS_RAY_Z_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) + 1); \
         float _rayL_z = RAYTRACE_DATA.rayL.z + RAYTRACE_DATA.rayS.z * float(COUNT_Z - 1); \
-        vec2 _add_xy = ceil((_rayL_z - RAYTRACE_DATA.rayL.xy) / RAYTRACE_DATA.rayS.xy); \
+        vec2 _add_xy = ceil(max(vec2(0), (_rayL_z - RAYTRACE_DATA.rayL.xy) / RAYTRACE_DATA.rayS.xy)); \
         ivec2 _add_xy_i = ivec2(_add_xy); \
         int _dis_z = _add_xy_i.x + _add_xy_i.y + COUNT_Z;  \
         \
@@ -119,10 +119,15 @@ struct RegTraverseData {
 
 #define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
+#define EXTRACT_RAYTRACE_DISTANCE(RAYTRACE_DATA, RESULT_VAR) \
+    { \
+        vec3 _lastRayL = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
+        RESULT_VAR = max(_lastRayL.x, max(_lastRayL.y, _lastRayL.z)); \
+    }
 
 
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
-uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) { \
+uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out int steps_made, out float distance_to_voxel) { \
     RegTraverseData tier1_region; \
     RegTraverseData tier2_region; \
     RegTraverseData chunk_region; \
@@ -177,7 +182,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
                                             if (voxel != 0u) { \
                                                 /* voxel found, end iteration */ \
                                                 steps_made = i; \
-                                                distance_to_voxel = raytrace_data.distance; \
+                                                EXTRACT_RAYTRACE_DISTANCE(raytrace_data, distance_to_voxel); \
                                                 return voxel; \
                                             } \
                                             /* make voxel step */ \
@@ -209,7 +214,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, float max_distance, ou
             DO_TRAVERSE_REGION(raytrace_data, chunk_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
         } \
     } \
-    distance_to_voxel = raytrace_data.distance; \
+    EXTRACT_RAYTRACE_DISTANCE(raytrace_data, distance_to_voxel); \
     steps_made = max_steps; \
     return 0u; \
 }
@@ -279,7 +284,8 @@ uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, ou
         );
 
     uint result;
-    RAYTRACE_FUNC_CALL(result, raytrace_data, (raytrace_data, max_steps, max_distance, steps_made, distance_to_voxel));
+
+    RAYTRACE_FUNC_CALL(result, raytrace_data, (raytrace_data, max_steps, int(max_distance * (abs(ray.x) + abs(ray.y) + abs(ray.z))), steps_made, distance_to_voxel));
     return result;
 }
 
@@ -299,6 +305,8 @@ void raytrace(
     float distance_to_voxel;
     uint result = raytrace_direct(start, ray, max_steps, max_distance, steps_made, distance_to_voxel);
     out_depth = distance_to_voxel;
+    out_color = vec3(distance_to_voxel / 150.0);
+    out_light = vec3(1.0);
 
     if (result == 0u) {
         out_color = vec3(0.5, 0.7, 1.0);
@@ -306,8 +314,6 @@ void raytrace(
         return;
     }
 
-    vec3 ray_end = floor(start + ray * (distance_to_voxel - 1.0)) + 0.5;
-    vec3 light_dir = normalize(DIRECT_LIGHT_RAY);
 
     if (DIRECT_LIGHT_COLOR.a > 0.01) {
         uint packed_normal = result >> 8;
@@ -316,9 +322,15 @@ void raytrace(
         uint nz = (packed_normal >> 0) & 0xFFu;
         vec3 normal = vec3(float(nx), float(ny), float(nz)) / 127.0 - 1.0;
 
+        vec3 ray_end = start + ray * (distance_to_voxel) - normal;
+        vec3 light_dir = normalize(DIRECT_LIGHT_RAY);
+
         float direct_light_intensity = raytrace_direct(ray_end, -light_dir, max_steps - steps_made, max_distance_light, steps_made, distance_to_voxel) == 0u ? 1.0 : AMBIENT_LIGHT_COLOR.a;
         direct_light_intensity *= DIRECT_LIGHT_COLOR.a * (dot(light_dir, normal) * 0.5 + 0.5);
         out_light = mix(AMBIENT_LIGHT_COLOR.rgb, DIRECT_LIGHT_COLOR.rgb, direct_light_intensity);
+        // out_light = vec3(1.0);
+        // out_color = vec3(steps_made / 50.0);
+        // return;
     } else {
         out_light = AMBIENT_LIGHT_COLOR.rgb;
     }

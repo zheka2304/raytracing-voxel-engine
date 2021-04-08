@@ -74,11 +74,9 @@ public:
                 float r = smooth_rand(fx, fz) * 0.125 +
                         smooth_rand(fx / 2.0f, fz / 2.0f) * 0.25 +
                         smooth_rand(fx / 4.0f, fz / 4.0f) * 0.5;
+                r = float(abs(x - 64) < 16 && abs(z - 64) < 16);
                 float h = 8 + 64 * r;
                 for (int y = 0; y < 128; y++) {
-                     int dx = x - 64;
-                     int dy = y - 64;
-                     int dz = z - 64;
                     // int d = dx * dx + dy * dy + dz * dz;
                     // int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
                      chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h; //(dx * dx + dy * dy + dz * dz) < 32 * 32;
