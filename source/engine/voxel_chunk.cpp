@@ -1,5 +1,6 @@
 #include "renderer/render_chunk.h"
 #include "voxel_chunk.h"
+#include "baking_utils.h"
 
 
 VoxelChunk::VoxelChunk() : VoxelChunk(ChunkPos::CHUNK_SIZE, ChunkPos::CHUNK_SIZE, ChunkPos::CHUNK_SIZE) {
@@ -60,49 +61,43 @@ unsigned int VoxelChunk::calcNormal(int x, int y, int z) {
             getVoxelAt(x, y + 1, z) &&
             getVoxelAt(x, y, z - 1) &&
             getVoxelAt(x, y, z + 1)) {
-        return 0xFF00FF;
+        return 0;
     }
 
-    float nx = 0;
-    float ny = 0;
-    float nz = 0;
+    int nx = 0, ny = 0, nz = 0;
+    int distribution[7] = { -1, -1, -2, 0, 2, 1, 1 };
+    int weight[49] = {
+            0, 1, 1, 1, 1, 1, 0,
+            1, 1, 2, 2, 2, 1, 1,
+            1, 2, 3, 4, 3, 2, 1,
+            1, 2, 4, 6, 4, 2, 1,
+            1, 2, 3, 4, 3, 2, 1,
+            1, 1, 2, 2, 2, 1, 1,
+            0, 1, 1, 1, 1, 1, 0,
+    };
 
-    for (int xs = -4; xs <= 4; xs++) {
-        for (int ys = -4; ys <= 4; ys++) {
-            for (int zs = -4; zs <= 4; zs++) {
-                int xi = x + xs;
-                int yi = y + ys;
-                int zi = z + zs;
+    int weight_sum = 0;
+    for (int i = 0; i < 49; i++) {
+        weight_sum += weight[i];
+    }
 
-                unsigned int voxel;
-                if (xi < 0 || yi < 0 || zi < 0 || xi >= sizeX || yi >= sizeY || zi >= sizeZ) {
-                    voxel = 0;
-                } else {
-                    voxel = voxelBuffer[xi + (zi + yi * sizeZ) * sizeX];
-                }
-                if (voxel != 0) {
-                    int dx = (xs + 4) / 3 - 1;
-                    int dy = (ys + 4) / 3 - 1;
-                    int dz = (zs + 4) / 3 - 1;
-                    float d = std::max(1.0, sqrt(dx * dx + dy * dy + dz * dz));
-                    nx += float(dx) / d; // NOLINT(bugprone-integer-division)
-                    ny += float(dy) / d; // NOLINT(bugprone-integer-division)
-                    nz += float(dz) / d; // NOLINT(bugprone-integer-division)
+    for (int xs = -3; xs <= 3; xs++) {
+        for (int ys = -3; ys <= 3; ys++) {
+            for (int zs = -3; zs <= 3; zs++) {
+                if (getVoxelAt(xs + x, ys + y, zs + z) != 0) {
+                    nx -= distribution[xs + 3] * weight[(ys + 3) * 7 + (zs + 3)];
+                    ny -= distribution[ys + 3] * weight[(xs + 3) * 7 + (zs + 3)];
+                    nz -= distribution[zs + 3] * weight[(xs + 3) * 7 + (ys + 3)];
                 }
             }
         }
     }
 
-    float d = sqrt(nx * nx + ny * ny + nz * nz);
-    if (d > 1e-4) {
-        nx /= d;
-        ny /= d;
-        nz /= d;
-    }
-    unsigned int inx = int((nx + 1) * 127) & 0xFF;
-    unsigned int iny = int((ny + 1) * 127) & 0xFF;
-    unsigned int inz = int((nz + 1) * 127) & 0xFF;
-    return (((inx << 8) | iny) << 8) | inz;
+    nx /= weight_sum / 7;
+    ny /= weight_sum / 7;
+    nz /= weight_sum / 7;
+
+    return ChunkBakingUtils::normalToHash(nx, ny, nz);
 }
 
 bool VoxelChunk::rebuildTier1Region(int rx1, int ry1, int rz1, int r2offset) {

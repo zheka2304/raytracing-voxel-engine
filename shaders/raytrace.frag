@@ -52,24 +52,13 @@ struct RegTraverseData {
 #define BINARY_CHOICE_AB_B(A, B) B
 
 #define RAYTRACE_DDA_STEP(RAYTRACE_DATA, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
-    if (RAYTRACE_DATA.rayL.x < RAYTRACE_DATA.rayL.z) { \
-        if (RAYTRACE_DATA.rayL.x < RAYTRACE_DATA.rayL.y) { \
-            RAYTRACE_DATA.pos.x IS_RAY_X_POSITIVE(++, --); \
-            RAYTRACE_DATA.rayL.x += RAYTRACE_DATA.rayS.x; \
-        } else { \
-            RAYTRACE_DATA.pos.y IS_RAY_Y_POSITIVE(++, --); \
-            RAYTRACE_DATA.rayL.y += RAYTRACE_DATA.rayS.y; \
-        } \
-    } else { \
-        if (RAYTRACE_DATA.rayL.z < RAYTRACE_DATA.rayL.y) { \
-            RAYTRACE_DATA.pos.z IS_RAY_Z_POSITIVE(++, --); \
-            RAYTRACE_DATA.rayL.z += RAYTRACE_DATA.rayS.z; \
-        } else { \
-            RAYTRACE_DATA.pos.y IS_RAY_Y_POSITIVE(++, --); \
-            RAYTRACE_DATA.rayL.y += RAYTRACE_DATA.rayS.y; \
-        } \
-    } \
-    RAYTRACE_DATA.voxel_distance++;
+    { \
+        bvec3 _mask = lessThanEqual(RAYTRACE_DATA.rayL, min(RAYTRACE_DATA.rayL.yzx, RAYTRACE_DATA.rayL.zxy)); \
+        RAYTRACE_DATA.rayL += vec3(_mask) * RAYTRACE_DATA.rayS; \
+        RAYTRACE_DATA.pos += ivec3(_mask) * RAYTRACE_DATA.pos_step; \
+        RAYTRACE_DATA.voxel_distance++; \
+    }
+
 
 #define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
@@ -119,15 +108,33 @@ struct RegTraverseData {
 
 #define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
-#define EXTRACT_RAYTRACE_DISTANCE(RAYTRACE_DATA, RESULT_VAR) \
+#define EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(RAYTRACE_DATA, RESULT_VAR, SIDE_VAR) \
     { \
         vec3 _lastRayL = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
         RESULT_VAR = max(_lastRayL.x, max(_lastRayL.y, _lastRayL.z)); \
+        if (_lastRayL.x > _lastRayL.y) { \
+            if (_lastRayL.x > _lastRayL.z) { \
+                RESULT_VAR = _lastRayL.x; \
+                SIDE_VAR = vec3(-RAYTRACE_DATA.pos_step.x, 0, 0); \
+            } else { \
+                RESULT_VAR = _lastRayL.z; \
+                SIDE_VAR = vec3(0, 0, -RAYTRACE_DATA.pos_step.z); \
+            } \
+        } else { \
+            if (_lastRayL.y > _lastRayL.z) { \
+                RESULT_VAR = _lastRayL.y; \
+                SIDE_VAR = vec3(0, -RAYTRACE_DATA.pos_step.y, 0); \
+            } else { \
+                RESULT_VAR = _lastRayL.z; \
+                SIDE_VAR = vec3(0, 0, -RAYTRACE_DATA.pos_step.z); \
+            } \
+        } \
     }
 
 
+
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
-uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out int steps_made, out float distance_to_voxel) { \
+uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out int steps_made, out float distance_to_voxel, out vec3 voxel_side) { \
     RegTraverseData tier1_region; \
     RegTraverseData tier2_region; \
     RegTraverseData chunk_region; \
@@ -182,7 +189,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out 
                                             if (voxel != 0u) { \
                                                 /* voxel found, end iteration */ \
                                                 steps_made = i; \
-                                                EXTRACT_RAYTRACE_DISTANCE(raytrace_data, distance_to_voxel); \
+                                                EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, distance_to_voxel, voxel_side); \
                                                 return voxel; \
                                             } \
                                             /* make voxel step */ \
@@ -214,7 +221,7 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out 
             DO_TRAVERSE_REGION(raytrace_data, chunk_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
         } \
     } \
-    EXTRACT_RAYTRACE_DISTANCE(raytrace_data, distance_to_voxel); \
+    EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, distance_to_voxel, voxel_side); \
     steps_made = max_steps; \
     return 0u; \
 }
@@ -261,7 +268,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_
     }
 
 
-uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel) {
+uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, out int steps_made, out float distance_to_voxel, out vec3 voxel_side) {
     RaytraceData raytrace_data;
     raytrace_data.start = start;
     raytrace_data.ray = ray = normalize(ray);
@@ -285,7 +292,7 @@ uint raytrace_direct(vec3 start, vec3 ray, int max_steps, float max_distance, ou
 
     uint result;
 
-    RAYTRACE_FUNC_CALL(result, raytrace_data, (raytrace_data, max_steps, int(max_distance * (abs(ray.x) + abs(ray.y) + abs(ray.z))), steps_made, distance_to_voxel));
+    RAYTRACE_FUNC_CALL(result, raytrace_data, (raytrace_data, max_steps, int(max_distance * (abs(ray.x) + abs(ray.y) + abs(ray.z))), steps_made, distance_to_voxel, voxel_side));
     return result;
 }
 
@@ -303,7 +310,8 @@ void raytrace(
 
     int steps_made;
     float distance_to_voxel;
-    uint result = raytrace_direct(start, ray, max_steps, max_distance, steps_made, distance_to_voxel);
+    vec3 voxel_normal;
+    uint result = raytrace_direct(start, ray, max_steps, max_distance, steps_made, distance_to_voxel, voxel_normal);
     out_depth = distance_to_voxel;
     out_color = vec3(distance_to_voxel / 150.0);
     out_light = vec3(1.0);
@@ -317,19 +325,23 @@ void raytrace(
 
     if (DIRECT_LIGHT_COLOR.a > 0.01) {
         uint packed_normal = result >> 8;
-        uint nx = (packed_normal >> 16) & 0xFFu;
-        uint ny = (packed_normal >> 8) & 0xFFu;
-        uint nz = (packed_normal >> 0) & 0xFFu;
-        vec3 normal = vec3(float(nx), float(ny), float(nz)) / 127.0 - 1.0;
+        float n_yaw = float(packed_normal >> 5u) / 63.0 * PI * 2.0 - PI;
+        float n_pitch = float(packed_normal & 31u) / 31.0 * PI - PI / 2.0;
+        float n_pitch_cos = cos(n_pitch);
+        vec3 normal = vec3(cos(n_yaw) * n_pitch_cos, sin(n_pitch), sin(n_yaw) * n_pitch_cos);
+        // vec3 normal = normalize(vec3(float(int(packed_normal >> 12) - 32), float(int((packed_normal >> 6) & 63u) - 32), float(int(packed_normal & 63u) - 32)));
 
-        vec3 ray_end = start + ray * (distance_to_voxel) - normal;
+        vec3 ray_end = start + ray * distance_to_voxel + voxel_normal * 0.1;
         vec3 light_dir = normalize(DIRECT_LIGHT_RAY);
 
-        float direct_light_intensity = raytrace_direct(ray_end, -light_dir, max_steps - steps_made, max_distance_light, steps_made, distance_to_voxel) == 0u ? 1.0 : AMBIENT_LIGHT_COLOR.a;
-        direct_light_intensity *= DIRECT_LIGHT_COLOR.a * (dot(light_dir, normal) * 0.5 + 0.5);
+        normal = mix(normal, voxel_normal, 0.5);
+
+        float direct_light_intensity = raytrace_direct(ray_end, -light_dir, max_steps - steps_made, max_distance_light, steps_made, distance_to_voxel, voxel_normal) == 0u ? 1.0 : AMBIENT_LIGHT_COLOR.a;
+        direct_light_intensity *= DIRECT_LIGHT_COLOR.a * (dot(-light_dir, normal) * 0.5 + 0.5);
         out_light = mix(AMBIENT_LIGHT_COLOR.rgb, DIRECT_LIGHT_COLOR.rgb, direct_light_intensity);
+
         // out_light = vec3(1.0);
-        // out_color = vec3(steps_made / 50.0);
+        // out_color = normal * 0.5 + 0.5;// vec3(n_yaw / (2 * PI) + 0.5, n_pitch / (2 * PI) + 0.5, 0.0);
         // return;
     } else {
         out_light = AMBIENT_LIGHT_COLOR.rgb;
@@ -357,7 +369,7 @@ void main() {
         CAMERA_RAY,                              // ray
         200,                                     // max steps
         max_depth,                               // max distance
-        75,                                      // max light distance
+        100,                                     // max light distance
         out_color,                               // result color
         out_depth,                               // result depth
         out_light                                // result light color

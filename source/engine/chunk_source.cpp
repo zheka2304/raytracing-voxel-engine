@@ -20,8 +20,6 @@ DebugChunkSource::DebugChunkSource(std::function<VoxelChunk *(ChunkPos)> provide
 }
 
 VoxelChunk* DebugChunkSource::getChunkAt(ChunkPos const& pos) {
-    if (pos.y != 0) return nullptr;
-
     auto it = chunkMap.find(pos);
     if (it != chunkMap.end()) {
         return it->second;

@@ -74,9 +74,13 @@ public:
                 float r = smooth_rand(fx, fz) * 0.125 +
                         smooth_rand(fx / 2.0f, fz / 2.0f) * 0.25 +
                         smooth_rand(fx / 4.0f, fz / 4.0f) * 0.5;
-                r = float(abs(x - 64) < 16 && abs(z - 64) < 16);
-                float h = 8 + 64 * r;
+                // r = float(abs(x - 64) < 16 && abs(z - 64) < 16);
+                // r = 1.0 - (std::max(abs(x - 64), abs(z - 64))) / 64.0f;
+                float h = 8 + 48 * r;
                 for (int y = 0; y < 128; y++) {
+                    int dx = x - 64;
+                    int dy = y - 64;
+                    int dz = z - 64;
                     // int d = dx * dx + dy * dy + dz * dz;
                     // int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
                      chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h; //(dx * dx + dy * dy + dz * dz) < 32 * 32;
@@ -155,7 +159,7 @@ int main(int argc, char* argv[]) {
 
     // init shader and uniforms
     gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
-    gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "HIGH_QUALITY_SHADOWS" });
+    gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0" });
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 
@@ -238,7 +242,7 @@ int main(int argc, char* argv[]) {
         glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
         glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
         glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
-        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 1 / 480.0f, 1 / 270.0f);
+        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
         renderToTexture.drawFullScreenQuad();
 
 
