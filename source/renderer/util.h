@@ -1,4 +1,5 @@
 #include <vector>
+#include <string>
 #include <glad/glad.h>
 
 #ifndef VOXEL_ENGINE_UTIL_H
@@ -61,6 +62,15 @@ namespace gl {
         ~Shader();
 
         GLuint getUniform(char const* name) const;
+    };
+
+    class ComputeShader {
+    public:
+        GLuint programHandle;
+
+        ComputeShader(std::string const& source);
+        void use() const;
+        ~ComputeShader();
     };
 
     class RenderToTexture {

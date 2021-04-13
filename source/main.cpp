@@ -91,8 +91,8 @@ public:
     }
 
     void bakeChunk(VoxelChunk& chunk) override {
-        PROFILER_BEGIN0(bake_chunk)
-        chunk.rebuildRenderBuffer();
+        // PROFILER_BEGIN0(bake_chunk)
+        // chunk.rebuildRenderBuffer();
     }
 
     Vec2i getBakeLockRadius() override {
@@ -160,6 +160,11 @@ int main(int argc, char* argv[]) {
     // init shader and uniforms
     gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
     gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0" });
+    gl::ComputeShader computeShader("bake_chunk.compute");
+
+    int maxWorkGroupCount[3];
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 3, maxWorkGroupCount);
+    std::cout << "max compute work group count: " << maxWorkGroupCount[0] << ", " << maxWorkGroupCount[1] << ", " << maxWorkGroupCount[2] << "\n";
 
     VoxelRenderEngine renderEngine(chunkSource, camera);
 

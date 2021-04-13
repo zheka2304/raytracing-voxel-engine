@@ -4,10 +4,6 @@ varying vec2 uv;
 
 #define PI 3.1415926
 
-// settings
-
-#define HIGHP_RAYTRACING
-
 // In this structure we split chunk into 2 tiers of regions,
 // first tier is 8x8x8, second tier is 4x4x4 of first tier (32x32x32) and
 // total chunk size is 4x4x4 of second tier (128x128x128)

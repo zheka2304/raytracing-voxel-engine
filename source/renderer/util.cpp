@@ -199,6 +199,49 @@ namespace gl {
     }
 
 
+    ComputeShader::ComputeShader(std::string const& sourceS) {
+        std::string source = resolveShaderSource(sourceS);
+
+        GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
+        const char* sources[1] = { source.c_str() };
+        glShaderSource(shader, 1, sources, nullptr);
+        glCompileShader(shader);
+
+        // Check for compile time errors
+        GLint success;
+        GLchar infoLog[512];
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+            std::cout << "ERROR::SHADER::COMPUTE::COMPILATION_FAILED\n" << infoLog << std::endl;
+        }
+
+        // Link shaders
+        programHandle = glCreateProgram();
+        glAttachShader(programHandle, shader);
+        glLinkProgram(programHandle);
+
+        // Check for linking errors
+        glGetProgramiv(programHandle, GL_LINK_STATUS, &success);
+        if (!success) {
+            glGetProgramInfoLog(programHandle, 512, nullptr, infoLog);
+            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+        }
+
+        glDeleteShader(shader);
+    }
+
+    void ComputeShader::use() const {
+        glUseProgram(programHandle);
+    }
+
+    ComputeShader::~ComputeShader() {
+        if (programHandle != 0) {
+            glDeleteProgram(programHandle);
+        }
+    }
+
+
     RenderToTexture::RenderToTexture(int width, int height, int textureCount) :
         width(width), height(height) {
 

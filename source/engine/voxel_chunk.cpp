@@ -7,7 +7,7 @@ VoxelChunk::VoxelChunk() : VoxelChunk(ChunkPos::CHUNK_SIZE, ChunkPos::CHUNK_SIZE
 
 }
 
-VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) {
+VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) : pooledBuffer(PooledChunkBuffer(this)) {
     this->sizeX = sizeX;
     this->sizeY = sizeY;
     this->sizeZ = sizeZ;
@@ -20,6 +20,8 @@ VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) {
     rSizeY = sizeY / SUB_REGION_TOTAL_SIZE;
     rSizeZ = sizeZ / SUB_REGION_TOTAL_SIZE;
     renderBuffer = new unsigned int[renderBufferLen = SUB_REGION_BUFFER_SIZE_2 * rSizeX * rSizeY * rSizeZ];
+
+
 }
 
 VoxelChunk::VoxelChunk(VoxelChunk const& other) : VoxelChunk(other.sizeX, other.sizeY, other.sizeZ) {
@@ -185,6 +187,7 @@ void VoxelChunk::attachRenderChunk(RenderChunk* newRenderChunk) {
 }
 
 VoxelChunk::~VoxelChunk() {
+    bakedBuffer.releaseAndDestroyCache();
     attachRenderChunk(nullptr);
     delete(voxelBuffer);
     delete(renderBuffer);

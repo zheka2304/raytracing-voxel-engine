@@ -3,6 +3,7 @@
 #define VOXEL_ENGINE_VOXEL_CHUNK_H
 
 #include "common/chunk_pos.h"
+#include "chunk_buffer_pool.h"
 
 
 class RenderChunk;
@@ -52,6 +53,9 @@ public:
     // - voxel: voxel = t1offset + 1 + vx + ((vz + (vz << SUB_REGION_SIZE_1_BITS)) << SUB_REGION_SIZE_1_BITS)
     unsigned int* renderBuffer = nullptr;
     int renderBufferLen = 0;
+
+    PooledChunkBuffer pooledBuffer;
+    BakedChunkBuffer bakedBuffer;
 
     RenderChunk* renderChunk = nullptr;
 

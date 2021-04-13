@@ -23,7 +23,10 @@ void RenderChunk::setChunkBufferOffset(int offset) {
 void RenderChunk::_attach(VoxelChunk* newChunk) {
     chunkMutex.lock();
     if (chunk != newChunk) {
-        if (chunk != nullptr) chunk->renderChunk = nullptr;
+        if (chunk != nullptr) {
+            chunk->bakedBuffer.release();
+            chunk->renderChunk = nullptr;
+        }
         chunk = newChunk;
         if (chunk != nullptr) chunk->renderChunk = this;
         if (chunk != nullptr) {
@@ -46,12 +49,13 @@ int RenderChunk::runAllUpdates(int maxRegionUpdates) {
         fullUpdateQueued = false;
 
         // TODO: chunk data must be somehow locked during this update
-        glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
+        /* glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
         glBufferSubData(GL_TEXTURE_BUFFER,
                         chunkBufferOffset * sizeof(unsigned int),
                         chunk->renderBufferLen * sizeof(unsigned int),
                         chunk->renderBuffer);
-        glBindBuffer(GL_TEXTURE_BUFFER, 0);
+        glBindBuffer(GL_TEXTURE_BUFFER, 0); */
+        chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset);
 
         return FULL_CHUNK_UPDATE;
     } else {
