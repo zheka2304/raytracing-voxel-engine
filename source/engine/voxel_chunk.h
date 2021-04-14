@@ -43,6 +43,7 @@ public:
 
     // buffer, that contains pure voxel data
     // default direct access: x + (z + y * sizeZ) * sizeX
+    std::timed_mutex contentMutex;
     unsigned int* voxelBuffer = nullptr;
     int voxelBufferLen = 0;
 
@@ -58,6 +59,7 @@ public:
     BakedChunkBuffer bakedBuffer;
 
     // current attached RenderChunk
+    std::mutex renderChunkMutex;
     RenderChunk* renderChunk = nullptr;
 
     // ChunkSource related fields
@@ -79,6 +81,10 @@ public:
     void setPos(ChunkPos const& pos);
     void setState(ChunkState newState);
     bool isAvailableForRender();
+
+    std::timed_mutex& getContentMutex();
+    void queueFullUpdate();
+    void queueRegionUpdate(int x, int y, int z);
 
     ~VoxelChunk();
     void attachRenderChunk(RenderChunk* renderChunk);

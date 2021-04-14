@@ -6,6 +6,7 @@
 #include <memory>
 #include <list>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "engine.h"
 #include "engine/chunk_source.h"
@@ -15,6 +16,7 @@
 
 
 class VoxelRenderEngine {
+private:
     static const int MAX_RENDER_CHUNK_INSTANCES = 64;
 
     std::shared_ptr<VoxelEngine> voxelEngine;
@@ -42,14 +44,25 @@ class VoxelRenderEngine {
     int chunkBufferSize;
     bool chunkBufferUsage[MAX_RENDER_CHUNK_INSTANCES] = { false };
 
+    // update queue for render chunks
+    std::mutex queuedRenderChunkUpdatesMutex;
+    std::unordered_set<RenderChunk*> queuedRenderChunkUpdates;
+
+private:
+    void _queueRenderChunkUpdate(RenderChunk* renderChunk);
+
 public:
     VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera);
 
     RenderChunk* getNewRenderChunk(int maxLevelToReuse = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE);
 
     // refresh visible chunks from camera, update all visibility levels, pool unused chunks
-    // for all visible chunks, run queued updates
+    // for all visible chunks, queues render updates if required
     void updateVisibleChunks();
+
+    // runs all queued updates for existing chunks
+    // async, adds task on gpu worker thread
+    void runQueuedRenderChunkUpdates(int maxUpdateCount);
 
     // for all visible chunks, map all textures, pass to uniforms
     // passed shader should contain following uniforms:

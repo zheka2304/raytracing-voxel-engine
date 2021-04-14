@@ -15,7 +15,7 @@ class VoxelChunk;
 
 class RenderChunk {
 public:
-    static const int FULL_CHUNK_UPDATE = 64;
+    static const int MAX_PER_REGION_UPDATES = 16;
 
     static const int VISIBILITY_LEVEL_NOT_VISIBLE = 0;
     static const int VISIBILITY_LEVEL_NEAR_VIEW = 1;
@@ -25,15 +25,15 @@ public:
     static const int MAX_REGIONS_PER_CHUNK_SIZE = 1 << MAX_REGIONS_PER_CHUNK_SIZE_BITS;
     static const int REGION_UPDATE_BUFFER_SIZE = MAX_REGIONS_PER_CHUNK_SIZE * MAX_REGIONS_PER_CHUNK_SIZE * MAX_REGIONS_PER_CHUNK_SIZE;
 private:
-    // mutex used when working with update queue and reattaching
+    // mutex used for reattaching chunks
     std::mutex chunkMutex;
 
-    // reload queue contains region indices to update
-    std::unordered_map<int, int> regionUpdateQueue;
-    // separately queueing full update is an option
+    // contains queued updates for regions
+    std::mutex regionUpdateQueueMutex;
+    std::unordered_map<int, Vec3i> regionUpdateQueue;
+    std::atomic<bool> fullUpdateQueued = false;
 
 public:
-    std::atomic<bool> fullUpdateQueued = false;
     VoxelRenderEngine* renderEngine;
     int chunkBufferOffset = -1;
 
@@ -47,7 +47,12 @@ public:
     void setPos(int x, int y, int z);
     void setChunkBufferOffset(int offset);
     void _attach(VoxelChunk* chunk);
-    int runAllUpdates(int maxRegionUpdates = -1);
+
+    void queueFullUpdate();
+    void queueRegionUpdate(int x, int y, int z);
+    int runAllUpdates();
+    bool hasAnyQueuedUpdates();
+
     ~RenderChunk();
 };
 

@@ -36,7 +36,7 @@ public:
     ~PooledChunkBuffer();
 
 private:
-    void _sync(GLuint handle);
+    void _sync(GLuint handle, int maxLockDelayMilliseconds = 250);
 };
 
 

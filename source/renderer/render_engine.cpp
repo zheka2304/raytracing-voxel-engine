@@ -64,6 +64,53 @@ GLuint VoxelRenderEngine::getChunkBufferHandle() {
     return chunkBuffer->buffer_handle;
 }
 
+void VoxelRenderEngine::_queueRenderChunkUpdate(RenderChunk* renderChunk) {
+    if (renderChunk->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE) {
+        return;
+    }
+    queuedRenderChunkUpdatesMutex.lock();
+    queuedRenderChunkUpdates.insert(renderChunk);
+    queuedRenderChunkUpdatesMutex.unlock();
+}
+
+void VoxelRenderEngine::runQueuedRenderChunkUpdates(int maxUpdateCount) {
+    getVoxelEngine()->runOnGpuWorkerThread([=] () -> void {
+        // move all queued chunks to local variable
+        queuedRenderChunkUpdatesMutex.lock();
+        std::unordered_set<RenderChunk*> chunksToUpdate = std::move(queuedRenderChunkUpdates);
+        queuedRenderChunkUpdatesMutex.unlock();
+
+        // total executed updates count
+        int updateCount = 0;
+
+        // run updates for visibility level: if able to update - run update, else - add back to queue
+        std::function<void(int)> runUpdatesForVisibilityLevel = [&] (int level) -> void {
+            for (RenderChunk* renderChunk : chunksToUpdate) {
+                if (renderChunk->visibilityLevel == level) {
+                    if (maxUpdateCount > 0 && updateCount >= maxUpdateCount) {
+                        queuedRenderChunkUpdatesMutex.lock();
+                        queuedRenderChunkUpdates.insert(renderChunk);
+                        queuedRenderChunkUpdatesMutex.unlock();
+                    } else {
+                        updateCount += renderChunk->runAllUpdates();
+                    }
+                }
+            }
+        };
+
+        // do for every visible chunk
+        runUpdatesForVisibilityLevel(RenderChunk::VISIBILITY_LEVEL_VISIBLE);
+        // then do for every near view chunk
+        runUpdatesForVisibilityLevel(RenderChunk::VISIBILITY_LEVEL_NEAR_VIEW);
+
+        // if any updated - swap buffers
+        if (updateCount > 0) {
+            // std::cout << "executed " << updateCount << " / " << maxUpdateCount << " render updates\n";
+            getVoxelEngine()->swapGpuWorkerBuffers();
+        }
+    });
+}
+
 void VoxelRenderEngine::updateVisibleChunks() {
     PROFILER_BEGIN(VoxelRenderEngine_updateVisibleChunks);
 
@@ -74,27 +121,14 @@ void VoxelRenderEngine::updateVisibleChunks() {
         posAndChunk.second->visibilityLevel = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE;
     }
 
-    int visibilityUpdateCount = 0;
-    std::list<RenderChunk *> nonUrgentVisibilityUpdates;
-
     for (auto const &posAndLevel : visibilityUpdatesMap) {
         auto it = renderChunkMap.find(posAndLevel.first);
         if (it != renderChunkMap.end()) {
             it->second->visibilityLevel = posAndLevel.second;
-            if (posAndLevel.second == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
-                visibilityUpdateCount += it->second->runAllUpdates();
-            } else if (posAndLevel.second == RenderChunk::VISIBILITY_LEVEL_NEAR_VIEW) {
-                nonUrgentVisibilityUpdates.emplace_back(it->second);
-            }
+            _queueRenderChunkUpdate(it->second);
         } else {
             newVisibleChunks.emplace_back(posAndLevel);
         }
-    }
-
-    // TODO: maybe calculate this value instead of using constant
-    int maxVisibilityUpdates = 16;
-    for (auto it = nonUrgentVisibilityUpdates.begin(); visibilityUpdateCount < maxVisibilityUpdates && it != nonUrgentVisibilityUpdates.end(); it++) {
-        visibilityUpdateCount += (*it)->runAllUpdates();
     }
 
     for (auto const &posAndLevel : newVisibleChunks) {
@@ -110,7 +144,7 @@ void VoxelRenderEngine::updateVisibleChunks() {
 
                     // update new chunk only if it is visible
                     if (renderChunk->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
-                        renderChunk->runAllUpdates();
+                        _queueRenderChunkUpdate(renderChunk);
                     }
                 }
             }

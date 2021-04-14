@@ -46,12 +46,18 @@ void PooledChunkBuffer::releaseHandle() {
     buffer.release();
 }
 
-void PooledChunkBuffer::_sync(GLuint handle) {
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, getBufferSize(), chunk->voxelBuffer, GL_DYNAMIC_COPY);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    buffer.setContentUpdated();
-    lastSyncId = lastUpdateId;
+void PooledChunkBuffer::_sync(GLuint handle, int maxLockDelayMilliseconds) {
+    std::timed_mutex &chunkMutex = chunk->getContentMutex();
+    if (chunkMutex.try_lock_for(std::chrono::milliseconds(maxLockDelayMilliseconds))) {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, getBufferSize(), chunk->voxelBuffer, GL_DYNAMIC_COPY);
+        chunkMutex.unlock();
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        buffer.setContentUpdated();
+        lastSyncId = lastUpdateId;
+    } else {
+        // std::cout << "failed to update chunk pooled buffer, lock failed\n";
+    }
 }
 
 void PooledChunkBuffer::update() {
@@ -84,6 +90,8 @@ void BakedChunkBuffer::_dispatchCompute(GLuint chunkBufferHandle, Vec3i offset, 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, chunkBufferHandle);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, uniformBuffer.getGlHandle());
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, sharedBufferHandle);
+
+    // std::cout << "dispatch compute << " << offset.x << ", " << offset.y << ", " << offset.z << " (" << size.x << ", " << size.y << ", " << size.z << ")\n";
     glDispatchCompute(size.x, size.y, size.z);
 
     // release uniform buffer

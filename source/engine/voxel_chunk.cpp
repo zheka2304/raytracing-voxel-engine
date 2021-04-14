@@ -52,6 +52,28 @@ bool VoxelChunk::isAvailableForRender() {
 
 
 
+std::timed_mutex& VoxelChunk::getContentMutex() {
+    return contentMutex;
+}
+
+void VoxelChunk::queueRegionUpdate(int x, int y, int z) {
+    pooledBuffer.update();
+    std::unique_lock<std::mutex> renderChunkLock(renderChunkMutex);
+    if (renderChunk != nullptr) {
+        renderChunk->queueRegionUpdate(x, y, z);
+    }
+}
+
+void VoxelChunk::queueFullUpdate() {
+    pooledBuffer.update();
+    std::unique_lock<std::mutex> renderChunkLock(renderChunkMutex);
+    if (renderChunk != nullptr) {
+        renderChunk->queueFullUpdate();
+    }
+}
+
+
+
 unsigned int VoxelChunk::calcNormal(int x, int y, int z) {
     if (getVoxelAt(x + 1, y, z) &&
             getVoxelAt(x - 1, y, z) &&
@@ -102,7 +124,11 @@ void VoxelChunk::attachRenderChunk(RenderChunk* newRenderChunk) {
     if (renderChunk != nullptr) {
         renderChunk->_attach(nullptr);
     }
+
+    renderChunkMutex.lock();
     renderChunk = newRenderChunk;
+    renderChunkMutex.unlock();
+
     if (renderChunk != nullptr) {
         renderChunk->_attach(this);
     }

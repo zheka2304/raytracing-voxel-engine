@@ -110,11 +110,35 @@ public:
 int main(int argc, char* argv[]) {
 
     {
+        WorkerThread* testBackgroundWorkingThread = new WorkerThread();
+
         std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(
                 std::make_shared<DebugChunkHandler>(), 3, 5000);
 
         std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 
+        // task, that will loop in background
+        int workerTaskFrame = 0;
+        std::function<void()> workerTask = [&workerTaskFrame, &workerTask, &testBackgroundWorkingThread, &chunkSource] () -> void {
+            VoxelChunk* chunk = chunkSource->getChunkAt(ChunkPos(0, 0, 0));
+            if (chunk != 0) {
+                std::unique_lock<std::timed_mutex> contentLock(chunk->getContentMutex());
+                int v = workerTaskFrame % 2;
+                for (int x = 64; x < 80; x++) {
+                    for (int y = 64; y < 80; y++) {
+                        for (int z = 64; z < 80; z++) {
+                            chunk->voxelBuffer[x + (z + y * 128) * 128] = v;
+                        }
+                    }
+                }
+                contentLock.unlock();
+                chunk->queueRegionUpdate(4, 4, 4);
+            }
+            // std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            workerTaskFrame++;
+            testBackgroundWorkingThread->queue(workerTask);
+        };
+        testBackgroundWorkingThread->queue(workerTask);
 
         // ---- open window & init gl ----
 
@@ -186,6 +210,7 @@ int main(int argc, char* argv[]) {
             if (f > 0) {
                 renderEngine.updateVisibleChunks();
                 renderEngine.prepareForRender(raytraceShader);
+                renderEngine.runQueuedRenderChunkUpdates(16);
                 if (frame % 10 == 0) {
                     camera->requestChunksFromSource(chunkSource);
                 }
@@ -257,6 +282,8 @@ int main(int argc, char* argv[]) {
                 glfwSetWindowTitle(window, ss.str().c_str());
             }
         }
+
+        delete(testBackgroundWorkingThread);
     }
 
     glfwTerminate();

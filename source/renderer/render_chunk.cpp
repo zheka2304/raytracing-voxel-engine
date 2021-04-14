@@ -24,67 +24,87 @@ void RenderChunk::_attach(VoxelChunk* newChunk) {
     chunkMutex.lock();
     if (chunk != newChunk) {
         if (chunk != nullptr) {
+            // TODO: when caching will be implemented, this should be executed on gpu worker thread (also check if chunk was destroyed)
             chunk->bakedBuffer.release();
+
+            chunk->renderChunkMutex.lock();
             chunk->renderChunk = nullptr;
+            chunk->renderChunkMutex.unlock();
         }
+
         chunk = newChunk;
-        if (chunk != nullptr) chunk->renderChunk = this;
+        if (chunk != nullptr) {
+            chunk->renderChunkMutex.lock();
+            chunk->renderChunk = this;
+            chunk->renderChunkMutex.unlock();
+        }
+
         if (chunk != nullptr) {
             fullUpdateQueued = true;
         } else {
             fullUpdateQueued = false;
         }
+
         // at the end we clear per-region update queue
+        regionUpdateQueueMutex.lock();
         regionUpdateQueue.clear();
+        regionUpdateQueueMutex.unlock();
     }
     chunkMutex.unlock();
 }
 
-int RenderChunk::runAllUpdates(int maxRegionUpdates) {
+void RenderChunk::queueRegionUpdate(int x, int y, int z) {
     if (fullUpdateQueued) {
-        // clear all other queued updates
-        chunkMutex.lock();
-        regionUpdateQueue.clear();
-        chunkMutex.unlock();
-        fullUpdateQueued = false;
-
-        renderEngine->getVoxelEngine()->runOnGpuWorkerThread([=] () -> void {
-            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset, std::vector<Vec3i>({}));
-            renderEngine->getVoxelEngine()->swapGpuWorkerBuffers();
-        });
-
-        return FULL_CHUNK_UPDATE;
-    } else {
-        // TODO: this should be rewritten using compute shaders
-        /*
-        int update_count = 0;
-
-        glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
-        while(maxRegionUpdates < 0 || update_count < maxRegionUpdates) {
-            // lock and pop first element of the map
-            chunkMutex.lock();
-            auto it = regionUpdateQueue.begin();
-            if (it == regionUpdateQueue.end()) {
-                chunkMutex.unlock();
-                break;
-            }
-            std::pair<int, int> reg_pair = *it;
-            regionUpdateQueue.erase(it);
-            chunkMutex.unlock();
-
-            // as the next region is acquired, update it
-            // TODO: chunk data must be somehow locked during this update
-            glBufferSubData(GL_TEXTURE_BUFFER,
-                            (chunkBufferOffset + reg_pair.first) * sizeof(unsigned int),
-                            reg_pair.second * sizeof(unsigned int),
-                            chunk->renderBuffer + reg_pair.first);
-            update_count++;
-        }
-        glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-        return update_count; */
-        return 0;
+        return;
     }
+    std::unique_lock<std::mutex> queueLock(regionUpdateQueueMutex);
+    regionUpdateQueue.emplace(x | ((y | (z << 6)) << 6), Vec3i(x, y, z));
+}
+
+void RenderChunk::queueFullUpdate() {
+    fullUpdateQueued = true;
+}
+
+int RenderChunk::runAllUpdates() {
+    // lock before check
+    regionUpdateQueueMutex.lock();
+    if (fullUpdateQueued || regionUpdateQueue.size() > MAX_PER_REGION_UPDATES) {
+        // clear all other queued updates
+        fullUpdateQueued = false;
+        regionUpdateQueue.clear();
+        regionUpdateQueueMutex.unlock();
+
+        // run baking
+        std::unique_lock<std::mutex> chunkLock(chunkMutex);
+        if (chunk != nullptr) {
+            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset,std::vector<Vec3i>({}));
+            return MAX_PER_REGION_UPDATES;
+        } else {
+            return 0;
+        }
+    } else if (!regionUpdateQueue.empty()) {
+        // move queue to local variable
+        std::unordered_map<int, Vec3i> queue = std::move(regionUpdateQueue);
+        regionUpdateQueueMutex.unlock();
+
+        // create vector to hold changed region positions
+        std::vector<Vec3i> regions;
+        for (auto& hashAndPos : queue) {
+            regions.emplace_back(hashAndPos.second);
+        }
+
+        // lock in chunk and bake regions
+        std::unique_lock<std::mutex> chunkLock(chunkMutex);
+        if (chunk != nullptr) {
+            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset, regions);
+            return regions.size();
+        } else {
+            return 0;
+        }
+    } else {
+        regionUpdateQueueMutex.unlock();
+    }
+    return 0;
 }
 
 
