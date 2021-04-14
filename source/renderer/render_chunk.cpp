@@ -48,16 +48,8 @@ int RenderChunk::runAllUpdates(int maxRegionUpdates) {
         chunkMutex.unlock();
         fullUpdateQueued = false;
 
-        // TODO: chunk data must be somehow locked during this update
-        /* glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
-        glBufferSubData(GL_TEXTURE_BUFFER,
-                        chunkBufferOffset * sizeof(unsigned int),
-                        chunk->renderBufferLen * sizeof(unsigned int),
-                        chunk->renderBuffer);
-        glBindBuffer(GL_TEXTURE_BUFFER, 0); */
-
         renderEngine->getVoxelEngine()->runOnGpuWorkerThread([=] () -> void {
-            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset);
+            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset, {});
             renderEngine->getVoxelEngine()->swapGpuWorkerBuffers();
         });
 

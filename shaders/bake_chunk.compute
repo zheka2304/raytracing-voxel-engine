@@ -7,9 +7,9 @@ layout(binding = 0) readonly buffer Chunk {
     uint voxel_buffer[];
 } chunk;
 
-layout(binding = 1) readonly buffer BakedChunkBuffer {
-    uint offset;
-} baked_chunk_buffer;
+layout(binding = 1) readonly buffer UniformData {
+    uint data[];
+} uniform_data;
 
 layout(binding = 2) writeonly buffer BakedChunk {
     uint render_buffer[];
@@ -22,11 +22,17 @@ void main() {
     tier2_region_state = 0u;
     barrier();
 
+    uint baked_buffer_offset = uniform_data.data[0];
+    uvec3 dispatch_region_offset = uvec3(uniform_data.data[1], uniform_data.data[2], uniform_data.data[3]);
+
     // calculate position offset of tier 1 region
-    uvec3 pos_offset = gl_GlobalInvocationID << 2;
+    uvec3 pos_offset = (gl_GlobalInvocationID << 2) + (dispatch_region_offset << 4);
+
+    // calculate tier 2 position offset
+    uvec3 pos_offset_tier2 = gl_WorkGroupID + dispatch_region_offset;
 
     // calculate offset of tier 2 region
-    uint bake_tier2_region_offset = baked_chunk_buffer.offset + (gl_WorkGroupID.x | ((gl_WorkGroupID.z | (gl_WorkGroupID.y << 3u)) << 3u)) * 4161u;
+    uint bake_tier2_region_offset = baked_buffer_offset + (pos_offset_tier2.x | ((pos_offset_tier2.z | (pos_offset_tier2.y << 3u)) << 3u)) * 4161u;
 
     // calculate offset of current tier 1 region for invocation id
     uint bake_region_offset = bake_tier2_region_offset + 1u + (gl_LocalInvocationID.x | ((gl_LocalInvocationID.z | (gl_LocalInvocationID.y << 2u)) << 2u)) * 65u; //
@@ -36,6 +42,8 @@ void main() {
 
     // one thread bakes 4x4x4 tier 1 voxel region
     bool any_voxel = false;
+
+
     // for (int i = 0; i < 100; i++)
     for (uint y = 0u; y < 4u; y++) {
         for (uint z = 0u; z < 4u; z++) {

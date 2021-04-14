@@ -7,7 +7,9 @@
 #include <mutex>
 #include <list>
 #include <unordered_map>
+#include <vector>
 
+#include "common/vec.h"
 #include "gpu_cache.h"
 
 class VoxelChunk;
@@ -57,11 +59,14 @@ private:
 
 public:
     // own shared buffer span, use cache or run baking compute shader, release cache if out of cache memory
-    void bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset);
+    void bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset, std::vector<Vec3i> const& regions);
     // releases shared buffer, creates cache, if able to do it
     void release();
     void releaseAndDestroyCache();
     ~BakedChunkBuffer();
+
+private:
+    void _dispatchCompute(GLuint chunkBufferHandle, Vec3i offset, Vec3i size);
 };
 
 

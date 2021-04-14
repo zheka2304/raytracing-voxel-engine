@@ -63,7 +63,35 @@ GPUBufferPool BakedChunkBuffer::bufferPool(1024 * 1024 * 256);
 std::mutex BakedChunkBuffer::cacheByContentIdMapMutex;
 std::unordered_map<GLuint, GPUBufferPool::Buffer> BakedChunkBuffer::cacheByContentIdMap;
 
-void BakedChunkBuffer::bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset) {
+void BakedChunkBuffer::_dispatchCompute(GLuint chunkBufferHandle, Vec3i offset, Vec3i size) {
+    // compile shader once and use it
+    static gl::ComputeShader bakeChunkShader("bake_chunk.compute");
+    bakeChunkShader.use();
+
+    // 1 KB buffer for uniforms
+    static GPUBufferPool uniformBufferPool(16);
+
+    // init uniforms
+    int uniforms[4] = { sharedBufferOffset, offset.x, offset.y, offset.z };
+
+    // allocate uniform buffer
+    GPUBufferPool::Buffer uniformBuffer = uniformBufferPool.allocate(sizeof(int) * 4);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, uniformBuffer.getGlHandle());
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * 4, uniforms, GL_STATIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    // pass buffers to compute shader and dispatch
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, chunkBufferHandle);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, uniformBuffer.getGlHandle());
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, sharedBufferHandle);
+    glDispatchCompute(size.x, size.y, size.z);
+
+    // release uniform buffer
+    uniformBuffer.release();
+
+}
+
+void BakedChunkBuffer::bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset, std::vector<Vec3i> const& regions) {
     this->sharedBufferHandle = sharedBufferHandle;
     this->sharedBufferOffset = sharedBufferOffset;
     this->sharedBufferSpanSize = chunkBuffer.getBufferSize();
@@ -102,27 +130,13 @@ void BakedChunkBuffer::bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferH
         cacheByContentIdMapMutex.unlock();
     } */
 
-    // compile shader once and use it
-    static gl::ComputeShader bakeChunkShader("bake_chunk.compute");
-    bakeChunkShader.use();
-
-    // 1 KB buffer for uniforms
-    static GPUBufferPool uniformBufferPool(16);
-
-    // allocate uniforms
-    GPUBufferPool::Buffer uniformBuffer = uniformBufferPool.allocate(sizeof(int));
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, uniformBuffer.getGlHandle());
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), &sharedBufferOffset, GL_STATIC_DRAW);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    // pass buffers to compute shader and dispatch
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, chunkBufferHandle);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, uniformBuffer.getGlHandle());
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, sharedBufferHandle);
-    glDispatchCompute(8, 8, 8);
-
-    // release uniform buffer
-    uniformBuffer.release();
+    if (regions.empty()) {
+        _dispatchCompute(chunkBufferHandle, Vec3i(0, 0, 0), Vec3i(8, 8, 8));
+    } else {
+        for (auto& offset : regions) {
+            _dispatchCompute(chunkBufferHandle, offset, Vec3i(1, 1, 1));
+        }
+    }
 
     // update owned content uuid and release handle
     ownedContentUuid = chunkBuffer.getStoredContentUuid();
