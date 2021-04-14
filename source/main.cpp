@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <chrono>
+#include <sstream>
 
 #include "common/simple-profiler.h"
 #include "engine/voxel_chunk.h"
@@ -248,10 +249,12 @@ int main(int argc, char* argv[]) {
             glfwPollEvents();
 
             frame++;
-            if (frame % 100 == 0) {
+            if (frame % 50 == 0) {
                 float time = get_time_since_start();
-                std::cout << "fps: " << (100 / (time - last_fps_time)) << "\n";
+                std::stringstream ss;
+                ss << "Fps: " << (50 / (time - last_fps_time)) << "\n";
                 last_fps_time = time;
+                glfwSetWindowTitle(window, ss.str().c_str());
             }
         }
     }
