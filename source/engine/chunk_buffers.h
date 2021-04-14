@@ -40,8 +40,7 @@ private:
 };
 
 
-// Holds baked chunk data, either in shared GPU buffer or on CPU memory,
-// if GPU buffer span was replaced by another chunk
+// Holds baked chunk data
 class BakedChunkBuffer {
 private:
     GLuint sharedBufferHandle = 0;

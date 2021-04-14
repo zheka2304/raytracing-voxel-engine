@@ -65,7 +65,7 @@ GLuint VoxelRenderEngine::getChunkBufferHandle() {
 }
 
 void VoxelRenderEngine::_queueRenderChunkUpdate(RenderChunk* renderChunk) {
-    if (renderChunk->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE) {
+    if (renderChunk->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE || !renderChunk->hasAnyQueuedUpdates()) {
         return;
     }
     queuedRenderChunkUpdatesMutex.lock();

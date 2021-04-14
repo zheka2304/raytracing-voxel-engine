@@ -65,6 +65,14 @@ void RenderChunk::queueFullUpdate() {
     fullUpdateQueued = true;
 }
 
+bool RenderChunk::hasAnyQueuedUpdates() {
+    if (fullUpdateQueued) {
+        return true;
+    }
+    std::unique_lock<std::mutex> queueLock(regionUpdateQueueMutex);
+    return !regionUpdateQueue.empty();
+}
+
 int RenderChunk::runAllUpdates() {
     // lock before check
     regionUpdateQueueMutex.lock();
