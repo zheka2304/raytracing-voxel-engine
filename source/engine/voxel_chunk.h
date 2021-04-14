@@ -3,7 +3,7 @@
 #define VOXEL_ENGINE_VOXEL_CHUNK_H
 
 #include "common/chunk_pos.h"
-#include "chunk_buffer_pool.h"
+#include "chunk_buffers.h"
 
 
 class RenderChunk;

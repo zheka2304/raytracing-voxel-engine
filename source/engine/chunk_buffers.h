@@ -1,6 +1,6 @@
 
-#ifndef VOXEL_ENGINE_CHUNK_BUFFER_POOL_H
-#define VOXEL_ENGINE_CHUNK_BUFFER_POOL_H
+#ifndef VOXEL_ENGINE_CHUNK_BUFFERS_H
+#define VOXEL_ENGINE_CHUNK_BUFFERS_H
 
 #include <glad/glad.h>
 #include <atomic>
@@ -65,4 +65,4 @@ public:
 };
 
 
-#endif //VOXEL_ENGINE_CHUNK_BUFFER_POOL_H
+#endif //VOXEL_ENGINE_CHUNK_BUFFERS_H

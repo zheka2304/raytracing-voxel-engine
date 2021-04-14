@@ -4,7 +4,7 @@
 #include "common/simple-profiler.h"
 #include "common/worker_thread.h"
 #include "renderer/util.h"
-#include "chunk_buffer_pool.h"
+#include "chunk_buffers.h"
 #include "voxel_chunk.h"
 
 
