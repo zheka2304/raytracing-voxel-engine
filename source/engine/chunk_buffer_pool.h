@@ -11,15 +11,11 @@
 #include "gpu_cache.h"
 
 class VoxelChunk;
-class BakedChunkBuffer;
 
 
 // Implements GPU cache for non-baked chunk data, allows maximum allocation of certain size
 // this cache is passed to baking compute shader
 class PooledChunkBuffer {
-public:
-    static const int MAX_POOLED_MEMORY_SIZE = 1024 * 1024 * 1024; // 256 MB
-
 private:
     VoxelChunk* chunk;
     GPUBufferPool::Buffer buffer;
@@ -31,6 +27,7 @@ private:
 public:
     explicit PooledChunkBuffer(VoxelChunk* chunk);
     int getBufferSize();
+    GLuint getStoredContentUuid();
     GLuint ownHandle();
     void releaseHandle();
     void update();
@@ -46,13 +43,17 @@ private:
 class BakedChunkBuffer {
 private:
     GLuint sharedBufferHandle = 0;
-    int sharedBufferOffset;
-    int bufferSize;
+    int sharedBufferOffset, sharedBufferSpanSize;
 
-    unsigned int* cacheBuffer = 0;
-    int cacheBufferSize = 0;
-    int64_t cacheSyncUuid = -1;
-    int64_t bakeSyncUuid = -1;
+    // currently owned chunk buffer stored content uuid
+    GLuint ownedContentUuid = 0;
+
+    // lookup map by stored chunk content uuid
+    static std::mutex cacheByContentIdMapMutex;
+    static std::unordered_map<GLuint, GPUBufferPool::Buffer> cacheByContentIdMap;
+
+    // cache buffer pool
+    static GPUBufferPool bufferPool;
 
 public:
     // own shared buffer span, use cache or run baking compute shader, release cache if out of cache memory
@@ -60,8 +61,6 @@ public:
     // releases shared buffer, creates cache, if able to do it
     void release();
     void releaseAndDestroyCache();
-    // check, if owns shared buffer span
-    bool owns();
     ~BakedChunkBuffer();
 };
 

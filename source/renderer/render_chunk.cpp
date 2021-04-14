@@ -55,10 +55,16 @@ int RenderChunk::runAllUpdates(int maxRegionUpdates) {
                         chunk->renderBufferLen * sizeof(unsigned int),
                         chunk->renderBuffer);
         glBindBuffer(GL_TEXTURE_BUFFER, 0); */
-        chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset);
+
+        renderEngine->getVoxelEngine()->runOnGpuWorkerThread([=] () -> void {
+            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset);
+            renderEngine->getVoxelEngine()->swapGpuWorkerBuffers();
+        });
 
         return FULL_CHUNK_UPDATE;
     } else {
+        // TODO: this should be rewritten using compute shaders
+        /*
         int update_count = 0;
 
         glBindBuffer(GL_TEXTURE_BUFFER, renderEngine->getChunkBufferHandle());
@@ -84,7 +90,8 @@ int RenderChunk::runAllUpdates(int maxRegionUpdates) {
         }
         glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
-        return update_count;
+        return update_count; */
+        return 0;
     }
 }
 

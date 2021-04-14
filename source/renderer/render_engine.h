@@ -7,6 +7,7 @@
 #include <list>
 #include <unordered_map>
 
+#include "engine.h"
 #include "engine/chunk_source.h"
 #include "render_chunk.h"
 #include "camera.h"
@@ -15,6 +16,8 @@
 
 class VoxelRenderEngine {
     static const int MAX_RENDER_CHUNK_INSTANCES = 64;
+
+    std::shared_ptr<VoxelEngine> voxelEngine;
 
     std::mutex mutex;
 
@@ -40,7 +43,7 @@ class VoxelRenderEngine {
     bool chunkBufferUsage[MAX_RENDER_CHUNK_INSTANCES] = { false };
 
 public:
-    VoxelRenderEngine(std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera);
+    VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera);
 
     RenderChunk* getNewRenderChunk(int maxLevelToReuse = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE);
 
@@ -56,6 +59,8 @@ public:
     void prepareForRender(gl::Shader& shader);
 
     GLuint getChunkBufferHandle();
+
+    VoxelEngine* getVoxelEngine();
 };
 
 

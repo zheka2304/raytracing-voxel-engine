@@ -11,6 +11,7 @@
 #include "common/simple-profiler.h"
 #include "engine/voxel_chunk.h"
 #include "renderer/render_engine.h"
+#include "renderer/context.h"
 
 
 long long get_time_milliseconds() {
@@ -107,162 +108,154 @@ public:
 
 int main(int argc, char* argv[]) {
 
-    std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(std::make_shared<DebugChunkHandler>(), 3, 5000);
+    {
+        std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(
+                std::make_shared<DebugChunkHandler>(), 3, 5000);
 
-    std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
+        std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 
 
-    // ---- open window & init gl ----
+        // ---- open window & init gl ----
 
-    if(!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
-        return -1;
-    }
+        if (!glfwInit()) {
+            std::cerr << "Failed to initialize GLFW" << std::endl;
+            return -1;
+        }
 
-    glfwDefaultWindowHints();
 
-    GLFWwindow* window = glfwCreateWindow(480 * 3, 270 * 3, "Fuck",
-                                          nullptr, nullptr);
-    if(window == nullptr) {
-        std::cerr << "Failed to open GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
+        std::shared_ptr<VoxelEngine> voxelEngine = std::make_shared<VoxelEngine>(WindowParams({ "Fuck", 480 * 3, 270 * 3 }));
+        GLFWwindow* window = voxelEngine->getWindow();
+        voxelEngine->windowContext.makeCurrent();
 
-    glfwMakeContextCurrent(window);
+        int gladInitRes = gladLoadGL();
+        if (!gladInitRes) {
+            fprintf(stderr, "Unable to initialize glad\n");
+            glfwTerminate();
+            return 0;
+        }
 
-    int gladInitRes = gladLoadGL();
-    if (!gladInitRes) {
-        fprintf(stderr, "Unable to initialize glad\n");
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return 0;
-    }
+        glfwSwapInterval(1);
+        glfwShowWindow(window);
 
-    glfwSwapInterval(1);
-    glfwShowWindow(window);
+        gl::Mesh mesh;
+        float r = 1920 / 1080.0;
+        mesh.vertices.push_back({-1, -1, -1, 1, 0, 0, 1, 0, 0});
+        mesh.vertices.push_back({1, -1, -1, 1, 1, 0, 1, 1, 0});
+        mesh.vertices.push_back({1, 1, -1, 1, 0, 1, 1, 1, 1});
+        mesh.vertices.push_back({-1, -1, -1, 1, 0, 0, 1, 0, 0});
+        mesh.vertices.push_back({1, 1, -1, 1, 0, 1, 1, 1, 1});
+        mesh.vertices.push_back({-1, 1, -1, 1, 1, 0, 1, 0, 1});
+        mesh.rebuild();
 
-    gl::Mesh mesh;
-    float r = 1920 / 1080.0;
-    mesh.vertices.push_back({-1, -1, -1, 1, 0, 0, 1, 0, 0});
-    mesh.vertices.push_back({1, -1, -1, 1, 1, 0, 1, 1, 0});
-    mesh.vertices.push_back({1, 1, -1, 1, 0, 1, 1, 1, 1});
-    mesh.vertices.push_back({-1, -1, -1, 1, 0, 0, 1, 0, 0});
-    mesh.vertices.push_back({1, 1, -1, 1, 0, 1, 1, 1, 1});
-    mesh.vertices.push_back({-1, 1, -1, 1, 1, 0, 1, 0, 1});
-    mesh.rebuild();
+        std::cout << "chunk region tier 1 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_1 << "\n";
+        std::cout << "chunk region tier 2 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_2 << "\n";
+        std::cout << "chunk total region size " << VoxelChunk::SUB_REGION_TOTAL_SIZE << "\n";
+        std::cout << "bytes per chunk " << (VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE +
+                                            ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE) *
+                                           sizeof(unsigned int) << "\n";
 
-    std::cout << "chunk region tier 1 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_1 << "\n";
-    std::cout << "chunk region tier 2 size " << VoxelChunk::SUB_REGION_BUFFER_SIZE_2 << "\n";
-    std::cout << "chunk total region size " << VoxelChunk::SUB_REGION_TOTAL_SIZE << "\n";
-    std::cout << "bytes per chunk " << (VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE + ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE * ChunkPos::CHUNK_SIZE) * sizeof(unsigned int) << "\n";
+        // init shader and uniforms
+        gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH"}));
+        gl::Shader textureShader("texture.vert", "process_soft_shadow.frag",
+                                 {"HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0"});
 
-    // init shader and uniforms
-    gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH" }));
-    gl::Shader textureShader("texture.vert", "process_soft_shadow.frag", { "HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0" });
-    gl::ComputeShader computeShader("bake_chunk.compute");
+        VoxelRenderEngine renderEngine(voxelEngine, chunkSource, camera);
 
-    int maxWorkGroupCount[3];
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 3, maxWorkGroupCount);
-    std::cout << "max compute work group count: " << maxWorkGroupCount[0] << ", " << maxWorkGroupCount[1] << ", " << maxWorkGroupCount[2] << "\n";
+        gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
 
-    VoxelRenderEngine renderEngine(chunkSource, camera);
+        // start
+        float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
 
-    gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
+        int f = 5;
+        int frame = 0;
+        float last_fps_time = get_time_since_start();
+        while (!glfwWindowShouldClose(window)) {
+            glClearColor(1.0, 0.0, 1.0, 1.0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // start
-    float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
+            glEnable(GL_DEPTH_TEST);
+            glDepthFunc(GL_LEQUAL);
 
-    int f = 5;
-    int frame = 0;
-    float last_fps_time = get_time_since_start();
-    while(!glfwWindowShouldClose(window)) {
-        glClearColor(1.0, 0.0, 1.0, 1.0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            raytraceShader.use();
 
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
+            camera->setPosition(Vec3(posX, posY, posZ));
+            camera->setRotation(cameraYaw, -3.1415f / 4);
+            camera->setViewport(0, 0, 480 / 2, 270 / 2);
 
-        raytraceShader.use();
+            if (f > 0) {
+                renderEngine.updateVisibleChunks();
+                renderEngine.prepareForRender(raytraceShader);
+                if (frame % 10 == 0) {
+                    camera->requestChunksFromSource(chunkSource);
+                }
+                if (frame % 30 == 0) {
+                    chunkSource->startUnload();
+                }
 
-        camera->setPosition(Vec3(posX, posY, posZ));
-        camera->setRotation(cameraYaw, -3.1415f / 4);
-        camera->setViewport(0, 0, 480 / 2, 270 / 2);
-
-        if (f > 0) {
-            renderEngine.updateVisibleChunks();
-            renderEngine.prepareForRender(raytraceShader);
-            if (frame % 10 == 0) {
-                camera->requestChunksFromSource(chunkSource);
-            }
-            if (frame % 30 == 0) {
-                chunkSource->startUnload();
             }
 
-        }
+            camera->sendParametersToShader(raytraceShader);
+            glUniform1f(raytraceShader.getUniform("TIME"), get_time_since_start());
+            glUniform4f(raytraceShader.getUniform("DIRECT_LIGHT_COLOR"), 0.7, 0.7, 1.0, 1.0);
+            glUniform4f(raytraceShader.getUniform("AMBIENT_LIGHT_COLOR"), 0.1, 0.0, 0.0, 0.2);
+            glUniform3f(raytraceShader.getUniform("DIRECT_LIGHT_RAY"), 1.0, -0.4, 1.0);
 
-        camera->sendParametersToShader(raytraceShader);
-        glUniform1f(raytraceShader.getUniform("TIME"), get_time_since_start());
-        glUniform4f(raytraceShader.getUniform("DIRECT_LIGHT_COLOR"), 0.7, 0.7, 1.0, 1.0);
-        glUniform4f(raytraceShader.getUniform("AMBIENT_LIGHT_COLOR"), 0.1, 0.0, 0.0, 0.2);
-        glUniform3f(raytraceShader.getUniform("DIRECT_LIGHT_RAY"), 1.0, -0.4, 1.0);
+            float unitMove = 10.0, unitRotation = -0.1;
+            if (glfwGetKey(window, GLFW_KEY_Q)) {
+                cameraYaw -= unitRotation;
+            }
+            if (glfwGetKey(window, GLFW_KEY_E)) {
+                cameraYaw += unitRotation;
+            }
+            if (glfwGetKey(window, GLFW_KEY_D)) {
+                posX += unitMove * sin(cameraYaw);
+                posZ -= unitMove * cos(cameraYaw);
+            }
+            if (glfwGetKey(window, GLFW_KEY_A)) {
+                posX -= unitMove * sin(cameraYaw);
+                posZ += unitMove * cos(cameraYaw);
+            }
+            if (glfwGetKey(window, GLFW_KEY_W)) {
+                posX += unitMove * cos(cameraYaw);
+                posZ += unitMove * sin(cameraYaw);
+            }
+            if (glfwGetKey(window, GLFW_KEY_S)) {
+                posX -= unitMove * cos(cameraYaw);
+                posZ -= unitMove * sin(cameraYaw);
+            }
 
-        float unitMove = 10.0, unitRotation = -0.1;
-        if (glfwGetKey(window, GLFW_KEY_Q)) {
-            cameraYaw -= unitRotation;
-        }
-        if (glfwGetKey(window, GLFW_KEY_E)) {
-            cameraYaw += unitRotation;
-        }
-        if (glfwGetKey(window, GLFW_KEY_D)) {
-            posX += unitMove * sin(cameraYaw);
-            posZ -= unitMove * cos(cameraYaw);
-        }
-        if (glfwGetKey(window, GLFW_KEY_A)) {
-            posX -= unitMove * sin(cameraYaw);
-            posZ += unitMove * cos(cameraYaw);
-        }
-        if (glfwGetKey(window, GLFW_KEY_W)) {
-            posX += unitMove * cos(cameraYaw);
-            posZ += unitMove * sin(cameraYaw);
-        }
-        if (glfwGetKey(window, GLFW_KEY_S)) {
-            posX -= unitMove * cos(cameraYaw);
-            posZ -= unitMove * sin(cameraYaw);
-        }
+            renderToTexture.startRenderToTexture();
+            renderToTexture.drawFullScreenQuad();
+            renderToTexture.endRenderToTexture();
+            textureShader.use();
 
-        renderToTexture.startRenderToTexture();
-        renderToTexture.drawFullScreenQuad();
-        renderToTexture.endRenderToTexture();
-        textureShader.use();
-
-        glViewport(0, 0, 480 * 3, 270 * 3);
-        glEnable(GL_TEXTURE_2D);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[0].handle);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[1].handle);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[2].handle);
-        glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
-        glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
-        glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
-        glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
-        renderToTexture.drawFullScreenQuad();
+            glViewport(0, 0, 480 * 3, 270 * 3);
+            glEnable(GL_TEXTURE_2D);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[0].handle);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[1].handle);
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[2].handle);
+            glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
+            glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
+            glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
+            glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
+            renderToTexture.drawFullScreenQuad();
 
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+            glfwSwapBuffers(window);
+            glfwPollEvents();
 
-        frame++;
-        if (frame % 100 == 0) {
-            float time = get_time_since_start();
-            std::cout << "fps: " << (100 / (time - last_fps_time)) << "\n";
-            last_fps_time = time;
+            frame++;
+            if (frame % 100 == 0) {
+                float time = get_time_since_start();
+                std::cout << "fps: " << (100 / (time - last_fps_time)) << "\n";
+                last_fps_time = time;
+            }
         }
     }
 
-    glfwDestroyWindow(window);
     glfwTerminate();
 
     return 0;

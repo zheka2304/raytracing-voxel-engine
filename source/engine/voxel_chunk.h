@@ -45,22 +45,28 @@ public:
     // default direct access: x + (z + y * sizeZ) * sizeX
     unsigned int* voxelBuffer = nullptr;
     int voxelBufferLen = 0;
+
+    // gpu cache for chunk data
+    PooledChunkBuffer pooledBuffer;
+
     // buffer, containing data for material and normals
     // access via 2 sub regions used in raytracing and physics, but slower for single voxel access
     // region access:
     // - tier 2 offset: t2offset = rx2 + (rz2 + ry2 * rSizeZ) * rSizeX
     // - tier 1 offset: t1offset = t2offset + 1 + rx1 + ((rz1 + (ry1 << SUB_REGION_SIZE_2_BITS)) << SUB_REGION_SIZE_2_BITS)
     // - voxel: voxel = t1offset + 1 + vx + ((vz + (vz << SUB_REGION_SIZE_1_BITS)) << SUB_REGION_SIZE_1_BITS)
-    unsigned int* renderBuffer = nullptr;
-    int renderBufferLen = 0;
-
-    PooledChunkBuffer pooledBuffer;
     BakedChunkBuffer bakedBuffer;
 
+    // current attached RenderChunk
     RenderChunk* renderChunk = nullptr;
 
+    // ChunkSource related fields
+
+    // absolute position
     ChunkPos position;
+    // loading state
     ChunkState state = STATE_INITIALIZED;
+    // owning chunk source
     ChunkSource* chunkSource = nullptr;
 private:
     VoxelChunk(int sizeX, int sizeY, int sizeZ);
@@ -74,11 +80,7 @@ public:
     void setState(ChunkState newState);
     bool isAvailableForRender();
 
-    void rebuildRenderBuffer();
-    bool rebuildTier2Region(int rx2, int ry2, int rz2);
-    bool rebuildTier1Region(int rx1, int ry1, int rz1, int offset = -1);
     ~VoxelChunk();
-
     void attachRenderChunk(RenderChunk* renderChunk);
 
 private:

@@ -21,6 +21,7 @@ private:
         GLuint contentUuid;
 
         BufferBase(GPUBufferPool* pool);
+        void resize(GLuint newSize);
         ~BufferBase();
     };
 
@@ -47,6 +48,12 @@ public:
         // call when owned, check that contents were unchanged since last setContentUpdated() call for this instance
         bool isContentUnchanged();
 
+        // gets sync id of content stored in buffer
+        GLuint getStoredContentUuid();
+
+        // get sync id of last content, updated from this instance
+        GLuint getLocalContentUuid();
+
         // returns gl buffer handle
         GLuint getGlHandle();
 
@@ -57,9 +64,14 @@ private:
     std::mutex poolLock;
     std::list<std::shared_ptr<BufferBase>> pool;
 
+    std::atomic<GLuint> totalMemoryUsed;
+    GLuint maxMemoryUsed;
+
     void _release(std::shared_ptr<BufferBase> buffer);
 
 public:
+    GPUBufferPool(GLuint poolSize);
+
     // allocates new span of given size
     Buffer allocate(GLuint size);
 

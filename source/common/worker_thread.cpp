@@ -18,5 +18,6 @@ void WorkerThread::queue(std::function<void()> const& task) {
 WorkerThread::~WorkerThread() {
     running = false;
     tasks.clear();
+    queue([] () -> void {});
     thread.join();
 }

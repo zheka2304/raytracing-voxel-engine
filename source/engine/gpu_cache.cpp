@@ -1,5 +1,6 @@
 
 
+#include <iostream>
 #include "gpu_cache.h"
 
 std::atomic<GLuint> GPUBufferPool::lastContentUuid = 1;
@@ -9,12 +10,19 @@ GPUBufferPool::BufferBase::BufferBase(GPUBufferPool* pool) : pool(pool) {
     glGenBuffers(1, &glHandle);
 }
 
+void GPUBufferPool::BufferBase::resize(GLuint newSize) {
+    pool->totalMemoryUsed += (newSize - size);
+    size = newSize;
+}
+
 GPUBufferPool::BufferBase::~BufferBase() {
+    resize(0);
     glDeleteBuffers(1, &glHandle);
 }
 
+
 GPUBufferPool::Buffer::Buffer(std::shared_ptr<BufferBase> handle, GLuint size) : handle(handle) {
-    handle->size = size;
+    handle->resize(size);
 }
 
 GPUBufferPool::Buffer::Buffer() : handle(nullptr) {
@@ -45,15 +53,27 @@ bool GPUBufferPool::Buffer::isContentUnchanged() {
     return handle != nullptr && handle->contentUuid == contentUuid;
 }
 
+GLuint GPUBufferPool::Buffer::getStoredContentUuid() {
+    return handle != nullptr ? handle->contentUuid : 0;
+}
+
+GLuint GPUBufferPool::Buffer::getLocalContentUuid() {
+    return contentUuid;
+}
+
 GLuint GPUBufferPool::Buffer::getGlHandle() {
     return handle != nullptr ? handle->glHandle : 0;
 }
 
 
+GPUBufferPool::GPUBufferPool(GLuint poolSize) : maxMemoryUsed(poolSize) {
+
+}
+
 GPUBufferPool::Buffer GPUBufferPool::allocate(GLuint size) {
     std::unique_lock<std::mutex> lock(poolLock);
 
-    if (!pool.empty()) {
+    if (!pool.empty() && totalMemoryUsed + size >= maxMemoryUsed) {
         // first try to find handle with
         for (auto it = pool.begin(); it != pool.end(); it++) {
             if ((*it)->size == size && (*it)->ownsLock.try_lock()) {

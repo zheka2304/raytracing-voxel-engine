@@ -8,7 +8,7 @@
 #include "voxel_chunk.h"
 
 
-GPUBufferPool PooledChunkBuffer::bufferPool;
+GPUBufferPool PooledChunkBuffer::bufferPool(1024 * 1024 * 128);
 
 PooledChunkBuffer::PooledChunkBuffer(VoxelChunk* chunk) : chunk(chunk) {
 
@@ -20,6 +20,10 @@ PooledChunkBuffer::~PooledChunkBuffer() {
 
 int PooledChunkBuffer::getBufferSize() {
     return chunk->voxelBufferLen * sizeof(unsigned int);
+}
+
+GLuint PooledChunkBuffer::getStoredContentUuid() {
+    return buffer.getStoredContentUuid();
 }
 
 GLuint PooledChunkBuffer::ownHandle() {
@@ -44,7 +48,7 @@ void PooledChunkBuffer::releaseHandle() {
 
 void PooledChunkBuffer::_sync(GLuint handle) {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, getBufferSize(), chunk->voxelBuffer, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, getBufferSize(), chunk->voxelBuffer, GL_DYNAMIC_COPY);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
     buffer.setContentUpdated();
     lastSyncId = lastUpdateId;
@@ -55,89 +59,120 @@ void PooledChunkBuffer::update() {
 }
 
 
+GPUBufferPool BakedChunkBuffer::bufferPool(1024 * 1024 * 256);
+std::mutex BakedChunkBuffer::cacheByContentIdMapMutex;
+std::unordered_map<GLuint, GPUBufferPool::Buffer> BakedChunkBuffer::cacheByContentIdMap;
 
 void BakedChunkBuffer::bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset) {
     this->sharedBufferHandle = sharedBufferHandle;
     this->sharedBufferOffset = sharedBufferOffset;
+    this->sharedBufferSpanSize = chunkBuffer.getBufferSize();
 
     GLuint chunkBufferHandle = chunkBuffer.ownHandle();
+    GLuint chunkStoredContentUuid = chunkBuffer.getStoredContentUuid();
+
+    ownedContentUuid = 0;
+
+    // TODO: caching is temporary disabled, because all loaded chunks are fitting in render buffer
     /*
-    // update buffer size
-    this->bufferSize = chunkBuffer.getBufferSize();
+    cacheByContentIdMapMutex.lock();
+    auto it = cacheByContentIdMap.find(chunkStoredContentUuid);
+    if (it != cacheByContentIdMap.end()) {
+        GPUBufferPool::Buffer cacheBuffer = it->second;
+        cacheByContentIdMapMutex.unlock();
 
-    // if cache is valid
-    if (cacheBuffer != nullptr && chunkBuffer.getSyncUuid() == cacheSyncUuid) {
-        // use cache
-        bakeSyncUuid = cacheSyncUuid;
-        // copy cache to buffer
-        glBindBuffer(GL_TEXTURE_BUFFER, sharedBufferHandle);
-        glBufferSubData(GL_TEXTURE_BUFFER, sharedBufferOffset, cacheBufferSize, cacheBuffer);
-        glBindBuffer(GL_TEXTURE_BUFFER, 0);
-    } else { */
-        // use new
-        // bakeSyncUuid = chunkBuffer.getSyncUuid();
-        // run baking for chunk
+        if (cacheBuffer.tryOwn()) {
+            if (cacheBuffer.isContentUnchanged()) {
+                glBindBuffer(GL_COPY_READ_BUFFER, cacheBuffer.getGlHandle());
+                glBindBuffer(GL_COPY_WRITE_BUFFER, sharedBufferHandle);
+                glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, sharedBufferOffset, sharedBufferSpanSize);
+                glBindBuffer(GL_COPY_READ_BUFFER, 0);
+                glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+                std::cout << "restored from cache\n";
+                cacheBuffer.release();
+                chunkBuffer.releaseHandle();
+                return;
+            } else {
+                std::cout << "cache invalid\n";
+            }
+            cacheBuffer.release();
+        }
+    } else {
+        std::cout << "cache not found\n";
+        cacheByContentIdMapMutex.unlock();
+    } */
 
-        static WorkerThread bakingThread;
-        static gl::ComputeShader bakeChunkShader("bake_chunk.compute");
-        bakeChunkShader.use();
+    // compile shader once and use it
+    static gl::ComputeShader bakeChunkShader("bake_chunk.compute");
+    bakeChunkShader.use();
 
-        int offset = sharedBufferOffset;
-        GLuint offsetBuffer;
-        glGenBuffers(1, &offsetBuffer);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, offsetBuffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), &offset, GL_STATIC_DRAW);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    // 1 KB buffer for uniforms
+    static GPUBufferPool uniformBufferPool(16);
 
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, chunkBufferHandle);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, offsetBuffer);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, sharedBufferHandle);
+    // allocate uniforms
+    GPUBufferPool::Buffer uniformBuffer = uniformBufferPool.allocate(sizeof(int));
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, uniformBuffer.getGlHandle());
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int), &sharedBufferOffset, GL_STATIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-        glDispatchCompute(8, 8, 8);
+    // pass buffers to compute shader and dispatch
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, chunkBufferHandle);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, uniformBuffer.getGlHandle());
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, sharedBufferHandle);
+    glDispatchCompute(8, 8, 8);
 
-        chunkBuffer.releaseHandle();
+    // release uniform buffer
+    uniformBuffer.release();
+
+    // update owned content uuid and release handle
+    ownedContentUuid = chunkBuffer.getStoredContentUuid();
+    chunkBuffer.releaseHandle();
 }
 
 void BakedChunkBuffer::release() {
     if (sharedBufferHandle != 0) {
-        // required to update cache
-        if (cacheBuffer == nullptr || cacheSyncUuid != bakeSyncUuid) {
-            // allocate cache if required
-            /*
-            if (cacheBufferSize != bufferSize) {
-                delete(cacheBuffer);
-                cacheBuffer = nullptr;
+        // TODO: caching is temporary disabled, because all loaded chunks are fitting in render buffer
+        /* if (ownedContentUuid != 0) {
+            // own cache buffer
+            GPUBufferPool::Buffer cacheBuffer;
+            cacheByContentIdMapMutex.lock();
+            auto it = cacheByContentIdMap.find(ownedContentUuid);
+            if (it != cacheByContentIdMap.end()) {
+                cacheBuffer = it->second;
+                if (!cacheBuffer.tryOwn()) {
+                    it->second = cacheBuffer = bufferPool.allocate(sharedBufferSpanSize);
+                }
+            } else {
+                cacheByContentIdMap.emplace(ownedContentUuid, cacheBuffer = bufferPool.allocate(sharedBufferSpanSize));
             }
-            if (cacheBuffer == nullptr) {
-                cacheBufferSize = bufferSize;
-                cacheBuffer = new unsigned int[cacheBufferSize / sizeof(unsigned int)];
-            }
+            cacheByContentIdMapMutex.unlock();
 
-            // get cache from buffer
-            cacheSyncUuid = bakeSyncUuid;
-            glBindBuffer(GL_TEXTURE_BUFFER, sharedBufferHandle);
-            glGetBufferSubData(GL_TEXTURE_BUFFER, sharedBufferOffset, cacheBufferSize, cacheBuffer);
-            glBindBuffer(GL_TEXTURE_BUFFER, 0); */
-        }
+            // copy new data to cache buffer
+            glBindBuffer(GL_COPY_READ_BUFFER, sharedBufferHandle);
+            glBindBuffer(GL_COPY_WRITE_BUFFER, cacheBuffer.getGlHandle());
+            glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, sharedBufferOffset, 0, sharedBufferSpanSize);
+            glBindBuffer(GL_COPY_READ_BUFFER, 0);
+            glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+            cacheBuffer.setContentUpdated();
+            std::cout << "cache created\n";
+
+            // release cache buffer
+            cacheBuffer.release();
+        } */
+
         // mark released
         sharedBufferHandle = 0;
         sharedBufferOffset = 0;
+        sharedBufferSpanSize = 0;
     }
 }
 
 void BakedChunkBuffer::releaseAndDestroyCache() {
     sharedBufferHandle = 0;
     sharedBufferOffset = 0;
-    delete(cacheBuffer);
-    cacheBuffer = nullptr;
-}
-
-bool BakedChunkBuffer::owns() {
-    return sharedBufferHandle != 0;
+    sharedBufferSpanSize = 0;
 }
 
 BakedChunkBuffer::~BakedChunkBuffer() {
-    if (cacheBuffer != nullptr) {
-        delete (cacheBuffer);
-    }
+
 }

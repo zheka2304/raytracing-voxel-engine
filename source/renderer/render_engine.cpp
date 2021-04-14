@@ -4,7 +4,8 @@
 #include "render_engine.h"
 
 
-VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera) : chunkSource(std::move(chunkSource)), camera(std::move(camera)) {
+VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera) :
+        voxelEngine(std::move(voxelEngine)), chunkSource(std::move(chunkSource)), camera(std::move(camera)) {
     int maxBufferTextureSize;
     glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxBufferTextureSize);
     int bufferSize = std::min(maxBufferTextureSize, VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE * MAX_RENDER_CHUNK_INSTANCES);
@@ -13,6 +14,10 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<ChunkSource> chunkSource, s
     chunkBufferSize = bufferSize / VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE;
 
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
+}
+
+VoxelEngine* VoxelRenderEngine::getVoxelEngine() {
+    return voxelEngine.get();
 }
 
 RenderChunk* VoxelRenderEngine::getNewRenderChunk(int reuseVisibilityLevel) {
