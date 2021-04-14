@@ -49,7 +49,7 @@ int RenderChunk::runAllUpdates(int maxRegionUpdates) {
         fullUpdateQueued = false;
 
         renderEngine->getVoxelEngine()->runOnGpuWorkerThread([=] () -> void {
-            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset, {});
+            chunk->bakedBuffer.bake(chunk->pooledBuffer, renderEngine->getChunkBufferHandle(), chunkBufferOffset, std::vector<Vec3i>({}));
             renderEngine->getVoxelEngine()->swapGpuWorkerBuffers();
         });
 
