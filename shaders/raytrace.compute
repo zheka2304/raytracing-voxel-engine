@@ -68,39 +68,38 @@ struct RegTraverseData {
 
 #define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
-        int COUNT_X = IS_RAY_X_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) + 1);  \
-        float _rayL_x = RAYTRACE_DATA.rayL.x + RAYTRACE_DATA.rayS.x * float(COUNT_X - 1); \
-        vec2 _add_yz = ceil(max(vec2(0.0), (_rayL_x - RAYTRACE_DATA.rayL.yz) / RAYTRACE_DATA.rayS.yz)); \
-        ivec2 _add_yz_i = ivec2(_add_yz); \
-        int _dis_x = _add_yz_i.x + _add_yz_i.y + COUNT_X;  \
+        ivec3 COUNT_ = ivec3( \
+            IS_RAY_X_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.x & REGION_SIZE_BIT_MASK) + 1),  \
+            IS_RAY_Y_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) + 1),  \
+            IS_RAY_Z_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) + 1)  \
+        ); \
         \
-        int COUNT_Y = IS_RAY_Y_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.y & REGION_SIZE_BIT_MASK) + 1);  \
-        float _rayL_y = RAYTRACE_DATA.rayL.y + RAYTRACE_DATA.rayS.y * float(COUNT_Y - 1); \
-        vec2 _add_xz = ceil(max(vec2(0.0), (_rayL_y - RAYTRACE_DATA.rayL.xz) / RAYTRACE_DATA.rayS.xz)); \
-        ivec2 _add_xz_i = ivec2(_add_xz); \
-        int _dis_y = _add_xz_i.x + _add_xz_i.y + COUNT_Y;  \
+        vec3 _rayL_ = RAYTRACE_DATA.rayL + RAYTRACE_DATA.rayS * vec3(COUNT_ - 1); \
         \
-        int COUNT_Z = IS_RAY_Z_POSITIVE(REGION_SIZE - (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK), (RAYTRACE_DATA.pos.z & REGION_SIZE_BIT_MASK) + 1); \
-        float _rayL_z = RAYTRACE_DATA.rayL.z + RAYTRACE_DATA.rayS.z * float(COUNT_Z - 1); \
-        vec2 _add_xy = ceil(max(vec2(0.0), (_rayL_z - RAYTRACE_DATA.rayL.xy) / RAYTRACE_DATA.rayS.xy)); \
-        ivec2 _add_xy_i = ivec2(_add_xy); \
-        int _dis_z = _add_xy_i.x + _add_xy_i.y + COUNT_Z;  \
+        vec2 _add_yz = (_rayL_.x - RAYTRACE_DATA.rayL.yz) / RAYTRACE_DATA.rayS.yz; \
+        vec2 _add_xz = (_rayL_.y - RAYTRACE_DATA.rayL.xz) / RAYTRACE_DATA.rayS.xz; \
+        vec2 _add_xy = (_rayL_.z - RAYTRACE_DATA.rayL.xy) / RAYTRACE_DATA.rayS.xy; \
         \
-        if (_dis_x < _dis_y) {  \
-            if (_dis_z < _dis_x) { \
-                DATA_VAR.add_i = ivec3(_add_xy_i, COUNT_Z); \
-                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_z; \
+        ivec3 _add_i_1 = max(ivec3(0), ivec3(ceil(vec3(_add_yz.x, _add_xz.x, _add_xy.x)))); \
+        ivec3 _add_i_2 = max(ivec3(0), ivec3(ceil(vec3(_add_yz.y, _add_xz.y, _add_xy.y)))); \
+        \
+        ivec3 _dis_ = _add_i_1 + _add_i_2 + COUNT_;  \
+        \
+        if (_dis_.x < _dis_.y) {  \
+            if (_dis_.z < _dis_.x) { \
+                DATA_VAR.add_i = ivec3(_add_i_1.z, _add_i_2.z, COUNT_.z); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_.z; \
             } else { \
-                DATA_VAR.add_i = ivec3(COUNT_X, _add_yz_i); \
-                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_x; \
+                DATA_VAR.add_i = ivec3(COUNT_.x, _add_i_1.x, _add_i_2.x); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_.x; \
             } \
         } else { \
-            if (_dis_z < _dis_y) { \
-                DATA_VAR.add_i = ivec3(_add_xy_i, COUNT_Z); \
-                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_z; \
+            if (_dis_.z < _dis_.y) { \
+                DATA_VAR.add_i = ivec3(_add_i_1.z, _add_i_2.z, COUNT_.z); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_.z; \
             } else { \
-                DATA_VAR.add_i = ivec3(_add_xz_i.x, COUNT_Y, _add_xz_i.y); \
-                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_y; \
+                DATA_VAR.add_i = ivec3(_add_i_1.y, COUNT_.y, _add_i_2.y); \
+                DATA_VAR.region_end = RAYTRACE_DATA.voxel_distance + _dis_.y; \
             } \
         } \
     }
