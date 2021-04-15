@@ -1,3 +1,4 @@
+#include <iostream>
 #include "camera.h"
 #include "render_chunk.h"
 #include "engine/chunk_source.h"
@@ -27,16 +28,14 @@ void Camera::addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilit
     visibilityMap.emplace(ChunkPos(1, 0, 1), 2);
 }
 
-void Camera::sendParametersToShader(gl::Shader& shader) {
-    UNIFORM_HANDLE(viewport_uniform, shader, "VIEWPORT");
-    UNIFORM_HANDLE(camera_position_uniform, shader, "CAMERA_POSITION");
-    UNIFORM_HANDLE(camera_ray_uniform, shader, "CAMERA_RAY");
-    UNIFORM_HANDLE(camera_near_far_uniform, shader, "CAMERA_NEAR_AND_FAR");
-
-    glUniform4f(viewport_uniform, viewport[0], viewport[1], viewport[2], viewport[3]);
-    glUniform3f(camera_position_uniform, position.x, position.y, position.z);
-    glUniform3f(camera_ray_uniform, cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
-    glUniform2f(camera_near_far_uniform, near, far);
+void Camera::sendParametersToShader(UniformData& uniformData) {
+    uniformData = {
+            0,
+            { viewport[0], viewport[1], viewport[2], viewport[3] },
+            { position.x, position.y, position.z },
+            { cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch) },
+            near, far
+    };
 }
 
 void Camera::setNearAndFarPlane(float near, float far) {

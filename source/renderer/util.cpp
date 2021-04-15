@@ -242,6 +242,21 @@ namespace gl {
     }
 
 
+    Buffer::Buffer() {
+        glGenBuffers(1, &handle);
+    }
+
+    Buffer::~Buffer() {
+        glDeleteBuffers(1, &handle);
+    }
+
+    void Buffer::setData(size_t size, void* data, GLuint bufferType, GLuint accessType) {
+        glBindBuffer(bufferType, handle);
+        glBufferData(bufferType, size, data, accessType);
+        glBindBuffer(bufferType, 0);
+    }
+
+
     RenderToTexture::RenderToTexture(int width, int height, int textureCount) :
         width(width), height(height) {
 

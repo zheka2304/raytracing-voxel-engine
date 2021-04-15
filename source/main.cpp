@@ -189,7 +189,9 @@ int main(int argc, char* argv[]) {
         gl::Shader textureShader("texture.vert", "process_soft_shadow.frag",
                                  {"HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0"});
 
-        VoxelRenderEngine renderEngine(voxelEngine, chunkSource, camera);
+        gl::Texture raytraceComputeOutput(480 * 2, 270 * 2, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+
+        VoxelRenderEngine renderEngine(voxelEngine, chunkSource, camera, {480 * 2, 270 * 2});
 
         gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
 
@@ -206,15 +208,14 @@ int main(int argc, char* argv[]) {
             glEnable(GL_DEPTH_TEST);
             glDepthFunc(GL_LEQUAL);
 
-            raytraceShader.use();
-
             camera->setPosition(Vec3(posX, posY, posZ));
             camera->setRotation(cameraYaw, -3.1415f / 4);
             camera->setViewport(0, 0, 480 / 2, 270 / 2);
 
             if (f > 0) {
                 renderEngine.updateVisibleChunks();
-                renderEngine.prepareForRender(raytraceShader);
+                renderEngine.render();
+                // glMemoryBarrier(GL_ALL_BARRIER_BITS);
                 renderEngine.runQueuedRenderChunkUpdates(16);
                 if (frame % 10 == 0) {
                     camera->requestChunksFromSource(chunkSource);
@@ -224,12 +225,6 @@ int main(int argc, char* argv[]) {
                 }
 
             }
-
-            camera->sendParametersToShader(raytraceShader);
-            glUniform1f(raytraceShader.getUniform("TIME"), get_time_since_start());
-            glUniform4f(raytraceShader.getUniform("DIRECT_LIGHT_COLOR"), 0.7, 0.7, 1.0, 1.0);
-            glUniform4f(raytraceShader.getUniform("AMBIENT_LIGHT_COLOR"), 0.1, 0.0, 0.0, 0.2);
-            glUniform3f(raytraceShader.getUniform("DIRECT_LIGHT_RAY"), 1.0, -0.4, 1.0);
 
             float unitMove = 10.0, unitRotation = -0.1;
             if (glfwGetKey(window, GLFW_KEY_Q)) {
@@ -255,23 +250,18 @@ int main(int argc, char* argv[]) {
                 posZ -= unitMove * sin(cameraYaw);
             }
 
-            renderToTexture.startRenderToTexture();
-            renderToTexture.drawFullScreenQuad();
-            renderToTexture.endRenderToTexture();
             textureShader.use();
-
-            glViewport(0, 0, 480 * 3, 270 * 3);
             glEnable(GL_TEXTURE_2D);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[0].handle);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[1].handle);
-            glActiveTexture(GL_TEXTURE2);
-            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[2].handle);
+            glBindTexture(GL_TEXTURE_2D, renderEngine.o_ColorTexture.handle);
+//            glActiveTexture(GL_TEXTURE1);
+//            glBindTexture(GL_TEXTURE_2D, renderEngine.o_ColorTexture.handle);
+//            glActiveTexture(GL_TEXTURE2);
+//            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[2].handle);
             glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
-            glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
-            glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
-            glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
+            // glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
+            // glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
+            // glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
             renderToTexture.drawFullScreenQuad();
 
 

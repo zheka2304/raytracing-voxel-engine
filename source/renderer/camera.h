@@ -14,6 +14,14 @@ class ChunkSource;
 
 class Camera {
 public:
+    struct UniformData {
+        GLSL_BUFFER_ALIGN short time = 0;
+        GLSL_BUFFER_ALIGN float viewport[4] = { 0 };
+        GLSL_BUFFER_ALIGN float cameraPosition[3]  = { 0 };
+        GLSL_BUFFER_ALIGN float cameraRay[3] = { 0 };
+        GLSL_BUFFER_ALIGN float cameraNearAndFar[2] = { 0 };
+    };
+
     Vec3 position = Vec3(0, 0, 0);
     float yaw = 0, pitch = 0;
     float near = -64, far = 256;
@@ -26,7 +34,7 @@ public:
 
     // iterates over all visible chunk positions
     virtual void addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap);
-    virtual void sendParametersToShader(gl::Shader& shader);
+    virtual void sendParametersToShader(UniformData& uniformData);
 
     // checks current visibility and requests chunks from source
     virtual void requestChunksFromSource(std::shared_ptr<ChunkSource> chunkSource);

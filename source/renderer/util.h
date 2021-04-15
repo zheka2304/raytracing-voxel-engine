@@ -16,9 +16,12 @@ namespace gl {
         GLuint handle = 0;
         int width, height;
 
-        Texture(int width, int height, int internalFormat, int format, int dataType, void* data = nullptr);
-        Texture(Texture&& texture);
-        Texture(const Texture&) = delete;
+        Texture(int width, int height, int internalFormat, int format, int dataType, void *data = nullptr);
+
+        Texture(Texture &&texture);
+
+        Texture(const Texture &) = delete;
+
         ~Texture();
     };
 
@@ -27,8 +30,10 @@ namespace gl {
         GLuint handle = 0, buffer_handle = 0;
         int size;
 
-        BufferTexture(int size, GLbyte* data, GLenum mode = GL_STATIC_DRAW);
+        BufferTexture(int size, GLbyte *data, GLenum mode = GL_DYNAMIC_DRAW);
+
         void bind() const;
+
         ~BufferTexture();
     };
 
@@ -48,32 +53,64 @@ namespace gl {
         std::vector<int> indices;
 
         Mesh();
+
         ~Mesh();
 
         void invalidate();
+
         void rebuild();
+
         void render();
+
         void unloadGraphics();
     };
 
     class Shader {
         GLuint programHandle;
     public:
-        Shader(std::string const& vertex, std::string const& fragment, std::vector<std::string> const& defines = {});
-        Shader(std::string const& name, std::vector<std::string> const& defines = {});
+        Shader(std::string const &vertex, std::string const &fragment, std::vector<std::string> const &defines = {});
+
+        Shader(std::string const &name, std::vector<std::string> const &defines = {});
+
         void use() const;
+
         ~Shader();
 
-        GLuint getUniform(char const* name) const;
+        GLuint getUniform(char const *name) const;
     };
 
     class ComputeShader {
     public:
         GLuint programHandle;
 
-        ComputeShader(std::string const& source);
+        ComputeShader(std::string const &source);
+
         void use() const;
+
         ~ComputeShader();
+    };
+
+    class Buffer {
+    public:
+        GLuint handle;
+
+        Buffer();
+        ~Buffer();
+        void setData(size_t size, void *data, GLuint bufferType = GL_SHADER_STORAGE_BUFFER,
+                     GLuint accessType = GL_DYNAMIC_DRAW);
+    };
+
+    template <typename T>
+    class ComputeShaderUniform : public Buffer {
+    public:
+        T data;
+
+        void updateAndBind(int index,
+                GLuint bufferType = GL_SHADER_STORAGE_BUFFER,
+                GLuint accessType = GL_DYNAMIC_DRAW) {
+            setData(sizeof(data), &data, bufferType, accessType);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, index, handle);
+        }
     };
 
     class RenderToTexture {
@@ -92,6 +129,8 @@ namespace gl {
 }
 
 #define UNIFORM_HANDLE(VARIABLE_NAME, SHADER, UNIFORM_NAME) static GLint VARIABLE_NAME = 0; if (VARIABLE_NAME == 0) VARIABLE_NAME = (SHADER).getUniform(UNIFORM_NAME);
+
+#define GLSL_BUFFER_ALIGN __attribute__ ((aligned(16)))
 
 
 #endif //VOXEL_ENGINE_UTIL_H

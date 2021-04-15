@@ -49,10 +49,41 @@ private:
     std::unordered_set<RenderChunk*> queuedRenderChunkUpdates;
 
 private:
+    struct BufferOffsets {
+        int offsets[64];
+    };
+    gl::ComputeShaderUniform<BufferOffsets> u_BufferOffsets;
+
+    struct RenderRegion {
+        GLSL_BUFFER_ALIGN Vec3i offset;
+        GLSL_BUFFER_ALIGN Vec3i count;
+    };
+    gl::ComputeShaderUniform<RenderRegion> u_RenderRegion;
+
+    struct AmbientData {
+        GLSL_BUFFER_ALIGN float directLightColor[4];
+        GLSL_BUFFER_ALIGN float directLightRay[3];
+        GLSL_BUFFER_ALIGN float ambientLightColor[4];
+    };
+    gl::ComputeShaderUniform<AmbientData> u_AmbientData;
+
+    gl::ComputeShaderUniform<Camera::UniformData> u_CameraData;
+
+
     void _queueRenderChunkUpdate(RenderChunk* renderChunk);
 
 public:
-    VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera);
+    struct ScreenParameters {
+        int width, height;
+    };
+
+    ScreenParameters screenParameters;
+
+    gl::Texture o_ColorTexture;
+    gl::Texture o_LightTexture;
+    gl::Texture o_DepthTexture;
+
+    VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, std::shared_ptr<ChunkSource> chunkSource, std::shared_ptr<Camera> camera, ScreenParameters screenParams);
 
     RenderChunk* getNewRenderChunk(int maxLevelToReuse = RenderChunk::VISIBILITY_LEVEL_NOT_VISIBLE);
 
@@ -69,7 +100,7 @@ public:
     // - CHUNK_OFFSET - ivec3 offset of chunk region to be rendered
     // - CHUNK_COUNT - ivec3 of chunk count on each axis, total count should not be greater then 32
     // - CHUNK_BUFFERS - array of usamplerBuffer with size of 32
-    void prepareForRender(gl::Shader& shader);
+    void render();
 
     GLuint getChunkBufferHandle();
 
