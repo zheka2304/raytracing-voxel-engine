@@ -379,5 +379,7 @@ void main() {
     );
 
     // write pixel
-    imageStore(COLOR_OUTPUT, pixel, vec4(out_light, 1.0));
+    imageStore(COLOR_OUTPUT, pixel, vec4(out_color, 1.0));
+    imageStore(LIGHT_OUTPUT, pixel, vec4(out_light, 1.0));
+    imageStore(DEPTH_OUTPUT, pixel, vec4(vec3(out_depth / max_depth), 1.0));
 }

@@ -50,5 +50,5 @@ void main() {
         vec4 light = texture(TEXTURE_1, uv);
     #endif
 
-    gl_FragColor = texture(TEXTURE_0, uv);// * light;
+    gl_FragColor = texture(TEXTURE_0, uv) * light;
 }
