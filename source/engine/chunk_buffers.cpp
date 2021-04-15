@@ -19,7 +19,7 @@ PooledChunkBuffer::~PooledChunkBuffer() {
 }
 
 size_t PooledChunkBuffer::getBufferSize() {
-    return chunk->voxelBufferLen * sizeof(unsigned int);
+    return chunk->voxelBufferLen * sizeof(voxel_data_t);
 }
 
 content_uid_t PooledChunkBuffer::getStoredContentUuid() {

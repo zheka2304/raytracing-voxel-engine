@@ -1,3 +1,8 @@
+/**
+ * This is a terrible mess of some tests & dirty initialization, most of that will be
+ * moved to VoxelEngine class in the future.
+ */
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>

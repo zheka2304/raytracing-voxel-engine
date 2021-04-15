@@ -10,7 +10,7 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, s
     glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxBufferTextureSize);
     int bufferSize = std::min(maxBufferTextureSize, VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE * MAX_RENDER_CHUNK_INSTANCES);
 
-    chunkBuffer = new gl::BufferTexture(bufferSize * sizeof(unsigned int), nullptr);
+    chunkBuffer = new gl::BufferTexture(bufferSize * sizeof(baked_voxel_t), nullptr);
     chunkBufferSize = bufferSize / VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE;
 
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";

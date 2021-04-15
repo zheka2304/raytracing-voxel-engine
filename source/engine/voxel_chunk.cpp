@@ -15,7 +15,7 @@ VoxelChunk::VoxelChunk(int sizeX, int sizeY, int sizeZ) : pooledBuffer(PooledChu
         throw std::invalid_argument("all chunk sizes must divide by 32");
     }
 
-    voxelBuffer = new unsigned int[voxelBufferLen = sizeX * sizeY * sizeZ];
+    voxelBuffer = new voxel_data_t[voxelBufferLen = sizeX * sizeY * sizeZ];
     rSizeX = sizeX / SUB_REGION_TOTAL_SIZE;
     rSizeY = sizeY / SUB_REGION_TOTAL_SIZE;
     rSizeZ = sizeZ / SUB_REGION_TOTAL_SIZE;
@@ -28,7 +28,7 @@ VoxelChunk::VoxelChunk(VoxelChunk const& other) : VoxelChunk(other.sizeX, other.
 bool VoxelChunk::copyFrom(VoxelChunk const& other) {
     if (other.sizeX == sizeX && other.sizeY == sizeY && other.sizeZ == sizeZ) {
         setPos(other.position);
-        memcpy(voxelBuffer, other.voxelBuffer, voxelBufferLen * sizeof(unsigned int));
+        memcpy(voxelBuffer, other.voxelBuffer, voxelBufferLen * sizeof(voxel_data_t));
         return true;
     }
     return false;
