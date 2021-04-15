@@ -13,10 +13,15 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, s
     glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxBufferTextureSize);
     int bufferSize = std::min(maxBufferTextureSize, VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE * MAX_RENDER_CHUNK_INSTANCES);
 
-    chunkBuffer = new gl::BufferTexture(bufferSize * sizeof(baked_voxel_t), nullptr);
+    chunkBuffer = new gl::Buffer();
+    chunkBuffer->setData(bufferSize * sizeof(baked_voxel_t), nullptr, GL_SHADER_STORAGE_BUFFER, GL_DYNAMIC_DRAW);
     chunkBufferSize = bufferSize / VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE;
 
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
+}
+
+VoxelRenderEngine::~VoxelRenderEngine() {
+    delete(chunkBuffer);
 }
 
 VoxelEngine* VoxelRenderEngine::getVoxelEngine() {
@@ -64,7 +69,7 @@ RenderChunk* VoxelRenderEngine::getNewRenderChunk(int reuseVisibilityLevel) {
 }
 
 GLuint VoxelRenderEngine::getChunkBufferHandle() {
-    return chunkBuffer->buffer_handle;
+    return chunkBuffer->handle;
 }
 
 void VoxelRenderEngine::_queueRenderChunkUpdate(RenderChunk* renderChunk) {
@@ -246,32 +251,33 @@ void VoxelRenderEngine::render() {
         // std::cout << " total=" << renderChunkMap.size() << " visible=" << chunksInView << " rendered=" << visible_count << "/" << (count[0] * count[1] * count[2]) << "\n";
 
         raytraceComputeShader.use();
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, chunkBuffer->buffer_handle);
+
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, chunkBuffer->handle);
         u_BufferOffsets.updateAndBind(4);
         u_RenderRegion.data = {
                 Vec3i(offset[0], offset[1], offset[2]),
                 Vec3i(count[0], count[1], count[2])
         };
         u_RenderRegion.updateAndBind(5);
-        u_AmbientData.data = {
-                {1, 1, 1, 1},
-                {1, -0.4f, 1},
-                {0, 0, 0.3f, 0.5f}
-        };
-        u_AmbientData.updateAndBind(6);
-        camera->sendParametersToShader(u_CameraData.data);
-        u_CameraData.updateAndBind(7);
-
-        glBindImageTexture(0, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-        glBindImageTexture(1, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-        glBindImageTexture(2, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-
-        glDispatchCompute((screenParameters.width + 23) / 24, (screenParameters.height + 23) / 24, 1);
     } else {
+        raytraceComputeShader.use();
         // no chunks in view
-//        glUniform3i(shader.getUniform("CHUNK_COUNT"), 0, 0, 0);
+        u_RenderRegion.data.count = Vec3i(0, 0, 0);
+        u_RenderRegion.updateAndBind(5);
     }
 
+    u_AmbientData.data = {
+            {1, 1, 1, 1},
+            {1, -0.4f, 1},
+            {0, 0, 0.3f, 0.5f}
+    };
+    u_AmbientData.updateAndBind(6);
+    camera->sendParametersToShader(u_CameraData.data);
+    u_CameraData.updateAndBind(7);
 
+    glBindImageTexture(0, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glBindImageTexture(1, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glBindImageTexture(2, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glDispatchCompute((screenParameters.width + 23) / 24, (screenParameters.height + 23) / 24, 1);
 }
 

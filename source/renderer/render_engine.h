@@ -38,7 +38,7 @@ private:
     std::shared_ptr<Camera> camera;
 
     // all chunks are stored in single buffer because sampler uniform arrays are not always supported
-    gl::BufferTexture* chunkBuffer;
+    gl::Buffer* chunkBuffer;
 
     // maximum chunks in buffer
     int chunkBufferSize;
@@ -105,6 +105,8 @@ public:
     GLuint getChunkBufferHandle();
 
     VoxelEngine* getVoxelEngine();
+
+    ~VoxelRenderEngine();
 };
 
 

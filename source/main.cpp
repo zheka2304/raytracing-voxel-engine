@@ -185,20 +185,14 @@ int main(int argc, char* argv[]) {
                                            sizeof(unsigned int) << "\n";
 
         // init shader and uniforms
-        gl::Shader raytraceShader("raytrace", std::vector<std::string>({"RAYTRACE_DEPTH"}));
         gl::Shader textureShader("texture.vert", "process_soft_shadow.frag",
                                  {"HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0"});
 
-        gl::Texture raytraceComputeOutput(480 * 2, 270 * 2, GL_RGBA32F, GL_RGBA, GL_FLOAT);
-
         VoxelRenderEngine renderEngine(voxelEngine, chunkSource, camera, {480 * 2, 270 * 2});
-
-        gl::RenderToTexture renderToTexture(480 * 2, 270 * 2, 3);
 
         // start
         float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
 
-        int f = 5;
         int frame = 0;
         float last_fps_time = get_time_since_start();
         while (!glfwWindowShouldClose(window)) {
@@ -212,18 +206,15 @@ int main(int argc, char* argv[]) {
             camera->setRotation(cameraYaw, -3.1415f / 4);
             camera->setViewport(0, 0, 480 / 2, 270 / 2);
 
-            if (f > 0) {
-                renderEngine.updateVisibleChunks();
-                renderEngine.render();
-                // glMemoryBarrier(GL_ALL_BARRIER_BITS);
-                renderEngine.runQueuedRenderChunkUpdates(16);
-                if (frame % 10 == 0) {
-                    camera->requestChunksFromSource(chunkSource);
-                }
-                if (frame % 30 == 0) {
-                    chunkSource->startUnload();
-                }
-
+            renderEngine.updateVisibleChunks();
+            renderEngine.render();
+            // glMemoryBarrier(GL_ALL_BARRIER_BITS);
+            renderEngine.runQueuedRenderChunkUpdates(16);
+            if (frame % 10 == 0) {
+                camera->requestChunksFromSource(chunkSource);
+            }
+            if (frame % 30 == 0) {
+                chunkSource->startUnload();
             }
 
             float unitMove = 10.0, unitRotation = -0.1;
@@ -254,16 +245,15 @@ int main(int argc, char* argv[]) {
             glEnable(GL_TEXTURE_2D);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, renderEngine.o_ColorTexture.handle);
-//            glActiveTexture(GL_TEXTURE1);
-//            glBindTexture(GL_TEXTURE_2D, renderEngine.o_ColorTexture.handle);
-//            glActiveTexture(GL_TEXTURE2);
-//            glBindTexture(GL_TEXTURE_2D, renderToTexture.outputTextures[2].handle);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, renderEngine.o_LightTexture.handle);
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, renderEngine.o_DepthTexture.handle);
             glUniform1i(textureShader.getUniform("TEXTURE_0"), 0);
-            // glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
-            // glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
-            // glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
-            renderToTexture.drawFullScreenQuad();
-
+            glUniform1i(textureShader.getUniform("TEXTURE_1"), 1);
+            glUniform1i(textureShader.getUniform("TEXTURE_2"), 2);
+            glUniform2f(textureShader.getUniform("BLEND_RADIUS"), 0.5f / 480.0f, 0.5f / 270.0f);
+            mesh.render();
 
             glfwSwapBuffers(window);
             glfwPollEvents();
