@@ -10,7 +10,7 @@ GPUBufferPool::BufferBase::BufferBase(GPUBufferPool* pool) : pool(pool) {
     glGenBuffers(1, &glHandle);
 }
 
-void GPUBufferPool::BufferBase::resize(GLuint newSize) {
+void GPUBufferPool::BufferBase::resize(size_t newSize) {
     pool->totalMemoryUsed += (newSize - size);
     size = newSize;
 }
@@ -21,7 +21,7 @@ GPUBufferPool::BufferBase::~BufferBase() {
 }
 
 
-GPUBufferPool::Buffer::Buffer(std::shared_ptr<BufferBase> handle, GLuint size) : handle(handle) {
+GPUBufferPool::Buffer::Buffer(std::shared_ptr<BufferBase> handle, size_t size) : handle(handle) {
     handle->resize(size);
 }
 
@@ -53,11 +53,11 @@ bool GPUBufferPool::Buffer::isContentUnchanged() {
     return handle != nullptr && handle->contentUuid == contentUuid;
 }
 
-GLuint GPUBufferPool::Buffer::getStoredContentUuid() {
+content_uid_t GPUBufferPool::Buffer::getStoredContentUuid() {
     return handle != nullptr ? handle->contentUuid : 0;
 }
 
-GLuint GPUBufferPool::Buffer::getLocalContentUuid() {
+content_uid_t GPUBufferPool::Buffer::getLocalContentUuid() {
     return contentUuid;
 }
 
@@ -66,11 +66,11 @@ GLuint GPUBufferPool::Buffer::getGlHandle() {
 }
 
 
-GPUBufferPool::GPUBufferPool(GLuint poolSize) : maxMemoryUsed(poolSize) {
+GPUBufferPool::GPUBufferPool(size_t poolSize) : maxMemoryUsed(poolSize) {
 
 }
 
-GPUBufferPool::Buffer GPUBufferPool::allocate(GLuint size) {
+GPUBufferPool::Buffer GPUBufferPool::allocate(size_t size) {
     std::unique_lock<std::mutex> lock(poolLock);
 
     if (!pool.empty() && totalMemoryUsed + size >= maxMemoryUsed) {

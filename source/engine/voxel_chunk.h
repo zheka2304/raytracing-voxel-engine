@@ -2,6 +2,7 @@
 #ifndef VOXEL_ENGINE_VOXEL_CHUNK_H
 #define VOXEL_ENGINE_VOXEL_CHUNK_H
 
+#include "common/types.h"
 #include "common/chunk_pos.h"
 #include "chunk_buffers.h"
 
@@ -44,7 +45,7 @@ public:
     // buffer, that contains pure voxel data
     // default direct access: x + (z + y * sizeZ) * sizeX
     std::timed_mutex contentMutex;
-    unsigned int* voxelBuffer = nullptr;
+    voxel_data_t* voxelBuffer = nullptr;
     int voxelBufferLen = 0;
 
     // gpu cache for chunk data
@@ -90,7 +91,7 @@ public:
     void attachRenderChunk(RenderChunk* renderChunk);
 
 private:
-    inline unsigned int getVoxelAt(int x, int y, int z) {
+    inline voxel_data_t getVoxelAt(int x, int y, int z) {
         if ((unsigned(x) >> 7) == 0 && (unsigned(y) >> 7) == 0 && (unsigned(z) >> 7) == 0) {
             return voxelBuffer[x | ((z | (y << 7)) << 7)];
         } else {

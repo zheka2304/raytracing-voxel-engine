@@ -35,7 +35,7 @@ private:
 
 public:
     VoxelRenderEngine* renderEngine;
-    int chunkBufferOffset = -1;
+    size_t chunkBufferOffset = -1;
 
     VoxelChunk* chunk = nullptr;
     int x = 0, y = 0, z = 0;
@@ -45,7 +45,7 @@ public:
 
     explicit RenderChunk(VoxelRenderEngine* renderEngine);
     void setPos(int x, int y, int z);
-    void setChunkBufferOffset(int offset);
+    void setChunkBufferOffset(size_t offset);
     void _attach(VoxelChunk* chunk);
 
     void queueFullUpdate();

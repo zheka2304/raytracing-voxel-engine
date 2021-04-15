@@ -18,11 +18,11 @@ PooledChunkBuffer::~PooledChunkBuffer() {
 
 }
 
-int PooledChunkBuffer::getBufferSize() {
+size_t PooledChunkBuffer::getBufferSize() {
     return chunk->voxelBufferLen * sizeof(unsigned int);
 }
 
-GLuint PooledChunkBuffer::getStoredContentUuid() {
+content_uid_t PooledChunkBuffer::getStoredContentUuid() {
     return buffer.getStoredContentUuid();
 }
 
@@ -67,7 +67,7 @@ void PooledChunkBuffer::update() {
 
 GPUBufferPool BakedChunkBuffer::bufferPool(1024 * 1024 * 256);
 std::mutex BakedChunkBuffer::cacheByContentIdMapMutex;
-std::unordered_map<GLuint, GPUBufferPool::Buffer> BakedChunkBuffer::cacheByContentIdMap;
+std::unordered_map<content_uid_t, GPUBufferPool::Buffer> BakedChunkBuffer::cacheByContentIdMap;
 
 void BakedChunkBuffer::_dispatchCompute(GLuint chunkBufferHandle, Vec3i offset, Vec3i size) {
     // compile shader once and use it
@@ -78,7 +78,7 @@ void BakedChunkBuffer::_dispatchCompute(GLuint chunkBufferHandle, Vec3i offset, 
     static GPUBufferPool uniformBufferPool(16);
 
     // init uniforms
-    int uniforms[4] = { sharedBufferOffset, offset.x, offset.y, offset.z };
+    int uniforms[4] = { (int32_t) sharedBufferOffset, offset.x, offset.y, offset.z };
 
     // allocate uniform buffer
     GPUBufferPool::Buffer uniformBuffer = uniformBufferPool.allocate(sizeof(int) * 4);
@@ -99,13 +99,13 @@ void BakedChunkBuffer::_dispatchCompute(GLuint chunkBufferHandle, Vec3i offset, 
 
 }
 
-void BakedChunkBuffer::bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset, std::vector<Vec3i> const& regions) {
+void BakedChunkBuffer::bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, size_t sharedBufferOffset, std::vector<Vec3i> const& regions) {
     this->sharedBufferHandle = sharedBufferHandle;
     this->sharedBufferOffset = sharedBufferOffset;
     this->sharedBufferSpanSize = chunkBuffer.getBufferSize();
 
     GLuint chunkBufferHandle = chunkBuffer.ownHandle();
-    GLuint chunkStoredContentUuid = chunkBuffer.getStoredContentUuid();
+    content_uid_t chunkStoredContentUuid = chunkBuffer.getStoredContentUuid();
 
     ownedContentUuid = 0;
 

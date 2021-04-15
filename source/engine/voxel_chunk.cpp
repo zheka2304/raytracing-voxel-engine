@@ -135,7 +135,10 @@ void VoxelChunk::attachRenderChunk(RenderChunk* newRenderChunk) {
 }
 
 VoxelChunk::~VoxelChunk() {
+    contentMutex.lock();
     bakedBuffer.releaseAndDestroyCache();
     attachRenderChunk(nullptr);
     delete(voxelBuffer);
+    voxelBuffer = nullptr;
+    contentMutex.unlock();
 }

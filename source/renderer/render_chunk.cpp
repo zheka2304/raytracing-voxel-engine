@@ -16,7 +16,7 @@ void RenderChunk::setPos(int x, int y, int z) {
     this->z = z;
 }
 
-void RenderChunk::setChunkBufferOffset(int offset) {
+void RenderChunk::setChunkBufferOffset(size_t offset) {
     chunkBufferOffset = offset;
 }
 

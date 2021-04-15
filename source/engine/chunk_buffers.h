@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "common/types.h"
 #include "common/vec.h"
 #include "gpu_cache.h"
 
@@ -22,14 +23,14 @@ private:
     VoxelChunk* chunk;
     GPUBufferPool::Buffer buffer;
 
-    int lastSyncId = 1;
-    int lastUpdateId = 0;
+    content_uid_t lastSyncId = 1;
+    content_uid_t lastUpdateId = 0;
 
     static GPUBufferPool bufferPool;
 public:
     explicit PooledChunkBuffer(VoxelChunk* chunk);
-    int getBufferSize();
-    GLuint getStoredContentUuid();
+    size_t getBufferSize();
+    content_uid_t getStoredContentUuid();
     GLuint ownHandle();
     void releaseHandle();
     void update();
@@ -44,21 +45,21 @@ private:
 class BakedChunkBuffer {
 private:
     GLuint sharedBufferHandle = 0;
-    int sharedBufferOffset, sharedBufferSpanSize;
+    size_t sharedBufferOffset, sharedBufferSpanSize;
 
     // currently owned chunk buffer stored content uuid
-    GLuint ownedContentUuid = 0;
+    content_uid_t ownedContentUuid = 0;
 
     // lookup map by stored chunk content uuid
     static std::mutex cacheByContentIdMapMutex;
-    static std::unordered_map<GLuint, GPUBufferPool::Buffer> cacheByContentIdMap;
+    static std::unordered_map<content_uid_t, GPUBufferPool::Buffer> cacheByContentIdMap;
 
     // cache buffer pool
     static GPUBufferPool bufferPool;
 
 public:
     // own shared buffer span, use cache or run baking compute shader, release cache if out of cache memory
-    void bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, GLuint sharedBufferOffset, std::vector<Vec3i> const& regions);
+    void bake(PooledChunkBuffer& chunkBuffer, GLuint sharedBufferHandle, size_t sharedBufferOffset, std::vector<Vec3i> const& regions);
     // releases shared buffer, creates cache, if able to do it
     void release();
     void releaseAndDestroyCache();

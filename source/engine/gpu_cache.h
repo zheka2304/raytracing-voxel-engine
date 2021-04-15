@@ -8,6 +8,9 @@
 #include <memory>
 #include <glad/glad.h>
 
+#include "common/types.h"
+
+
 class GPUBufferPool {
 private:
     static std::atomic<GLuint> lastContentUuid;
@@ -17,11 +20,11 @@ private:
 
         std::mutex ownsLock;
         GPUBufferPool* pool;
-        GLuint size = 0;
-        GLuint contentUuid;
+        size_t size = 0;
+        content_uid_t contentUuid;
 
         BufferBase(GPUBufferPool* pool);
-        void resize(GLuint newSize);
+        void resize(size_t newSize);
         ~BufferBase();
     };
 
@@ -29,9 +32,9 @@ public:
 
     class Buffer {
         std::shared_ptr<BufferBase> handle;
-        GLuint contentUuid = -1;
+        content_uid_t contentUuid = -1;
 
-        Buffer(std::shared_ptr<BufferBase> handle, GLuint size);
+        Buffer(std::shared_ptr<BufferBase> handle, size_t size);
 
     public:
         Buffer();
@@ -49,10 +52,10 @@ public:
         bool isContentUnchanged();
 
         // gets sync id of content stored in buffer
-        GLuint getStoredContentUuid();
+        content_uid_t getStoredContentUuid();
 
         // get sync id of last content, updated from this instance
-        GLuint getLocalContentUuid();
+        content_uid_t getLocalContentUuid();
 
         // returns gl buffer handle
         GLuint getGlHandle();
@@ -64,16 +67,16 @@ private:
     std::mutex poolLock;
     std::list<std::shared_ptr<BufferBase>> pool;
 
-    std::atomic<GLuint> totalMemoryUsed;
-    GLuint maxMemoryUsed;
+    std::atomic<size_t> totalMemoryUsed;
+    size_t maxMemoryUsed;
 
     void _release(std::shared_ptr<BufferBase> buffer);
 
 public:
-    GPUBufferPool(GLuint poolSize);
+    GPUBufferPool(size_t poolSize);
 
     // allocates new span of given size
-    Buffer allocate(GLuint size);
+    Buffer allocate(size_t size);
 
     friend BufferBase;
     friend Buffer;

@@ -1,9 +1,12 @@
+#ifndef VOXEL_ENGINE_UTIL_H
+#define VOXEL_ENGINE_UTIL_H
+
 #include <vector>
 #include <string>
 #include <glad/glad.h>
 
-#ifndef VOXEL_ENGINE_UTIL_H
-#define VOXEL_ENGINE_UTIL_H
+#include "common/types.h"
+
 
 namespace gl {
     const std::string SHADER_DIR = "../shaders/";
