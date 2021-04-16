@@ -199,12 +199,17 @@ namespace gl {
     }
 
 
-    ComputeShader::ComputeShader(std::string const& sourceS) {
+    ComputeShader::ComputeShader(std::string const& sourceS, std::vector<std::string> const& defines) {
         std::string source = resolveShaderSource(sourceS);
 
+        std::string definesSource = "";
+        for (auto const& define : defines) {
+            definesSource += "#define " + define + "\n";
+        }
+
         GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
-        const char* sources[1] = { source.c_str() };
-        glShaderSource(shader, 1, sources, nullptr);
+        const char* sources[2] = { definesSource.c_str(), source.c_str() };
+        glShaderSource(shader, 2, sources, nullptr);
         glCompileShader(shader);
 
         // Check for compile time errors

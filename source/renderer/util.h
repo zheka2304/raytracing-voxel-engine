@@ -83,7 +83,7 @@ namespace gl {
     public:
         GLuint programHandle;
 
-        ComputeShader(std::string const &source);
+        ComputeShader(std::string const &source, std::vector<std::string> const &defines = {});
 
         void use() const;
 
@@ -130,7 +130,10 @@ namespace gl {
 
 #define UNIFORM_HANDLE(VARIABLE_NAME, SHADER, UNIFORM_NAME) static GLint VARIABLE_NAME = 0; if (VARIABLE_NAME == 0) VARIABLE_NAME = (SHADER).getUniform(UNIFORM_NAME);
 
-#define GLSL_BUFFER_ALIGN __attribute__ ((aligned(16)))
+#define GLSL_BUFFER_ALIGN4 __attribute__ ((aligned(4)))
+#define GLSL_BUFFER_ALIGN8 __attribute__ ((aligned(8)))
+#define GLSL_BUFFER_ALIGN16 __attribute__ ((aligned(16)))
+#define GLSL_BUFFER_ALIGN GLSL_BUFFER_ALIGN16
 
 
 #endif //VOXEL_ENGINE_UTIL_H

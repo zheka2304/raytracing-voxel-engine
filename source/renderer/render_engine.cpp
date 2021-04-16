@@ -17,6 +17,9 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, s
     chunkBuffer->setData(bufferSize * sizeof(baked_voxel_t), nullptr, GL_SHADER_STORAGE_BUFFER, GL_DYNAMIC_DRAW);
     chunkBufferSize = bufferSize / VoxelChunk::DEFAULT_CHUNK_BUFFER_SIZE;
 
+    preRenderBuffer = new gl::Buffer();
+    preRenderBuffer->setData((screenParams.width >> screenParams.prerenderStrideBit) * (screenParams.height >> screenParams.prerenderStrideBit) * sizeof(float) * PRE_RAYTRACE_DATA_PER_PIXEL, nullptr);
+
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
 }
 
@@ -184,6 +187,8 @@ void VoxelRenderEngine::updateVisibleChunks() {
 void VoxelRenderEngine::render() {
     PROFILER_BEGIN(VoxelRenderEngine_prepareForRender);
 
+    static gl::ComputeShader preRaytraceComputeShader("raytrace.compute", { "PRE_RAYTRACE" });
+    static gl::ComputeShader preRaytraceValidateComputeShader("preraytrace_validate.compute");
     static gl::ComputeShader raytraceComputeShader("raytrace.compute");
 
     int minX = 0x7FFFFFFF, minY = 0x7FFFFFFF, minZ = 0x7FFFFFFF;
@@ -250,7 +255,6 @@ void VoxelRenderEngine::render() {
 
         // std::cout << " total=" << renderChunkMap.size() << " visible=" << chunksInView << " rendered=" << visible_count << "/" << (count[0] * count[1] * count[2]) << "\n";
 
-        raytraceComputeShader.use();
 
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, chunkBuffer->handle);
         u_BufferOffsets.updateAndBind(4);
@@ -260,7 +264,6 @@ void VoxelRenderEngine::render() {
         };
         u_RenderRegion.updateAndBind(5);
     } else {
-        raytraceComputeShader.use();
         // no chunks in view
         u_RenderRegion.data.count = Vec3i(0, 0, 0);
         u_RenderRegion.updateAndBind(5);
@@ -272,12 +275,31 @@ void VoxelRenderEngine::render() {
             {0, 0, 0.3f, 0.5f}
     };
     u_AmbientData.updateAndBind(6);
+
     camera->sendParametersToShader(u_CameraData.data);
     u_CameraData.updateAndBind(7);
+
+    int prerenderWidth = screenParameters.width >> screenParameters.prerenderStrideBit;
+    int prerenderHeight = screenParameters.height >> screenParameters.prerenderStrideBit;
+    u_PreRaytraceLod.data = {
+            screenParameters.prerenderStrideBit,
+            { prerenderWidth, prerenderHeight },
+            1000, 1000
+    };
+    u_PreRaytraceLod.updateAndBind(9);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, preRenderBuffer->handle);
 
     glBindImageTexture(0, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(1, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(2, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    preRaytraceComputeShader.use();
+    glDispatchCompute((prerenderWidth + 23) / 24, (prerenderHeight + 23) / 24, 1);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    preRaytraceValidateComputeShader.use();
+    glDispatchCompute((prerenderWidth + 23) / 24, (prerenderHeight + 23) / 24, 1);
+    raytraceComputeShader.use();
     glDispatchCompute((screenParameters.width + 23) / 24, (screenParameters.height + 23) / 24, 1);
 }
 

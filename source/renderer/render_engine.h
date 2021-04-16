@@ -19,6 +19,9 @@ class VoxelRenderEngine {
 private:
     static const int MAX_RENDER_CHUNK_INSTANCES = 64;
 
+    // amount of floats per pixel of pre-raytrace buffer
+    static const int PRE_RAYTRACE_DATA_PER_PIXEL = 4;
+
     std::shared_ptr<VoxelEngine> voxelEngine;
 
     std::mutex mutex;
@@ -39,6 +42,9 @@ private:
 
     // all chunks are stored in single buffer because sampler uniform arrays are not always supported
     gl::Buffer* chunkBuffer;
+
+    // buffer for pre-raytracing stage, contains downscaled data for ray offsets
+    gl::Buffer* preRenderBuffer;
 
     // maximum chunks in buffer
     int chunkBufferSize;
@@ -69,12 +75,21 @@ private:
 
     gl::ComputeShaderUniform<Camera::UniformData> u_CameraData;
 
+    struct PreRaytraceLod {
+        int strideBit;
+        GLSL_BUFFER_ALIGN8 int bufferSize[2];
+        GLSL_BUFFER_ALIGN4 float dis1;
+        GLSL_BUFFER_ALIGN4 float dis2;
+    };
+    gl::ComputeShaderUniform<PreRaytraceLod> u_PreRaytraceLod;
+
 
     void _queueRenderChunkUpdate(RenderChunk* renderChunk);
 
 public:
     struct ScreenParameters {
         int width, height;
+        int prerenderStrideBit = 2;
     };
 
     ScreenParameters screenParameters;

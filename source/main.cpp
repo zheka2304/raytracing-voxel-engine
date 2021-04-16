@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
         gl::Shader textureShader("texture.vert", "process_soft_shadow.frag",
                                  {"HIGH_QUALITY_SHADOWS0", "SOFT_SHADOWS0"});
 
-        VoxelRenderEngine renderEngine(voxelEngine, chunkSource, camera, {480 * 2, 270 * 2});
+        VoxelRenderEngine renderEngine(voxelEngine, chunkSource, camera, {480 * 2, 270 * 2, 3});
 
         // start
         float posX = 0, posY = 64, posZ = 0, cameraYaw = 3.1415 / 4;
