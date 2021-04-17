@@ -28,4 +28,9 @@ void main() {
         min(pre_raytrace_buffer.data[buffer_index + 1], pre_raytrace_buffer.data[buffer_index + 5]),
         min(pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 1], pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 5])
     );
+
+    pre_raytrace_buffer.data[buffer_index + 2] = min(
+        min(pre_raytrace_buffer.data[buffer_index + 1 + 2], pre_raytrace_buffer.data[buffer_index + 5 + 2]),
+        min(pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 1 + 2], pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 5 + 2])
+    );
 }
