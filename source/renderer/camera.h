@@ -35,6 +35,7 @@ public:
     // iterates over all visible chunk positions
     virtual void addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilityMap);
     virtual void sendParametersToShader(UniformData& uniformData);
+    virtual void getLodDistances(float& dis1, float& dis2);
 
     // checks current visibility and requests chunks from source
     virtual void requestChunksFromSource(std::shared_ptr<ChunkSource> chunkSource);

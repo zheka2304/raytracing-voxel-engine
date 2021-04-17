@@ -38,6 +38,10 @@ void Camera::sendParametersToShader(UniformData& uniformData) {
     };
 }
 
+void Camera::getLodDistances(float &dis1, float &dis2) {
+    dis1 = dis2 = 1000000; // by default maximum level of detail
+}
+
 void Camera::setNearAndFarPlane(float near, float far) {
     this->near = near;
     this->far = far;

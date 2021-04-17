@@ -281,10 +281,12 @@ void VoxelRenderEngine::render() {
 
     int prerenderWidth = screenParameters.width >> screenParameters.prerenderStrideBit;
     int prerenderHeight = screenParameters.height >> screenParameters.prerenderStrideBit;
+    float lodDis1, lodDis2;
+    camera->getLodDistances(lodDis1, lodDis2);
     u_PreRaytraceLod.data = {
             screenParameters.prerenderStrideBit,
             { prerenderWidth, prerenderHeight },
-            1000, 1000
+            lodDis1, lodDis2
     };
     u_PreRaytraceLod.updateAndBind(9);
 
@@ -295,11 +297,10 @@ void VoxelRenderEngine::render() {
     glBindImageTexture(2, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
     preRaytraceComputeShader.use();
-    glDispatchCompute((prerenderWidth + 23) / 24, (prerenderHeight + 23) / 24, 1);
-    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    glDispatchCompute((prerenderWidth + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, (prerenderHeight + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, 1);
     preRaytraceValidateComputeShader.use();
-    glDispatchCompute((prerenderWidth + 23) / 24, (prerenderHeight + 23) / 24, 1);
+    glDispatchCompute((prerenderWidth + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, (prerenderHeight + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, 1);
     raytraceComputeShader.use();
-    glDispatchCompute((screenParameters.width + 23) / 24, (screenParameters.height + 23) / 24, 1);
+    glDispatchCompute((screenParameters.width + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, (screenParameters.height + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, 1);
 }
 
