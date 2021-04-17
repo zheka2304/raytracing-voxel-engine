@@ -385,35 +385,48 @@ void raytrace(
     ) {
     ray = normalize(ray);
 
+    // on the main pass extract main ray offset from pre-raytrace buffer
+    STAGE_MAIN_PASS(
+        float main_ray_offset = pre_raytrace_buffer.data[buffer_index];
+    )
+
     int steps_made;
     float distance_to_voxel;
     vec3 voxel_normal;
 
-    STAGE_MAIN_PASS(
-        float main_ray_offset = pre_raytrace_buffer.data[buffer_index];
-    )
+    // run raytracing for main ray, on pre-raytrace stage with no offset,
+    // and on main stage with offset from pre-raytrace stage
     uint result = raytrace_direct(
         start, ray,
         STAGE_PRE_RAYTRACE(0.0) STAGE_MAIN_PASS(main_ray_offset),
         max_steps, max_distance,
         steps_made, distance_to_voxel, voxel_normal);
 
+    // on pre-raytrace stage use distance to collision to find ray offset and store it in pre-raytrace buffer
     STAGE_PRE_RAYTRACE(
+        // subtract possible error value from offset
+        // this value is pre-calculated for each level of detail (tier 1, tier 2 and chunk)
         float out_main_ray_offset;
         if (distance_to_voxel > pre_raytrace_lod.dis_2) {
-            out_main_ray_offset = distance_to_voxel - 40.0;
+            out_main_ray_offset = distance_to_voxel - 40.0; // LOD: chunk
         } else if (distance_to_voxel > pre_raytrace_lod.dis_1) {
-            out_main_ray_offset = distance_to_voxel - 5.0;
+            out_main_ray_offset = distance_to_voxel - 5.0;  // LOD: tier 2
         } else {
-            out_main_ray_offset = distance_to_voxel - 2.0;
+            out_main_ray_offset = distance_to_voxel - 2.0;  // LOD: tier 1
         }
+        // store value in pre-raytrace buffer
         pre_raytrace_buffer.data[buffer_index] = pre_raytrace_buffer.data[buffer_index + 1] = out_main_ray_offset;
     )
 
+    // on main pass, check, if ray missed approximate offset found on pre-render stage,
+    // and travelled much further, this will be used in shadow calculation:
+    // if ray has missed, we discard pre-rendered shadow data, as it is invalid
     STAGE_MAIN_PASS(
+        // 15.0 is hardcoded threshold, maybe in the future it should be passes it as a uniform or calculated
         bool initial_ray_missed = distance_to_voxel > main_ray_offset + 15.0;
     )
 
+    // on the main stage if result is 0, return the sky color
     STAGE_MAIN_PASS(
         if (result == 0u) {
             out_color = vec3(0.5, 0.7, 1.0);
@@ -422,27 +435,41 @@ void raytrace(
         }
     )
 
+    // otherwise get color of voxel
     STAGE_MAIN_PASS(
         out_color = vec3(1.0);
     )
 
-
-
+    // if we need to calculate direct light shadows
     if (ambient_data.direct_light_color.a > 0.01) {
+        // get light direction
         vec3 light_dir = normalize(ambient_data.direct_light_ray);
 
+        // on pre-raytrace stage raytrace light from other side to find maximum distance
+        // from this point to raytrace light on main stage
         STAGE_PRE_RAYTRACE(
-            vec3 shadow_ray_start = start + ray * (distance_to_voxel + 5.0) - voxel_normal * 0.1;
+            // we will additionally offset ray start for hardcoded value (5.0)
+            // i assume this is working, because 5.0 is average main stage ray travel length for LOD1
+            // so consider checking LOD in the future  
+            vec3 shadow_ray_start = start + ray * (distance_to_voxel + 5.0);
             shadow_ray_start -= light_dir * (max_distance_light + 0.01);
             vec3 shadow_ray = light_dir;
         )
 
+        // on main pass we will use maximum distance, found on pre-raytrace stage
+        // additionally we discard pre-raytrace data, if initial ray had missed
         STAGE_MAIN_PASS(
             vec3 shadow_ray_start = start + ray * distance_to_voxel + voxel_normal * 0.1;
             vec3 shadow_ray = -light_dir;
             float shadow_ray_length = initial_ray_missed ? max_distance_light : max_distance_light - pre_raytrace_buffer.data[buffer_index + 2];
+
+            // this is used to highlight regions, where pre-raytrace data was discarded
+            /* if (initial_ray_missed) {
+                out_color = vec3(1.0, 0.0, 0.0);
+            } */
         )
 
+        // run raytracing for shadows with precalculated parameters
         int s_steps_made;
         float s_distance_to_voxel;
         vec3 s_voxel_normal;
@@ -453,6 +480,8 @@ void raytrace(
             STAGE_PRE_RAYTRACE(max_distance_light) STAGE_MAIN_PASS(shadow_ray_length),
             s_steps_made, s_distance_to_voxel, s_voxel_normal);
 
+        // this is debug code, it is used to show shadow regions calculated with pre-raytracing distances, that do
+        // not match with shadows, calculated with full distance raytracing
         /*
         STAGE_MAIN_PASS(
             uint shadow_raytrace_result_debug = raytrace_direct(
@@ -464,10 +493,13 @@ void raytrace(
             out_color = shadow_raytrace_result_debug == shadow_raytrace_result ? vec3(1.0) : vec3(1.0, 0.0, 0.0);
         ) */
 
+        // on pre-raytrace stage store value found in buffer
+        // and subtract possible error
         STAGE_PRE_RAYTRACE(
             pre_raytrace_buffer.data[buffer_index + 2] = pre_raytrace_buffer.data[buffer_index + 3] = max(0.0, s_distance_to_voxel - 5.0);
         )
 
+        // on main pass calculate normals, and light color
         STAGE_MAIN_PASS(
             uint packed_normal = result >> 8;
             float n_yaw = float(packed_normal >> 5u) / 63.0 * PI * 2.0 - PI;
@@ -488,6 +520,7 @@ void raytrace(
         // out_color = normal * 0.5 + 0.5;// vec3(n_yaw / (2 * PI) + 0.5, n_pitch / (2 * PI) + 0.5, 0.0);
         // return;
     } else {
+        // if no direct light exist, just use ambient light
         STAGE_MAIN_PASS(
             out_light = ambient_data.ambient_light_color.rgb;
         )
