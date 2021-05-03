@@ -130,7 +130,7 @@ struct RegTraverseData {
 
 
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
-uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out int steps_made, out float distance_to_voxel, out vec3 voxel_side) { \
+uint FUNC_NAME(in RaytraceData raytrace_data, int max_steps, int max_distance, out int steps_made, out float distance_to_voxel, out vec3 voxel_side) { \
     RegTraverseData tier1_region; \
     RegTraverseData tier2_region; \
     RegTraverseData chunk_region; \
@@ -167,41 +167,30 @@ uint FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance, out 
                     PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
                     if (texelFetch(CHUNK_BUFFER, r2offset).r != 0u) { \
                         /* region is non-empty, raytrace over tier 1 */ \
-                        while (i < max_steps) { \
-                            /* if in bound of tier 2 region */ \
-                            if (NOT_TRAVERSE_REGION_END(raytrace_data, tier2_region)) { \
-                                /* raytrace over tier 1 region */ \
-                                ivec3 r1pos = (raytrace_data.pos >> 2) & 3; \
-                                int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; \
-                                \
-                                PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
-                                if (texelFetch(CHUNK_BUFFER, r1offset).r != 0u) { \
-                                    /* region is non-empty, raytrace over voxels */ \
-                                    while (i < max_steps) { \
-                                        if (NOT_TRAVERSE_REGION_END(raytrace_data, tier1_region)) { \
-                                            ivec3 voxel_pos = raytrace_data.pos & 3; \
-                                            int voxel_index = r1offset + 1 + (voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 2)) << 2)); \
-                                            uint voxel = texelFetch(CHUNK_BUFFER, voxel_index).r; \
-                                            if (voxel != 0u) { \
-                                                /* voxel found, end iteration */ \
-                                                steps_made = i; \
-                                                EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, distance_to_voxel, voxel_side); \
-                                                return voxel; \
-                                            } \
-                                            /* make voxel step */ \
-                                            RAYTRACE_DDA_STEP(raytrace_data, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
-                                        } else { \
-                                            i++; \
-                                            break; \
-                                        } \
+                        while (NOT_TRAVERSE_REGION_END(raytrace_data, tier2_region)) { \
+                            /* raytrace over tier 1 region */ \
+                            ivec3 r1pos = (raytrace_data.pos >> 2) & 3; \
+                            int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; \
+                            \
+                            PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
+                            if (texelFetch(CHUNK_BUFFER, r1offset).r != 0u) { \
+                                /* region is non-empty, raytrace over voxels */ \
+                                while (NOT_TRAVERSE_REGION_END(raytrace_data, tier1_region)) { \
+                                    ivec3 voxel_pos = raytrace_data.pos & 3; \
+                                    int voxel_index = r1offset + 1 + (voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 2)) << 2)); \
+                                    uint voxel = texelFetch(CHUNK_BUFFER, voxel_index).r; \
+                                    if (voxel != 0u) { \
+                                        /* voxel found, end iteration */ \
+                                        steps_made = i; \
+                                        EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, distance_to_voxel, voxel_side); \
+                                        return voxel; \
                                     } \
-                                } else { \
-                                    /* region is empty, skip (make tier 1 step) */ \
-                                    DO_TRAVERSE_REGION(raytrace_data, tier1_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
+                                    /* make voxel step */ \
+                                    RAYTRACE_DDA_STEP(raytrace_data, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                                 } \
                             } else { \
-                                i++; \
-                                break; \
+                                /* region is empty, skip (make tier 1 step) */ \
+                                DO_TRAVERSE_REGION(raytrace_data, tier1_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                             } \
                         } \
                     } else { \

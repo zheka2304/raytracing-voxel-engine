@@ -5,7 +5,7 @@
 namespace ChunkBakingUtils {
     class NormalHashCache {
     public:
-        static const int BITS_PER_COMPONENT = 6;
+        static const int BITS_PER_COMPONENT = 3;
         static const int COMPONENT_HALF = (1 << BITS_PER_COMPONENT) / 2;
         static const int TOTAL_CACHE_SIZE = (1 << (BITS_PER_COMPONENT * 3));
         unsigned short hashes[TOTAL_CACHE_SIZE];

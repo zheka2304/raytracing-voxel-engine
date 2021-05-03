@@ -43,7 +43,6 @@ void main() {
     // one thread bakes 4x4x4 tier 1 voxel region
     bool any_voxel = false;
 
-
     // for (int i = 0; i < 100; i++)
     for (uint y = 0u; y < 4u; y++) {
         for (uint z = 0u; z < 4u; z++) {
@@ -61,5 +60,8 @@ void main() {
     }
 
     baked_chunk.render_buffer[bake_region_offset] = uint(any_voxel);
-    baked_chunk.render_buffer[bake_tier2_region_offset] = atomicAdd(tier2_region_state, uint(any_voxel)) + uint(any_voxel);
+    atomicAdd(tier2_region_state, uint(any_voxel));
+    barrier();
+    memoryBarrier();
+    baked_chunk.render_buffer[bake_tier2_region_offset] = tier2_region_state;
 }
