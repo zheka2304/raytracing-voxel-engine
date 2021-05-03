@@ -15,7 +15,7 @@ class ChunkSource;
 class Camera {
 public:
     struct UniformData {
-        GLSL_BUFFER_ALIGN short time = 0;
+        GLSL_BUFFER_ALIGN float time = 0;
         GLSL_BUFFER_ALIGN float viewport[4] = { 0 };
         GLSL_BUFFER_ALIGN float cameraPosition[3]  = { 0 };
         GLSL_BUFFER_ALIGN float cameraRay[3] = { 0 };

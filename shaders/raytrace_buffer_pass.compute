@@ -18,6 +18,7 @@ layout(binding = 9) readonly buffer PreRaytraceLod {
 void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
     ivec2 buffer_size = pre_raytrace_lod.buffer_size;
+
     // get pixel and discard excess ones
     if (pos.x >= buffer_size.x - 1 || pos.y >= buffer_size.y - 1) {
         return;
@@ -27,10 +28,5 @@ void main() {
     pre_raytrace_buffer.data[buffer_index] = min(
         min(pre_raytrace_buffer.data[buffer_index + 1], pre_raytrace_buffer.data[buffer_index + 5]),
         min(pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 1], pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 5])
-    );
-
-    pre_raytrace_buffer.data[buffer_index + 2] = min(
-        min(pre_raytrace_buffer.data[buffer_index + 1 + 2], pre_raytrace_buffer.data[buffer_index + 5 + 2]),
-        min(pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 1 + 2], pre_raytrace_buffer.data[buffer_index + (buffer_size.x << 2) + 5 + 2])
     );
 }

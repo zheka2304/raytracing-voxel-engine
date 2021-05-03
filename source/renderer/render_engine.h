@@ -20,8 +20,6 @@ private:
     static const int MAX_RENDER_CHUNK_INSTANCES = 64;
     // amount of floats per pixel of pre-raytrace buffer
     static const int PRE_RAYTRACE_DATA_PER_PIXEL = 4;
-    // compute shader 2d group size
-    static const int COMPUTE_GROUP_SIZE = 24;
 
     std::shared_ptr<VoxelEngine> voxelEngine;
 

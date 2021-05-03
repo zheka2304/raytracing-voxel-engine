@@ -187,9 +187,24 @@ void VoxelRenderEngine::updateVisibleChunks() {
 void VoxelRenderEngine::render() {
     PROFILER_BEGIN(VoxelRenderEngine_prepareForRender);
 
-    static gl::ComputeShader preRaytraceComputeShader("raytrace.compute", { "PRE_RAYTRACE" });
-    static gl::ComputeShader preRaytraceValidateComputeShader("preraytrace_validate.compute");
-    static gl::ComputeShader raytraceComputeShader("raytrace.compute");
+    // initialize render passes and related variables
+    int prerenderWidth = screenParameters.width >> screenParameters.prerenderStrideBit;
+    int prerenderHeight = screenParameters.height >> screenParameters.prerenderStrideBit;
+
+    struct RenderPass {
+        gl::ComputeShader shader;
+        int width, height;
+        int workGroupSize;
+    };
+
+    static std::vector<RenderPass> renderPasses;
+    if (renderPasses.empty()) {
+        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace.compute", { "RENDER_STAGE_PRE_PASS" }), prerenderWidth, prerenderHeight, 24}));
+        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace_buffer_pass.compute", { }), prerenderWidth, prerenderHeight, 24}));
+        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace.compute", { "RENDER_STAGE_PASS_MAIN" }), screenParameters.width, screenParameters.height, 24}));
+    }
+
+    //
 
     int minX = 0x7FFFFFFF, minY = 0x7FFFFFFF, minZ = 0x7FFFFFFF;
     int maxX = -0x7FFFFFFF, maxY = -0x7FFFFFFF, maxZ = -0x7FFFFFFF;
@@ -279,8 +294,6 @@ void VoxelRenderEngine::render() {
     camera->sendParametersToShader(u_CameraData.data);
     u_CameraData.updateAndBind(7);
 
-    int prerenderWidth = screenParameters.width >> screenParameters.prerenderStrideBit;
-    int prerenderHeight = screenParameters.height >> screenParameters.prerenderStrideBit;
     float lodDis1, lodDis2;
     camera->getLodDistances(lodDis1, lodDis2);
     u_PreRaytraceLod.data = {
@@ -296,11 +309,12 @@ void VoxelRenderEngine::render() {
     glBindImageTexture(1, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(2, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
-    preRaytraceComputeShader.use();
-    glDispatchCompute((prerenderWidth + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, (prerenderHeight + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, 1);
-    preRaytraceValidateComputeShader.use();
-    glDispatchCompute((prerenderWidth + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, (prerenderHeight + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, 1);
-    raytraceComputeShader.use();
-    glDispatchCompute((screenParameters.width + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, (screenParameters.height + (COMPUTE_GROUP_SIZE - 1)) / COMPUTE_GROUP_SIZE, 1);
+    // run render passes
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    for (auto const& pass : renderPasses) {
+        pass.shader.use();
+        glDispatchCompute((pass.width + (pass.workGroupSize - 1)) / pass.workGroupSize, (pass.height + (pass.workGroupSize - 1)) / pass.workGroupSize, 1);
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    }
 }
 

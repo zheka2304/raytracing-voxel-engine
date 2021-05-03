@@ -131,13 +131,14 @@ namespace gl {
         std::string vertex = resolveShaderSource(vertexS);
         std::string fragment = resolveShaderSource(fragmentS);
 
-        std::string definesSource = "";
+        std::string definesSourceVertex = vertex.substr(0, vertex.find('\n')) + '\n';
+        vertex = vertex.substr(vertex.find('\n'));
         for (auto const& define : defines) {
-            definesSource += "#define " + define + "\n";
+            definesSourceVertex += "#define " + define + "\n";
         }
 
         GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        const char* vertexSources[2] = { definesSource.c_str(), vertex.c_str() };
+        const char* vertexSources[2] = { definesSourceVertex.c_str(), vertex.c_str() };
         glShaderSource(vertexShader, 2, vertexSources, nullptr);
         glCompileShader(vertexShader);
 
@@ -147,12 +148,19 @@ namespace gl {
         glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
         if (!success) {
             glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
-            std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+            std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED in " << vertexS << "\n" << infoLog << std::endl;
+        }
+
+
+        std::string definesSourceFragment = fragment.substr(0, fragment.find('\n')) + '\n';
+        fragment = fragment.substr(fragment.find('\n'));
+        for (auto const& define : defines) {
+            definesSourceFragment += "#define " + define + "\n";
         }
 
         // Fragment shader
         GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        const char* fragmentSources[2] = { definesSource.c_str(), fragment.c_str() };
+        const char* fragmentSources[2] = { definesSourceFragment.c_str(), fragment.c_str() };
         glShaderSource(fragmentShader, 2, fragmentSources, nullptr);
         glCompileShader(fragmentShader);
 
@@ -160,7 +168,7 @@ namespace gl {
         glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
         if (!success) {
             glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
-            std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+            std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED in " << fragmentS << "\n" << infoLog << std::endl;
         }
 
         // Link shaders
@@ -173,7 +181,7 @@ namespace gl {
         glGetProgramiv(programHandle, GL_LINK_STATUS, &success);
         if (!success) {
             glGetProgramInfoLog(programHandle, 512, nullptr, infoLog);
-            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED in " << vertexS << "\n" << infoLog << std::endl;
         }
 
         glDeleteShader(vertexShader);
@@ -202,7 +210,8 @@ namespace gl {
     ComputeShader::ComputeShader(std::string const& sourceS, std::vector<std::string> const& defines) {
         std::string source = resolveShaderSource(sourceS);
 
-        std::string definesSource = "";
+        std::string definesSource = source.substr(0,source.find('\n')) + '\n';
+        source = source.substr(source.find('\n'));
         for (auto const& define : defines) {
             definesSource += "#define " + define + "\n";
         }
@@ -218,7 +227,7 @@ namespace gl {
         glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
         if (!success) {
             glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-            std::cout << "ERROR::SHADER::COMPUTE::COMPILATION_FAILED\n" << infoLog << std::endl;
+            std::cout << "ERROR::SHADER::COMPUTE::COMPILATION_FAILED in " << sourceS << "\n" << infoLog << std::endl;
         }
 
         // Link shaders
@@ -230,10 +239,15 @@ namespace gl {
         glGetProgramiv(programHandle, GL_LINK_STATUS, &success);
         if (!success) {
             glGetProgramInfoLog(programHandle, 512, nullptr, infoLog);
-            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+            std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED in " << sourceS << "\n" << infoLog << std::endl;
         }
 
         glDeleteShader(shader);
+    }
+
+    ComputeShader::ComputeShader(ComputeShader&& other) {
+        programHandle = other.programHandle;
+        other.programHandle = 0;
     }
 
     void ComputeShader::use() const {

@@ -28,9 +28,27 @@ void Camera::addAllVisiblePositions(std::unordered_map<ChunkPos, int>& visibilit
     visibilityMap.emplace(ChunkPos(1, 0, 1), 2);
 }
 
+namespace CameraTimeHelper {
+    long long get_time_milliseconds() {
+        using namespace std::chrono;
+        milliseconds ms = duration_cast< milliseconds >(
+                system_clock::now().time_since_epoch()
+        );
+        return ms.count();
+    }
+
+    float get_time_since_start() {
+        static long long start = 0;
+        if (start == 0) {
+            start = get_time_milliseconds();
+        }
+        return float(get_time_milliseconds() - start) / 1000.0f;
+    }
+}
+
 void Camera::sendParametersToShader(UniformData& uniformData) {
     uniformData = {
-            0,
+            CameraTimeHelper::get_time_since_start(),
             { viewport[0], viewport[1], viewport[2], viewport[3] },
             { position.x, position.y, position.z },
             { cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch) },

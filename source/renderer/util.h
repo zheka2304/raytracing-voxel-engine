@@ -84,6 +84,8 @@ namespace gl {
         GLuint programHandle;
 
         ComputeShader(std::string const &source, std::vector<std::string> const &defines = {});
+        ComputeShader(ComputeShader const&) = delete;
+        ComputeShader(ComputeShader&& other);
 
         void use() const;
 
