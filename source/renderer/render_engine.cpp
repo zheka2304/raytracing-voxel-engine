@@ -20,11 +20,16 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, s
     preRenderBuffer = new gl::Buffer();
     preRenderBuffer->setData((screenParams.width >> screenParams.prerenderStrideBit) * (screenParams.height >> screenParams.prerenderStrideBit) * sizeof(float) * PRE_RAYTRACE_DATA_PER_PIXEL, nullptr);
 
+    lightBuffer = new gl::Buffer();
+    lightBuffer->setData(64 * (16 * 16 * 16) * (LIGHT_REFLECTION_COUNT * sizeof(GLuint)), nullptr);
+
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
 }
 
 VoxelRenderEngine::~VoxelRenderEngine() {
     delete(chunkBuffer);
+    delete(preRenderBuffer);
+    delete(lightBuffer);
 }
 
 VoxelEngine* VoxelRenderEngine::getVoxelEngine() {
@@ -184,6 +189,29 @@ void VoxelRenderEngine::updateVisibleChunks() {
     */
 }
 
+std::vector<VoxelRenderEngine::LightPassRegion> VoxelRenderEngine::prepareLightPass(Vec3i renderRegionOffset, Vec3i renderRegionSize) {
+    u_LightPassData.data.chunkRegionOffset = renderRegionOffset;
+    u_LightPassData.data.chunkRegionSize = renderRegionSize;
+
+    std::vector<VoxelRenderEngine::LightPassRegion> result;
+    int index = 0;
+    for (int x = 0; x < renderRegionSize.x; x++) {
+        for (int y = 0; y < renderRegionSize.y; y++) {
+            for (int z = 0; z < renderRegionSize.z; z++) {
+                int offset = index * (16 * 16 * 16);
+                result.emplace_back(VoxelRenderEngine::LightPassRegion({
+                    renderRegionOffset + Vec3i(x, y, z),
+                    offset,
+                    (16 * 16 * 16)
+                }));
+                u_LightPassOffsets.data.offsets[x + (z + y * renderRegionSize.z) * renderRegionSize.x] = index;
+                index++;
+            }
+        }
+    }
+    return result;
+}
+
 void VoxelRenderEngine::render() {
     PROFILER_BEGIN(VoxelRenderEngine_prepareForRender);
 
@@ -240,49 +268,50 @@ void VoxelRenderEngine::render() {
         }
     }
 
+    std::vector<LightPassRegion> lightPassRegions;
+
     if (chunksInView > 0) {
-        int count[3] = {maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1};
-        while (count[0] * count[1] * count[2] > chunkBufferSize) {
+        Vec3i count(maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1);
+        while (count.x * count.y * count.z > chunkBufferSize) {
             // while visible chunk count is too big subtract 1 from largest axis count
-            if (count[0] > count[1]) {
-                if (count[2] > count[0]) {
-                    count[2]--;
+            if (count.x > count.y) {
+                if (count.z > count.x) {
+                    count.z--;
                 } else {
-                    count[0]--;
+                    count.x--;
                 }
             } else {
-                if (count[2] > count[1]) {
-                    count[2]--;
+                if (count.z > count.y) {
+                    count.z--;
                 } else {
-                    count[1]--;
+                    count.y--;
                 }
             }
         }
 
-        int offset[3] = {minX + (maxX - minX - count[0]) / 2, minY + (maxY - minY - count[1]) / 2,
-                         minZ + (maxZ - minZ - count[2]) / 2};
+        Vec3i offset(minX + (maxX - minX - count.x) / 2, minY + (maxY - minY - count.y) / 2, minZ + (maxZ - minZ - count.z) / 2);
 
         for (auto const& posAndChunk : renderChunkMap) {
             if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
                 ChunkPos pos = posAndChunk.first;
-                if (pos.x >= offset[0] && pos.y >= offset[1] && pos.z >= offset[2] &&
-                    pos.x < offset[0] + count[0] && pos.y < offset[1] + count[1] && pos.z < offset[2] + count[2]) {
-                    u_BufferOffsets.data.offsets[(pos.x - offset[0]) + ((pos.z - offset[2]) + (pos.y - offset[1]) * count[2]) *
-                                                              count[0]] = posAndChunk.second->chunkBufferOffset;
+                if (pos.x >= offset.x && pos.y >= offset.y && pos.z >= offset.x &&
+                    pos.x < offset.x + count.x && pos.y < offset.y + count.y && pos.z < offset.z + count.z) {
+                    u_BufferOffsets.data.offsets[(pos.x - offset.x) + ((pos.z - offset.z) + (pos.y - offset.y) * count.z) *
+                                                              count.x] = posAndChunk.second->chunkBufferOffset;
                 }
             }
         }
 
         // std::cout << " total=" << renderChunkMap.size() << " visible=" << chunksInView << " rendered=" << visible_count << "/" << (count[0] * count[1] * count[2]) << "\n";
 
-
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_CHUNK_VOXEL_BUFFER, chunkBuffer->handle);
         u_BufferOffsets.updateAndBind();
         u_RenderRegion.data = {
-                Vec3i(offset[0], offset[1], offset[2]),
-                Vec3i(count[0], count[1], count[2])
+                offset, count
         };
         u_RenderRegion.updateAndBind();
+
+        lightPassRegions = prepareLightPass(offset, count);
     } else {
         // no chunks in view
         u_RenderRegion.data.count = Vec3i(0, 0, 0);
@@ -309,12 +338,34 @@ void VoxelRenderEngine::render() {
     u_PreRenderPassData.updateAndBind();
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_PRE_PASS_BUFFER, preRenderBuffer->handle);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_LIGHT_PASS_BUFFER, lightBuffer->handle);
 
     glBindImageTexture(SHADER_BINDING_OUT_COLOR_TEXTURE, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(SHADER_BINDING_OUT_LIGHT_TEXTURE, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(SHADER_BINDING_OUT_DEPTH_TEXTURE, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
-    // run light passes
+    // run light pass
+    u_LightPassData.updateAndBind();
+    u_LightPassData.data.chunkBufferStride = 1;
+    for (LightPassRegion lightPassRegion : lightPassRegions) {
+        u_LightPassData.data.chunkPositionOffset = lightPassRegion.chunkPositionOffset;
+        u_LightPassData.data.chunkBufferOffset = lightPassRegion.chunkBufferOffset;
+        u_LightPassData.updateAndBind();
+
+        int computeGroupCount = lightPassRegion.chunkBufferRegionSize / 1024;
+
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        lightPassInitial.use();
+        glDispatchCompute(computeGroupCount, 1, 1);
+
+//        lightPassIterative.use();
+//        for (int i = 0; i < LIGHT_REFLECTION_COUNT - 1; i++) {
+//            glMemoryBarrier(GL_ALL_BARRIER_BITS);
+//            u_LightPassData.data.level = i;
+//            u_LightPassData.updateAndBind();
+//            glDispatchCompute(computeGroupCount, 1, 1);
+//        }
+    }
 
     // run render passes
     glMemoryBarrier(GL_ALL_BARRIER_BITS);

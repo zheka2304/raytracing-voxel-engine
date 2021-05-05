@@ -60,6 +60,11 @@ layout(binding = 9) readonly buffer PreRenderPassData {
     // after that distances full chunks are used
 } pre_raytrace_lod;
 
+
+layout(binding = 12) buffer LightBuffer {
+    uint data[];
+} light_pass_buffer;
+
 layout(binding = 13) buffer LightPassInputBuffer {
     // level of reflection to calculate - 1
     // for one pass this level data will be iterated to emit light, so to calculate level 4 reflection, 3 should be passed
@@ -75,7 +80,11 @@ layout(binding = 13) buffer LightPassInputBuffer {
     ivec3 chunk_region_offset;   // chunk region offset
     ivec3 chunk_region_size;     // chunk region size
     int buffer_offsets[];        // chunk offsets by chunk position
-} input_buffer;
+} light_pass_input_buffer;
+
+layout(binding = 14) buffer LightPassOffsetsBuffer {
+    int buffer_offsets[];        // chunk offsets by chunk position
+} light_pass_offsets_buffer;
 
 
 layout(rgba32f, binding = 0) writeonly uniform highp image2D COLOR_OUTPUT;
@@ -431,7 +440,32 @@ float get_region_end_distance(vec3 pos, vec3 ray, float region_size) {
 }
 
 
+// ---- light ----
+
+vec4 uint_to_color(uint i) {
+    // rgba
+    return vec4(uvec4(i >> 24u, (i >> 16u) & 0xFFu, (i >> 8u) & 0xFFu, i & 0xFFu)) / 255.0;
+}
+
+vec4 get_light_at_position(vec3 position) {
+    ivec3 ipos = ivec3(floor(position / 8.0));
+    ivec3 chunk_pos = ipos >> 4;
+    ivec3 voxel_pos = ipos & 15;
+    ivec3 chunk_pos_off = chunk_pos - light_pass_input_buffer.chunk_region_offset;
+    ivec3 chunk_region_size = light_pass_input_buffer.chunk_region_size;
+
+    if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < chunk_region_size.x && chunk_pos_off.y < chunk_region_size.y && chunk_pos_off.z < chunk_region_size.z) {
+        int buffer_offset = light_pass_offsets_buffer.buffer_offsets[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * chunk_region_size.z) * chunk_region_size.x];
+        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 16) * 16)) * 4;
+        return uint_to_color(light_pass_buffer.data[light_offset]);
+    }
+
+    return vec4(0.0, 1.0, 0.0, 1.0);
+}
+
+
 // ---- raytrace caller ---
+
 #ifdef RENDER_STAGE_PRE_PASS
 void raytrace_pre_pass(
     Ray initial_ray,
@@ -516,6 +550,9 @@ RaytraceResult raytrace_main_pass(
         result.light = ambient_data.ambient_light_color.rgb;
     }
 
+    vec4 gi_light = get_light_at_position(initial_ray_result.end);
+    result.light += gi_light.rgb * gi_light.a * 0.5;
+
     return result;
 }
 #endif
@@ -575,6 +612,9 @@ void main() {
             buffer_index,
             100.0
         );
+
+        // result.color = vec3(1.0);
+        // result.light = vec3(light_pass_input_buffer.chunk_region_size) / 2.0 + 0.5;
 
         // out_color = vec3(pre_raytrace_buffer.data[buffer_index]) / 100.0;
         imageStore(COLOR_OUTPUT, pixel, vec4(result.color, 1.0));

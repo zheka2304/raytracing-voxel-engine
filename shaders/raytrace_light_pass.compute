@@ -22,7 +22,7 @@ layout(binding = 13) buffer LightPassInputBuffer {
     // when calculating first level of reflection, instead of passing -1, shader with INITIAL_PASS defined must be used
     int level;
 
-    // all offsets must be multiplied by LIGHT_REFLECTION_COUNT
+    // all offsets must be multiplied by LIGHT_REFLECTION_COUNT (also applies to light_pass_offsets_buffer)
 
     ivec3 chunk_position_offset; // offset of the current chunk
     int chunk_buffer_offset;     // offset of processed span
@@ -30,12 +30,14 @@ layout(binding = 13) buffer LightPassInputBuffer {
 
     ivec3 chunk_region_offset;   // chunk region offset
     ivec3 chunk_region_size;     // chunk region size
-    int buffer_offsets[];        // chunk offsets by chunk position
 } input_buffer;
 
+layout(binding = 14) buffer LightPassOffsetsBuffer {
+    int buffer_offsets[];        // chunk offsets by chunk position
+} light_pass_offsets_buffer;
 
 //
 
 void main() {
-    light_buffer.data[input_buffer.chunk_buffer_offset + gl_GlobalInvocationID.x] = 0xFFAAFF;
+    light_buffer.data[(input_buffer.chunk_buffer_offset + int(gl_GlobalInvocationID.x)) * LIGHT_REFLECTION_COUNT] = (gl_GlobalInvocationID.x % 3u) == 0u ? 0xFF00FFAAu : 0x00FF00AAu;
 }
