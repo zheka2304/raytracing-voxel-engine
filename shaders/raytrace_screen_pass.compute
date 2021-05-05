@@ -52,13 +52,30 @@ layout(binding = 8) STAGE_PRE_PASS(writeonly) STAGE_MAIN_PASS(readonly) buffer P
     float data[];
 } pre_raytrace_buffer;
 
-layout(binding = 9) readonly buffer PreRaytraceLod {
+layout(binding = 9) readonly buffer PreRenderPassData {
     int stride_bit;    // resolution downgrade (1 << stride_bit, 1 means x2, 2 means x4, 3 - x8, ...)
     ivec2 buffer_size; // pre-raytrace buffer dimensions
     float dis_1; // max distance at which tier 1 regions are used
     float dis_2; // max distance at which tier 2 regions are used
     // after that distances full chunks are used
 } pre_raytrace_lod;
+
+layout(binding = 13) buffer LightPassInputBuffer {
+    // level of reflection to calculate - 1
+    // for one pass this level data will be iterated to emit light, so to calculate level 4 reflection, 3 should be passed
+    // when calculating first level of reflection, instead of passing -1, shader with INITIAL_PASS defined must be used
+    int level;
+
+    // all offsets must be multiplied by LIGHT_REFLECTION_COUNT
+
+    ivec3 chunk_position_offset; // offset of the current chunk
+    int chunk_buffer_offset;     // offset of processed span
+    int stride;                  // stride of positions in buffer to be processed
+
+    ivec3 chunk_region_offset;   // chunk region offset
+    ivec3 chunk_region_size;     // chunk region size
+    int buffer_offsets[];        // chunk offsets by chunk position
+} input_buffer;
 
 
 layout(rgba32f, binding = 0) writeonly uniform highp image2D COLOR_OUTPUT;

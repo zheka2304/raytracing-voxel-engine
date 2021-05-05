@@ -102,8 +102,9 @@ namespace gl {
                      GLuint accessType = GL_DYNAMIC_DRAW);
     };
 
-    template <typename T>
+    template <typename T, int t_defaultBindIndex = -1, GLuint t_defaultBufferType = GL_SHADER_STORAGE_BUFFER, GLuint t_defaultAccessType = GL_DYNAMIC_DRAW>
     class ComputeShaderUniform : public Buffer {
+
     public:
         T data;
 
@@ -112,6 +113,12 @@ namespace gl {
                 GLuint accessType = GL_DYNAMIC_DRAW) {
             setData(sizeof(data), &data, bufferType, accessType);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, index, handle);
+        }
+
+        void updateAndBind() {
+            if (t_defaultBindIndex != -1) {
+                updateAndBind(t_defaultBindIndex, t_defaultBufferType, t_defaultAccessType);
+            }
         }
     };
 

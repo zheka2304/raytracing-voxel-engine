@@ -20,6 +20,8 @@ private:
     static const int MAX_RENDER_CHUNK_INSTANCES = 64;
     // amount of floats per pixel of pre-raytrace buffer
     static const int PRE_RAYTRACE_DATA_PER_PIXEL = 4;
+    // amount of light reflections to be traced
+    static const int LIGHT_REFLECTION_COUNT = 4;
 
     std::shared_ptr<VoxelEngine> voxelEngine;
 
@@ -54,33 +56,60 @@ private:
     std::unordered_set<RenderChunk*> queuedRenderChunkUpdates;
 
 private:
+    static const int SHADER_BINDING_OUT_COLOR_TEXTURE = 0;
+    static const int SHADER_BINDING_OUT_LIGHT_TEXTURE = 1;
+    static const int SHADER_BINDING_OUT_DEPTH_TEXTURE = 2;
+
+    static const int SHADER_BINDING_CHUNK_VOXEL_BUFFER = 3;
+    static const int SHADER_BINDING_CHUNK_BUFFER_OFFSETS = 4;
+    static const int SHADER_BINDING_RENDER_REGION = 5;
+    static const int SHADER_BINDING_AMBIENT_DATA = 6;
+    static const int SHADER_BINDING_CAMERA_DATA = 7;
+    static const int SHADER_BINDING_PRE_PASS_BUFFER = 8;
+    static const int SHADER_BINDING_PRE_PASS_DATA = 9;
+    static const int SHADER_BINDING_LIGHT_PASS_BUFFER = 12;
+    static const int SHADER_BINDING_LIGHT_PASS_DATA = 13;
+
     struct BufferOffsets {
         int offsets[64];
     };
-    gl::ComputeShaderUniform<BufferOffsets> u_BufferOffsets;
+    gl::ComputeShaderUniform<BufferOffsets, SHADER_BINDING_CHUNK_BUFFER_OFFSETS> u_BufferOffsets;
 
     struct RenderRegion {
         GLSL_BUFFER_ALIGN Vec3i offset;
         GLSL_BUFFER_ALIGN Vec3i count;
     };
-    gl::ComputeShaderUniform<RenderRegion> u_RenderRegion;
+    gl::ComputeShaderUniform<RenderRegion, SHADER_BINDING_RENDER_REGION> u_RenderRegion;
 
     struct AmbientData {
         GLSL_BUFFER_ALIGN float directLightColor[4];
         GLSL_BUFFER_ALIGN float directLightRay[3];
         GLSL_BUFFER_ALIGN float ambientLightColor[4];
     };
-    gl::ComputeShaderUniform<AmbientData> u_AmbientData;
+    gl::ComputeShaderUniform<AmbientData, SHADER_BINDING_AMBIENT_DATA> u_AmbientData;
 
-    gl::ComputeShaderUniform<Camera::UniformData> u_CameraData;
+    gl::ComputeShaderUniform<Camera::UniformData, SHADER_BINDING_CAMERA_DATA> u_CameraData;
 
-    struct PreRaytraceLod {
+    struct PreRenderPassData {
         int strideBit;
         GLSL_BUFFER_ALIGN8 int bufferSize[2];
         GLSL_BUFFER_ALIGN4 float dis1;
         GLSL_BUFFER_ALIGN4 float dis2;
     };
-    gl::ComputeShaderUniform<PreRaytraceLod> u_PreRaytraceLod;
+    gl::ComputeShaderUniform<PreRenderPassData, SHADER_BINDING_PRE_PASS_DATA> u_PreRenderPassData;
+
+    struct LightPassData {
+        GLSL_BUFFER_ALIGN int level;
+
+        GLSL_BUFFER_ALIGN Vec3i chunkPositionOffset;
+        GLSL_BUFFER_ALIGN int chunkBufferOffset;
+        GLSL_BUFFER_ALIGN int chunkBufferStride;
+
+        GLSL_BUFFER_ALIGN Vec3i chunkRegionOffset;
+        GLSL_BUFFER_ALIGN Vec3i chunkRegionSize;
+        GLSL_BUFFER_ALIGN int bufferOffsets[64];
+    };
+    gl::ComputeShaderUniform<LightPassData, SHADER_BINDING_LIGHT_PASS_DATA> u_LightPassData;
 
 
     void _queueRenderChunkUpdate(RenderChunk* renderChunk);

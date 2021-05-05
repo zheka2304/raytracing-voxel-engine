@@ -199,10 +199,15 @@ void VoxelRenderEngine::render() {
 
     static std::vector<RenderPass> renderPasses;
     if (renderPasses.empty()) {
-        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace.compute", { "RENDER_STAGE_PRE_PASS" }), prerenderWidth, prerenderHeight, 24}));
+        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace_screen_pass.compute", { "RENDER_STAGE_PRE_PASS" }), prerenderWidth, prerenderHeight, 24}));
         renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace_buffer_pass.compute", { }), prerenderWidth, prerenderHeight, 24}));
-        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace.compute", { "RENDER_STAGE_PASS_MAIN" }), screenParameters.width, screenParameters.height, 24}));
+        renderPasses.emplace_back(RenderPass({gl::ComputeShader("raytrace_screen_pass.compute", { "RENDER_STAGE_PASS_MAIN" }), screenParameters.width, screenParameters.height, 24}));
     }
+
+    //
+
+    static gl::ComputeShader lightPassInitial("raytrace_light_pass.compute", { "FIRST_PASS" });
+    static gl::ComputeShader lightPassIterative("raytrace_light_pass.compute", { });
 
     //
 
@@ -271,17 +276,17 @@ void VoxelRenderEngine::render() {
         // std::cout << " total=" << renderChunkMap.size() << " visible=" << chunksInView << " rendered=" << visible_count << "/" << (count[0] * count[1] * count[2]) << "\n";
 
 
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, chunkBuffer->handle);
-        u_BufferOffsets.updateAndBind(4);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_CHUNK_VOXEL_BUFFER, chunkBuffer->handle);
+        u_BufferOffsets.updateAndBind();
         u_RenderRegion.data = {
                 Vec3i(offset[0], offset[1], offset[2]),
                 Vec3i(count[0], count[1], count[2])
         };
-        u_RenderRegion.updateAndBind(5);
+        u_RenderRegion.updateAndBind();
     } else {
         // no chunks in view
         u_RenderRegion.data.count = Vec3i(0, 0, 0);
-        u_RenderRegion.updateAndBind(5);
+        u_RenderRegion.updateAndBind();
     }
 
     u_AmbientData.data = {
@@ -289,25 +294,27 @@ void VoxelRenderEngine::render() {
             {1, -0.4f, 1},
             {0, 0, 0.3f, 0.5f}
     };
-    u_AmbientData.updateAndBind(6);
+    u_AmbientData.updateAndBind();
 
     camera->sendParametersToShader(u_CameraData.data);
-    u_CameraData.updateAndBind(7);
+    u_CameraData.updateAndBind();
 
     float lodDis1, lodDis2;
     camera->getLodDistances(lodDis1, lodDis2);
-    u_PreRaytraceLod.data = {
+    u_PreRenderPassData.data = {
             screenParameters.prerenderStrideBit,
             { prerenderWidth, prerenderHeight },
             lodDis1, lodDis2
     };
-    u_PreRaytraceLod.updateAndBind(9);
+    u_PreRenderPassData.updateAndBind();
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, preRenderBuffer->handle);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_PRE_PASS_BUFFER, preRenderBuffer->handle);
 
-    glBindImageTexture(0, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-    glBindImageTexture(1, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-    glBindImageTexture(2, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glBindImageTexture(SHADER_BINDING_OUT_COLOR_TEXTURE, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glBindImageTexture(SHADER_BINDING_OUT_LIGHT_TEXTURE, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+    glBindImageTexture(SHADER_BINDING_OUT_DEPTH_TEXTURE, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    // run light passes
 
     // run render passes
     glMemoryBarrier(GL_ALL_BARRIER_BITS);
