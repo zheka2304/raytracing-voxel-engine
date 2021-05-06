@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "common/chunk_pos.h"
 #include "engine.h"
 #include "engine/chunk_source.h"
 #include "render_chunk.h"
@@ -15,13 +16,62 @@
 #include "util.h"
 
 
+class VoxelRenderEngine;
+
+
+class VoxelLightingEngine {
+private:
+    int maxLightChunks;
+    gl::Buffer* lightBuffer;
+
+public:
+    static const int WORK_GROUP_SIZE = 1024;
+    static const int LIGHT_VOXEL_SIZE = 4;
+    static const int LIGHT_REFLECTION_COUNT = 4;
+    static const int LIGHT_CHUNK_SIZE = ChunkPos::CHUNK_SIZE / LIGHT_VOXEL_SIZE;
+    static const int LIGHT_CHUNK_VOLUME = LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE;
+
+    static const int SHADER_BINDING_LIGHT_PASS_BUFFER = 12;
+    static const int SHADER_BINDING_LIGHT_PASS_OFFSETS = 13;
+    static const int SHADER_BINDING_LIGHT_PASS_JOBS = 14;
+
+
+    struct LightBufferOffsets {
+        GLSL_BUFFER_ALIGN16 Vec3i chunkBufferRegionOffset;
+        GLSL_BUFFER_ALIGN16 Vec3i chunkBufferRegionSize;
+        GLSL_BUFFER_ALIGN4 int offsets[64];
+    };
+    gl::ComputeShaderUniform<LightBufferOffsets, SHADER_BINDING_LIGHT_PASS_OFFSETS> u_LightBufferOffsets;
+
+    struct ProcessLightJob {
+        GLSL_BUFFER_ALIGN4 int level;
+        GLSL_BUFFER_ALIGN16 Vec3i chunkPositionOffset;
+        GLSL_BUFFER_ALIGN4 int chunkBufferOffset;
+        GLSL_BUFFER_ALIGN4 int chunkBufferRegionSize;
+        GLSL_BUFFER_ALIGN4 int chunkBufferStride;
+    };
+
+    struct ProcessLightJobList {
+        ProcessLightJob jobs[64];
+    };
+    gl::ComputeShaderUniform<ProcessLightJobList, SHADER_BINDING_LIGHT_PASS_JOBS> u_ProcessLightJobList;
+
+
+    explicit VoxelLightingEngine(int maxLightChunks);
+    ~VoxelLightingEngine() noexcept;
+
+public:
+    GLuint getBufferHandle();
+    Vec3i prepareLightPass(VoxelRenderEngine& engine, Vec3i renderRegionOffset, Vec3i renderRegionSize);
+};
+
+
+
 class VoxelRenderEngine {
 private:
     static const int MAX_RENDER_CHUNK_INSTANCES = 64;
     // amount of floats per pixel of pre-raytrace buffer
     static const int PRE_RAYTRACE_DATA_PER_PIXEL = 4;
-    // amount of light reflections to be traced
-    static const int LIGHT_REFLECTION_COUNT = 4;
 
     std::shared_ptr<VoxelEngine> voxelEngine;
 
@@ -47,7 +97,8 @@ private:
     // buffer for pre-raytracing stage, contains downscaled data for ray offsets
     gl::Buffer* preRenderBuffer;
 
-    gl::Buffer* lightBuffer;
+    VoxelLightingEngine lightingEngine = VoxelLightingEngine(MAX_RENDER_CHUNK_INSTANCES);
+
 
     // maximum chunks in buffer
     int chunkBufferSize;
@@ -69,9 +120,6 @@ private:
     static const int SHADER_BINDING_CAMERA_DATA = 7;
     static const int SHADER_BINDING_PRE_PASS_BUFFER = 8;
     static const int SHADER_BINDING_PRE_PASS_DATA = 9;
-    static const int SHADER_BINDING_LIGHT_PASS_BUFFER = 12;
-    static const int SHADER_BINDING_LIGHT_PASS_DATA = 13;
-    static const int SHADER_BINDING_LIGHT_PASS_OFFSETS = 14;
 
     struct BufferOffsets {
         int offsets[64];
@@ -100,21 +148,6 @@ private:
         GLSL_BUFFER_ALIGN4 float dis2;
     };
     gl::ComputeShaderUniform<PreRenderPassData, SHADER_BINDING_PRE_PASS_DATA> u_PreRenderPassData;
-
-    struct LightPassData {
-        GLSL_BUFFER_ALIGN4 int level;
-        GLSL_BUFFER_ALIGN16 Vec3i chunkPositionOffset;
-        GLSL_BUFFER_ALIGN4 int chunkBufferOffset;
-        GLSL_BUFFER_ALIGN4 int chunkBufferStride;
-        GLSL_BUFFER_ALIGN16 Vec3i chunkRegionOffset;
-        GLSL_BUFFER_ALIGN16 Vec3i chunkRegionSize;
-    };
-    gl::ComputeShaderUniform<LightPassData, SHADER_BINDING_LIGHT_PASS_DATA> u_LightPassData;
-
-    struct LightPassOffsets {
-        GLSL_BUFFER_ALIGN int offsets[64];
-    };
-    gl::ComputeShaderUniform<LightPassOffsets, SHADER_BINDING_LIGHT_PASS_OFFSETS> u_LightPassOffsets;
 
     void _queueRenderChunkUpdate(RenderChunk* renderChunk);
 
@@ -148,15 +181,6 @@ public:
     // - CHUNK_COUNT - ivec3 of chunk count on each axis, total count should not be greater then 32
     // - CHUNK_BUFFERS - array of usamplerBuffer with size of 32
     void render();
-
-    // prepares all required uniforms for light pass and
-    // returns chunk offsets, for light pass to be executed on
-    struct LightPassRegion {
-        Vec3i chunkPositionOffset;
-        int chunkBufferOffset;
-        int chunkBufferRegionSize;
-    };
-    std::vector<LightPassRegion> prepareLightPass(Vec3i renderRegionOffset, Vec3i renderRegionSize);
 
     GLuint getChunkBufferHandle();
 

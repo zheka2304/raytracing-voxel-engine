@@ -81,7 +81,7 @@ public:
                 float r = smooth_rand(fx, fz) * 0.125 +
                         smooth_rand(fx / 2.0f, fz / 2.0f) * 0.25 +
                         smooth_rand(fx / 4.0f, fz / 4.0f) * 0.5;
-                // r = float(abs(x - 64) < 16 && abs(z - 64) < 16);
+                r = float(abs(x - 64) < 16 && abs(z - 64) < 16 && (chunk.position.x + chunk.position.z) % 2);
                 // r = 1.0 - (std::max(abs(x - 64), abs(z - 64))) / 64.0f;
                 float h = 8 + 48 * r;
                 for (int y = 0; y < 128; y++) {

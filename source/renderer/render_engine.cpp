@@ -20,16 +20,12 @@ VoxelRenderEngine::VoxelRenderEngine(std::shared_ptr<VoxelEngine> voxelEngine, s
     preRenderBuffer = new gl::Buffer();
     preRenderBuffer->setData((screenParams.width >> screenParams.prerenderStrideBit) * (screenParams.height >> screenParams.prerenderStrideBit) * sizeof(float) * PRE_RAYTRACE_DATA_PER_PIXEL, nullptr);
 
-    lightBuffer = new gl::Buffer();
-    lightBuffer->setData(64 * (16 * 16 * 16) * (LIGHT_REFLECTION_COUNT * sizeof(GLuint)), nullptr);
-
     std::cout << "initialized voxel render engine, max_render_chunks = " << chunkBufferSize << " \n";
 }
 
 VoxelRenderEngine::~VoxelRenderEngine() {
     delete(chunkBuffer);
     delete(preRenderBuffer);
-    delete(lightBuffer);
 }
 
 VoxelEngine* VoxelRenderEngine::getVoxelEngine() {
@@ -189,29 +185,6 @@ void VoxelRenderEngine::updateVisibleChunks() {
     */
 }
 
-std::vector<VoxelRenderEngine::LightPassRegion> VoxelRenderEngine::prepareLightPass(Vec3i renderRegionOffset, Vec3i renderRegionSize) {
-    u_LightPassData.data.chunkRegionOffset = renderRegionOffset;
-    u_LightPassData.data.chunkRegionSize = renderRegionSize;
-
-    std::vector<VoxelRenderEngine::LightPassRegion> result;
-    int index = 0;
-    for (int x = 0; x < renderRegionSize.x; x++) {
-        for (int y = 0; y < renderRegionSize.y; y++) {
-            for (int z = 0; z < renderRegionSize.z; z++) {
-                int offset = index * (16 * 16 * 16);
-                result.emplace_back(VoxelRenderEngine::LightPassRegion({
-                    renderRegionOffset + Vec3i(x, y, z),
-                    offset,
-                    (16 * 16 * 16)
-                }));
-                u_LightPassOffsets.data.offsets[x + (z + y * renderRegionSize.z) * renderRegionSize.x] = index;
-                index++;
-            }
-        }
-    }
-    return result;
-}
-
 void VoxelRenderEngine::render() {
     PROFILER_BEGIN(VoxelRenderEngine_prepareForRender);
 
@@ -234,7 +207,7 @@ void VoxelRenderEngine::render() {
 
     //
 
-    static gl::ComputeShader lightPassInitial("raytrace_light_pass.compute", { "FIRST_PASS" });
+    static gl::ComputeShader lightPassInitial("raytrace_light_pass.compute", { "INITIAL_PASS" });
     static gl::ComputeShader lightPassIterative("raytrace_light_pass.compute", { });
 
     //
@@ -268,7 +241,8 @@ void VoxelRenderEngine::render() {
         }
     }
 
-    std::vector<LightPassRegion> lightPassRegions;
+
+    Vec3i lightingJobCount(0, 0, 0);
 
     if (chunksInView > 0) {
         Vec3i count(maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1);
@@ -294,7 +268,7 @@ void VoxelRenderEngine::render() {
         for (auto const& posAndChunk : renderChunkMap) {
             if (posAndChunk.second->visibilityLevel == RenderChunk::VISIBILITY_LEVEL_VISIBLE) {
                 ChunkPos pos = posAndChunk.first;
-                if (pos.x >= offset.x && pos.y >= offset.y && pos.z >= offset.x &&
+                if (pos.x >= offset.x && pos.y >= offset.y && pos.z >= offset.z &&
                     pos.x < offset.x + count.x && pos.y < offset.y + count.y && pos.z < offset.z + count.z) {
                     u_BufferOffsets.data.offsets[(pos.x - offset.x) + ((pos.z - offset.z) + (pos.y - offset.y) * count.z) *
                                                               count.x] = posAndChunk.second->chunkBufferOffset;
@@ -311,7 +285,7 @@ void VoxelRenderEngine::render() {
         };
         u_RenderRegion.updateAndBind();
 
-        lightPassRegions = prepareLightPass(offset, count);
+        lightingJobCount = lightingEngine.prepareLightPass(*this, offset, count);
     } else {
         // no chunks in view
         u_RenderRegion.data.count = Vec3i(0, 0, 0);
@@ -338,33 +312,16 @@ void VoxelRenderEngine::render() {
     u_PreRenderPassData.updateAndBind();
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_PRE_PASS_BUFFER, preRenderBuffer->handle);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_LIGHT_PASS_BUFFER, lightBuffer->handle);
 
     glBindImageTexture(SHADER_BINDING_OUT_COLOR_TEXTURE, o_ColorTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(SHADER_BINDING_OUT_LIGHT_TEXTURE, o_LightTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(SHADER_BINDING_OUT_DEPTH_TEXTURE, o_DepthTexture.handle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
     // run light pass
-    u_LightPassData.updateAndBind();
-    u_LightPassData.data.chunkBufferStride = 1;
-    for (LightPassRegion lightPassRegion : lightPassRegions) {
-        u_LightPassData.data.chunkPositionOffset = lightPassRegion.chunkPositionOffset;
-        u_LightPassData.data.chunkBufferOffset = lightPassRegion.chunkBufferOffset;
-        u_LightPassData.updateAndBind();
-
-        int computeGroupCount = lightPassRegion.chunkBufferRegionSize / 1024;
-
+    if (lightingJobCount.y > 0) {
         glMemoryBarrier(GL_ALL_BARRIER_BITS);
         lightPassInitial.use();
-        glDispatchCompute(computeGroupCount, 1, 1);
-
-//        lightPassIterative.use();
-//        for (int i = 0; i < LIGHT_REFLECTION_COUNT - 1; i++) {
-//            glMemoryBarrier(GL_ALL_BARRIER_BITS);
-//            u_LightPassData.data.level = i;
-//            u_LightPassData.updateAndBind();
-//            glDispatchCompute(computeGroupCount, 1, 1);
-//        }
+        glDispatchCompute(lightingJobCount.x, lightingJobCount.y, lightingJobCount.z);
     }
 
     // run render passes
@@ -376,3 +333,59 @@ void VoxelRenderEngine::render() {
     }
 }
 
+
+
+
+VoxelLightingEngine::VoxelLightingEngine(int maxLightChunks) : maxLightChunks(maxLightChunks) {
+    lightBuffer = new gl::Buffer();
+    lightBuffer->setData(maxLightChunks * LIGHT_CHUNK_VOLUME * (LIGHT_REFLECTION_COUNT * sizeof(GLuint)), nullptr);
+}
+
+VoxelLightingEngine::~VoxelLightingEngine() noexcept {
+    delete(lightBuffer);
+}
+
+
+Vec3i VoxelLightingEngine::prepareLightPass(VoxelRenderEngine& engine, Vec3i renderRegionOffset, Vec3i renderRegionSize) {
+    u_LightBufferOffsets.data.chunkBufferRegionOffset = renderRegionOffset;
+    u_LightBufferOffsets.data.chunkBufferRegionSize = renderRegionSize;
+
+    int jobCount = 0;
+    int maxWorkGroupsPerJob = 0;
+
+    for (int x = 0; x < renderRegionSize.x; x++) {
+        for (int y = 0; y < renderRegionSize.y; y++) {
+            for (int z = 0; z < renderRegionSize.z; z++) {
+                int offset = jobCount * (32 * 32 * 32);
+                int size = 32 * 32 * 32;
+
+                u_ProcessLightJobList.data.jobs[jobCount] = {
+                    jobCount,
+                    Vec3i(x, y, z) + renderRegionOffset,
+                    offset,
+                    (32 * 32 * 32),
+                    1
+                };
+                u_LightBufferOffsets.data.offsets[x + (z + y * renderRegionSize.z) * renderRegionSize.x] = offset;
+
+                maxWorkGroupsPerJob = std::max(maxWorkGroupsPerJob, size / WORK_GROUP_SIZE);
+
+                jobCount++;
+                if (jobCount >= maxLightChunks) {
+                    goto loopEnd;
+                }
+            }
+        }
+    }
+    loopEnd:
+
+    u_LightBufferOffsets.updateAndBind();
+    u_ProcessLightJobList.updateAndBind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, SHADER_BINDING_LIGHT_PASS_BUFFER, lightBuffer->handle);
+
+    return Vec3i(maxWorkGroupsPerJob, jobCount, 1);
+}
+
+GLuint VoxelLightingEngine::getBufferHandle() {
+    return lightBuffer->handle;
+}
