@@ -431,8 +431,7 @@ vec4 uint_to_color(uint i) {
     return vec4(uvec4(i >> 24u, (i >> 16u) & 0xFFu, (i >> 8u) & 0xFFu, i & 0xFFu)) / 255.0;
 }
 
-vec4 get_light_at_position(vec3 position) {
-    ivec3 ipos = ivec3(floor(position / 4.0));
+vec4 get_light_at_position_i(ivec3 ipos) {
     ivec3 chunk_pos = ipos >> 5;
     ivec3 voxel_pos = ipos & 31;
     ivec3 chunk_pos_off = chunk_pos - light_pass_offsets.region_offset;
@@ -445,6 +444,29 @@ vec4 get_light_at_position(vec3 position) {
     }
 
     return vec4(0.0, 1.0, 0.0, 1.0);
+}
+
+vec4 get_light_at_position(vec3 position, vec3 normal) {
+    position /= 4.0;
+    vec3 fpos = fract(position);
+    vec3 fpos1 = 1.0 - fpos;
+    ivec3 ipos = ivec3(floor(position));
+    // return get_light_at_position_i(ipos);
+
+    vec4 result = vec4(0.0);
+    float weight = 0.0;
+    for(int x = -1; x < 2; x++) {
+        for(int y = -1; y < 2; y++) {
+            for(int z = -1; z < 2; z++) {
+                float w1 = (x == -1 ? fpos1.x : (x == 1 ? fpos.x : 1.0)) * (y == -1 ? fpos1.y : (y == 1 ? fpos.y : 1.0)) * (z == -1 ? fpos1.z : (z == 1 ? fpos.z : 1.0));
+                float w2 = dot(vec3(x, y, z), normal) * 0.5 + 0.5;
+                float w = w1 * w2;
+                result += get_light_at_position_i(ipos + ivec3(x, y, z)) * w;
+                weight += w;
+            }
+        }
+    }
+    return result / weight;
 }
 
 
@@ -534,8 +556,8 @@ RaytraceResult raytrace_main_pass(
         result.light = ambient_data.ambient_light_color.rgb;
     }
 
-    vec4 gi_light = get_light_at_position(initial_ray_result.end + initial_ray_result.voxel_normal * 0.1);
-    result.light += gi_light.rgb * gi_light.a * 0.5;
+    vec4 gi_light = get_light_at_position(initial_ray_result.end + initial_ray_result.voxel_normal * 0.1, initial_ray_result.voxel_normal);
+    result.light += gi_light.rgb * gi_light.a * 1.0;
 
     return result;
 }

@@ -84,13 +84,22 @@ struct Ray {
     int max_steps;
 };
 
+#define RAY_RESULT_MAX_INTERSECTS 4
+
+struct RayResultIntersect {
+    ivec3 region_pos;   // position of tier 1 region
+    // vec3 voxel_normal;  // normal of the region side
+    float weight;       // weight of the contents of given region
+    float distance;     // distance - length of ray segment, intersecting this region
+};
+
 struct RayResult {
-    uint voxel;
     int steps;
     float distance;
     int voxel_distance;
-    vec3 end;
-    vec3 voxel_normal;
+
+    RayResultIntersect intersections[RAY_RESULT_MAX_INTERSECTS];
+    int intersection_count;
 };
 
 
@@ -103,6 +112,23 @@ struct RayResult {
         RAYTRACE_DATA.rayL += vec3(_mask) * RAYTRACE_DATA.rayS; \
         RAYTRACE_DATA.pos += ivec3(_mask) * RAYTRACE_DATA.pos_step; \
         RAYTRACE_DATA.voxel_distance++; \
+    }
+
+#define RAYTRACE_DDA_STEP_AND_RECORD(RAYTRACE_DATA, RESULT, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
+    { \
+        \
+        ivec3 _region_pos = RAYTRACE_DATA.pos; \
+        vec3 _lastRayL1 = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
+        float distance1 = max(_lastRayL1.x, max(_lastRayL1.y, _lastRayL1.z)); \
+        RAYTRACE_DDA_STEP(RAYTRACE_DATA, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
+        vec3 _lastRayL2 = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
+        float distance2 = max(_lastRayL2.x, max(_lastRayL2.y, _lastRayL2.z)); \
+        \
+        RESULT.intersections[RESULT.intersection_count++] = RayResultIntersect(_region_pos, 1.0, distance2 - distance1); \
+        \
+        if (RESULT.intersection_count >= RAY_RESULT_MAX_INTERSECTS) { \
+            return RESULT; \
+        } \
     }
 
 
@@ -156,7 +182,6 @@ struct RayResult {
 #define EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(RAYTRACE_DATA, RESULT_VAR, SIDE_VAR) \
     { \
         vec3 _lastRayL = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
-        RESULT_VAR = max(_lastRayL.x, max(_lastRayL.y, _lastRayL.z)); \
         if (_lastRayL.x > _lastRayL.y) { \
             if (_lastRayL.x > _lastRayL.z) { \
                 RESULT_VAR = RAYTRACE_DATA.distance_offset + _lastRayL.x; \
@@ -176,27 +201,19 @@ struct RayResult {
         } \
     }
 
-#define MAIN_RAYTRACE_FUNC_PRE_RAYTRACE_EXIT \
-    result.voxel = 1u; \
-    result.steps = i; \
-    EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, result.distance, result.voxel_normal); \
-    return result; \
-
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
 RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance) { \
-    RegTraverseData tier1_region; \
     RegTraverseData tier2_region; \
     RegTraverseData chunk_region; \
     \
     RayResult result; \
     result.distance = 0.0; \
-    result.voxel_normal = vec3(0.0); \
-    result.voxel = 0u; \
+    result.intersection_count = 0; \
     result.voxel_distance = 0; \
     \
     int i = 0; \
     while(i < max_steps) { \
-        ivec3 chunk_pos = raytrace_data.pos >> 7; \
+        ivec3 chunk_pos = raytrace_data.pos >> 5; \
         ivec3 chunk_pos_off = chunk_pos - render_region.offset; \
         \
         if (raytrace_data.voxel_distance > max_distance) { \
@@ -206,7 +223,7 @@ RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance)
             return result; \
         } \
         \
-        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 128, 127, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
+        PREPARE_TO_TRAVERSE_REGION(raytrace_data, chunk_region, 32, 31, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
         /* if in bound of chunk, raytrace it */ \
         if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < render_region.count.x && chunk_pos_off.y < render_region.count.y && chunk_pos_off.z < render_region.count.z) { \
             /* get buffer offset from chunk */ \
@@ -215,7 +232,7 @@ RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance)
             while (i < max_steps) { \
                 if (NOT_TRAVERSE_REGION_END(raytrace_data, chunk_region)) { \
                     /* raytrace over tier 2 region */ \
-                    ivec3 r2pos = (raytrace_data.pos >> 4) & 7; \
+                    ivec3 r2pos = (raytrace_data.pos >> 2) & 7; \
                     int r2offset = chunk_buffer_offset + (r2pos.x | ((r2pos.z | (r2pos.y << 3)) << 3)) * 4161; \
                     \
                     if (raytrace_data.voxel_distance > max_distance) { \
@@ -225,36 +242,19 @@ RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance)
                         return result; \
                     } \
                     \
-                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 16, 15, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
+                    PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier2_region, 4, 3, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
                     if (render_buffer.data[r2offset] != 0u) { \
                         /* region is non-empty, raytrace over tier 1 */ \
                         while (NOT_TRAVERSE_REGION_END(raytrace_data, tier2_region)) { \
                             /* raytrace over tier 1 region */ \
-                            ivec3 r1pos = (raytrace_data.pos >> 2) & 3; \
+                            ivec3 r1pos = (raytrace_data.pos) & 3; \
                             int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65; \
                             \
-                            PREPARE_TO_TRAVERSE_REGION(raytrace_data, tier1_region, 4, 3, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); \
                             if (render_buffer.data[r1offset] != 0u) { \
-                                MAIN_RAYTRACE_FUNC_PRE_RAYTRACE_EXIT\
-                                /* region is non-empty, raytrace over voxels */ \
-                                while (NOT_TRAVERSE_REGION_END(raytrace_data, tier1_region)) { \
-                                    ivec3 voxel_pos = raytrace_data.pos & 3; \
-                                    int voxel_index = r1offset + 1 + (voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 2)) << 2)); \
-                                    uint voxel = render_buffer.data[voxel_index]; \
-                                    if (voxel != 0u) { \
-                                        /* voxel found, end iteration */ \
-                                        result.steps = i; \
-                                        result.voxel = voxel; \
-                                        result.voxel_distance = raytrace_data.voxel_distance; \
-                                        EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, result.distance, result.voxel_normal); \
-                                        return result; \
-                                    } \
-                                    /* make voxel step */ \
-                                    RAYTRACE_DDA_STEP(raytrace_data, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
-                                } \
+                                RAYTRACE_DDA_STEP_AND_RECORD(raytrace_data, result, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                             } else { \
                                 /* region is empty, skip (make tier 1 step) */ \
-                                DO_TRAVERSE_REGION(raytrace_data, tier1_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
+                                RAYTRACE_DDA_STEP(raytrace_data, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
                             } \
                         } \
                     } else { \
@@ -270,7 +270,8 @@ RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance)
             DO_TRAVERSE_REGION(raytrace_data, chunk_region, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE); i++; \
         } \
     } \
-    EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, result.distance, result.voxel_normal); \
+    vec3 _voxel_normal; \
+    EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, result.distance, _voxel_normal); \
     result.steps = max_steps; \
     result.voxel_distance = raytrace_data.voxel_distance; \
     return result; \
@@ -319,6 +320,10 @@ MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_
 
 
 RayResult raytrace_direct(Ray ray_data, float ray_offset_dis) {
+    ray_data.start /= 4.0;
+    ray_data.max_distance /= 4.0;
+    ray_offset_dis /= 4.0;
+
     RaytraceData raytrace_data;
     raytrace_data.ray = ray_data.ray = normalize(ray_data.ray);
     ray_data.start += ray_offset_dis * ray_data.ray;
@@ -346,7 +351,8 @@ RayResult raytrace_direct(Ray ray_data, float ray_offset_dis) {
 
     float voxel_distance_factor = abs(ray_data.ray.x) + abs(ray_data.ray.y) + abs(ray_data.ray.z);
     RAYTRACE_FUNC_CALL(result, raytrace_data, (raytrace_data, ray_data.max_steps, int((ray_data.max_distance - ray_offset_dis) * voxel_distance_factor)));
-    result.end = ray_data.start + ray_data.ray * (result.distance - ray_offset_dis);
+    // result.end = (ray_data.start + ray_data.ray * (result.distance - ray_offset_dis)) * 4.0;
+    result.distance *= 4.0;
     return result;
 }
 
@@ -357,13 +363,55 @@ uint color_to_uint(vec4 color) {
     return (c.r << 24) | (c.g << 16) | (c.b << 8) | c.a;
 }
 
+
+#define VOLUME_THRESHOLD_REFLECT 0
+#define VOLUME_THRESHOLD_BLOCK 0
+
+int voxel_count_at(ivec3 pos) {
+    ivec3 chunk_pos = pos >> 5;
+    ivec3 chunk_pos_off = chunk_pos - render_region.offset;
+    if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < render_region.count.x && chunk_pos_off.y < render_region.count.y && chunk_pos_off.z < render_region.count.z) {
+        int chunk_buffer_offset = buffer_offsets.data[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * render_region.count.z) * render_region.count.x];
+        ivec3 r2pos = (pos >> 2) & 7;
+        ivec3 r1pos = pos & 3;
+        int r2offset = chunk_buffer_offset + (r2pos.x | ((r2pos.z | (r2pos.y << 3)) << 3)) * 4161;
+        int r1offset = r2offset + 1 + (r1pos.x | ((r1pos.z | (r1pos.y << 2)) << 2)) * 65;
+        return int(render_buffer.data[r1offset]);
+    }
+}
+
+int get_blocked_neighbours_count(ivec3 p) {
+    int count = 0;
+    for(int x = -1; x < 2; x++) {
+        for(int y = -1; y < 2; y++) {
+            for(int z = -1; z < 2; z++) {
+                if (x == 0 && y == 0 && z == 0) continue;
+                count += int(voxel_count_at(p + ivec3(x, y, z)) > VOLUME_THRESHOLD_BLOCK);
+            }
+        }
+    }
+    return count;
+}
+
 void main() {
     LightJob job = light_pass_jobs.jobs[gl_GlobalInvocationID.y];
     int voxel_index = int(gl_GlobalInvocationID.x);
-    ivec3 voxel_pos = ivec3(voxel_index & 31, voxel_index >> 10, (voxel_index >> 5) & 31) + job.chunk_position * 32;
+    ivec3 voxel_pos = ivec3(voxel_index & 31, voxel_index >> 10, (voxel_index >> 5) & 31) + (job.chunk_position << 5);
+
+    // if voxel is non-empty or blocked
+    if (voxel_count_at(voxel_pos) == 0 || get_blocked_neighbours_count(voxel_pos) == 26) {
+        light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = 0u;
+        //return;
+    }
+
     vec3 voxel_center = vec3(voxel_pos * 4) + vec3(2.0, 2.0, 2.0);
 
-    RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 100.0, 100), 0.0);
+    RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 100.0, 100), 5.0);
 
-    light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = shadow_ray_result.voxel == 0u ? 0xFF0000FFu : 0u;// color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
+    float dis_sum = 0.0;
+    for (int i = 0; i < shadow_ray_result.intersection_count; i++) {
+        dis_sum += shadow_ray_result.intersections[i].distance;
+    }
+
+    light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = color_to_uint(vec4(1.0, 0.0, 0.0, clamp(1.0 - dis_sum / 4.0, 0.0, 1.0))); // color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
 }
