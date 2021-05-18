@@ -397,11 +397,11 @@ void main() {
     int voxel_index = int(gl_GlobalInvocationID.x);
     ivec3 voxel_pos = ivec3(voxel_index & 31, voxel_index >> 10, (voxel_index >> 5) & 31) + (job.chunk_position << 5);
 
-    // if voxel is non-empty or blocked
-    /* if (get_blocked_neighbours_count(voxel_pos) == 0 || get_blocked_neighbours_count(voxel_pos) == 26) {
+    // if voxel is non-empty or does not have neighbours (compute only for surfaces)
+    if (voxel_count_at(voxel_pos) != 0 || get_blocked_neighbours_count(voxel_pos) == 0) {
         light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = 0u;
         return;
-    } */
+    }
 
     // make random adjustment for center position, so raytracing region step over will not end up in error state
     vec3 voxel_center = vec3(voxel_pos * 4) + vec3(2.01, 1.99, 2.00);
