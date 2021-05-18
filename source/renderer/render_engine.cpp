@@ -294,7 +294,7 @@ void VoxelRenderEngine::render() {
 
     u_AmbientData.data = {
             {1, 1, 1, 1},
-            {1, -0.4f, 1},
+            {1, -0.7f, 1},
             {0, 0, 0.3f, 0.5f}
     };
     u_AmbientData.updateAndBind();

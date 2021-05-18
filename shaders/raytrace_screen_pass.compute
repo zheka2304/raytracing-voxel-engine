@@ -129,6 +129,7 @@ struct RaytraceResult {
 #define BINARY_CHOICE_AB_A(A, B) A
 #define BINARY_CHOICE_AB_B(A, B) B
 
+// This will make simple DDA algorithm step using given RaytraceData variable.
 #define RAYTRACE_DDA_STEP(RAYTRACE_DATA, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         bvec3 _mask = lessThanEqual(RAYTRACE_DATA.rayL, min(RAYTRACE_DATA.rayL.yzx, RAYTRACE_DATA.rayL.zxy)); \
@@ -137,7 +138,20 @@ struct RaytraceResult {
         RAYTRACE_DATA.voxel_distance++; \
     }
 
-
+// This will get RaytraceData and prepare given RegTraverseData to step over (step out of) region of given size,
+// it is used to skip empty regions during raytracing.
+//
+// NOTE and TODO: This algorithm has an error state, when step will end up in region, diagonally aligned to the current one. An example is shown
+// below, ray is travelling from region C and must end up in region B, but in this case it might remain in region C and then reach max_step limit without result.
+// This is currently fixed by adjusting start position of the ray, so it will not start in region center, but must be fixed in some way in the future.
+//
+// +----+----+
+// |A   |B/  |
+// |    |/   |
+// +----+----+
+// |C  /|D   |
+// |  / |    |
+// +----+----+
 #define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         ivec3 COUNT_ = ivec3( \
@@ -176,6 +190,7 @@ struct RaytraceResult {
         } \
     }
 
+// Makes a step, prepared by PREPARE_TO_TRAVERSE_REGION for given RaytraceData and RegTraverseData.
 #define DO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         RAYTRACE_DATA.rayL += vec3(DATA_VAR.add_i) * RAYTRACE_DATA.rayS; \
@@ -183,8 +198,11 @@ struct RaytraceResult {
         RAYTRACE_DATA.voxel_distance = DATA_VAR.region_end; \
     }
 
+// Returns, if currently given RaytraceData has not reached end of the region, prepared by PREPARE_TO_TRAVERSE_REGION for given RegTraverseData.
+// Used fast-check end of iteration of prepared region.
 #define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
+// For given RaytraceData extracts its distance including ray offset and normal to voxel side
 #define EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(RAYTRACE_DATA, RESULT_VAR, SIDE_VAR) \
     { \
         vec3 _lastRayL = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
@@ -208,7 +226,7 @@ struct RaytraceResult {
         } \
     }
 
-
+// Used in screen pre-pass to exit from raytrace function when intersecting tier 1 region
 #define MAIN_RAYTRACE_FUNC_PRE_RAYTRACE_EXIT \
     result.voxel = 1u; \
     result.steps = i; \
@@ -216,6 +234,7 @@ struct RaytraceResult {
     return result; \
 
 
+// Main raytracing logic, uses a macro to remove ifs, checking if ray.x/y/z is positive and instead generate 8 combinations of same function.
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
 RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance) { \
     RegTraverseData tier1_region; \
@@ -335,6 +354,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_px_ny_nz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_
 MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B)
 
 
+// Caller for main raytrace func, which checks sign all ray components once and then calls appropriate function
 #define RAYTRACE_FUNC_CALL(RESULT_VAR, RAYTRACE_DATA, PARAMS) \
     if (RAYTRACE_DATA.ray.x > 0.0) { \
         if (RAYTRACE_DATA.ray.y > 0.0) { \
@@ -367,6 +387,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_
     }
 
 
+// Casts a given Ray, returns RayResult, also allows to offset given ray to skip some distance from its beginning
 RayResult raytrace_direct(Ray ray_data, float ray_offset_dis) {
     RaytraceData raytrace_data;
     raytrace_data.ray = ray_data.ray = normalize(ray_data.ray);
@@ -451,7 +472,7 @@ vec4 get_light_at_position(vec3 position, vec3 normal) {
     vec3 fpos = fract(position);
     vec3 fpos1 = 1.0 - fpos;
     ivec3 ipos = ivec3(floor(position));
-    // return get_light_at_position_i(ipos);
+    return get_light_at_position_i(ipos);
 
     vec4 result = vec4(0.0);
     float weight = 0.0;
@@ -546,6 +567,7 @@ RaytraceResult raytrace_main_pass(
 
         // run raytracing for shadows with precalculated parameters
         RayResult shadow_ray_result = raytrace_direct(shadow_ray, 0.0);
+        shadow_ray_result.voxel = 0u;
 
         vec3 normal = initial_ray_result.voxel_normal;
         float direct_light_intensity = shadow_ray_result.voxel == 0u ? 1.0 : ambient_data.ambient_light_color.a;
@@ -557,7 +579,7 @@ RaytraceResult raytrace_main_pass(
     }
 
     vec4 gi_light = get_light_at_position(initial_ray_result.end + initial_ray_result.voxel_normal * 0.1, initial_ray_result.voxel_normal);
-    result.light += gi_light.rgb * gi_light.a * 1.0;
+    result.light = result.light * 0.5 + gi_light.rgb * gi_light.a * 1.0;
 
     return result;
 }

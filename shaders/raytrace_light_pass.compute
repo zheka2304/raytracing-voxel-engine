@@ -84,7 +84,7 @@ struct Ray {
     int max_steps;
 };
 
-#define RAY_RESULT_MAX_INTERSECTS 4
+#define RAY_RESULT_MAX_INTERSECTS 16
 
 struct RayResultIntersect {
     ivec3 region_pos;   // position of tier 1 region
@@ -106,6 +106,7 @@ struct RayResult {
 #define BINARY_CHOICE_AB_A(A, B) A
 #define BINARY_CHOICE_AB_B(A, B) B
 
+// This will make simple DDA algorithm step using given RaytraceData variable.
 #define RAYTRACE_DDA_STEP(RAYTRACE_DATA, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         bvec3 _mask = lessThanEqual(RAYTRACE_DATA.rayL, min(RAYTRACE_DATA.rayL.yzx, RAYTRACE_DATA.rayL.zxy)); \
@@ -114,6 +115,8 @@ struct RayResult {
         RAYTRACE_DATA.voxel_distance++; \
     }
 
+// Used in lighting approximate raytracing. Gets RaytraceData and RayResult, makes simple DDA algorithm step and
+// records it as intersection into RayResult, saving its position, weight and length of intersection section.
 #define RAYTRACE_DDA_STEP_AND_RECORD(RAYTRACE_DATA, RESULT, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         \
@@ -131,7 +134,20 @@ struct RayResult {
         } \
     }
 
-
+// This will get RaytraceData and prepare given RegTraverseData to step over (step out of) region of given size,
+// it is used to skip empty regions during raytracing.
+//
+// NOTE and TODO: This algorithm has an error state, when step will end up in region, diagonally aligned to the current one. An example is shown
+// below, ray is travelling from region C and must end up in region B, but in this case it might remain in region C and then reach max_step limit without result.
+// This is currently fixed by adjusting start position of the ray, so it will not start in region center, but must be fixed in some way in the future.
+//
+// +----+----+
+// |A   |B/  |
+// |    |/   |
+// +----+----+
+// |C  /|D   |
+// |  / |    |
+// +----+----+
 #define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         ivec3 COUNT_ = ivec3( \
@@ -170,6 +186,7 @@ struct RayResult {
         } \
     }
 
+// Makes a step, prepared by PREPARE_TO_TRAVERSE_REGION for given RaytraceData and RegTraverseData.
 #define DO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         RAYTRACE_DATA.rayL += vec3(DATA_VAR.add_i) * RAYTRACE_DATA.rayS; \
@@ -177,30 +194,12 @@ struct RayResult {
         RAYTRACE_DATA.voxel_distance = DATA_VAR.region_end; \
     }
 
+// Returns, if currently given RaytraceData has not reached end of the region, prepared by PREPARE_TO_TRAVERSE_REGION for given RegTraverseData.
+// Used fast-check end of iteration of prepared region.
 #define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
-#define EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(RAYTRACE_DATA, RESULT_VAR, SIDE_VAR) \
-    { \
-        vec3 _lastRayL = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
-        if (_lastRayL.x > _lastRayL.y) { \
-            if (_lastRayL.x > _lastRayL.z) { \
-                RESULT_VAR = RAYTRACE_DATA.distance_offset + _lastRayL.x; \
-                SIDE_VAR = vec3(-RAYTRACE_DATA.pos_step.x, 0, 0); \
-            } else { \
-                RESULT_VAR = RAYTRACE_DATA.distance_offset + _lastRayL.z; \
-                SIDE_VAR = vec3(0, 0, -RAYTRACE_DATA.pos_step.z); \
-            } \
-        } else { \
-            if (_lastRayL.y > _lastRayL.z) { \
-                RESULT_VAR = RAYTRACE_DATA.distance_offset + _lastRayL.y; \
-                SIDE_VAR = vec3(0, -RAYTRACE_DATA.pos_step.y, 0); \
-            } else { \
-                RESULT_VAR = RAYTRACE_DATA.distance_offset + _lastRayL.z; \
-                SIDE_VAR = vec3(0, 0, -RAYTRACE_DATA.pos_step.z); \
-            } \
-        } \
-    }
 
+// Main raytracing logic, uses a macro to remove ifs, checking if ray.x/y/z is positive and instead generate 8 combinations of same function.
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
 RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance) { \
     RegTraverseData tier2_region; \
@@ -271,7 +270,6 @@ RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance)
         } \
     } \
     vec3 _voxel_normal; \
-    EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(raytrace_data, result.distance, _voxel_normal); \
     result.steps = max_steps; \
     result.voxel_distance = raytrace_data.voxel_distance; \
     return result; \
@@ -287,6 +285,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_px_ny_nz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_
 MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B)
 
 
+// Caller for main raytrace func, which checks sign all ray components once and then calls appropriate function
 #define RAYTRACE_FUNC_CALL(RESULT_VAR, RAYTRACE_DATA, PARAMS) \
     if (RAYTRACE_DATA.ray.x > 0.0) { \
         if (RAYTRACE_DATA.ray.y > 0.0) { \
@@ -318,7 +317,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_
         } \
     }
 
-
+// Casts a given Ray, returns RayResult, also allows to offset given ray to skip some distance from its beginning
 RayResult raytrace_direct(Ray ray_data, float ray_offset_dis) {
     ray_data.start /= 4.0;
     ray_data.max_distance /= 4.0;
@@ -399,19 +398,20 @@ void main() {
     ivec3 voxel_pos = ivec3(voxel_index & 31, voxel_index >> 10, (voxel_index >> 5) & 31) + (job.chunk_position << 5);
 
     // if voxel is non-empty or blocked
-    if (voxel_count_at(voxel_pos) == 0 || get_blocked_neighbours_count(voxel_pos) == 26) {
+    /* if (get_blocked_neighbours_count(voxel_pos) == 0 || get_blocked_neighbours_count(voxel_pos) == 26) {
         light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = 0u;
-        //return;
-    }
+        return;
+    } */
 
-    vec3 voxel_center = vec3(voxel_pos * 4) + vec3(2.0, 2.0, 2.0);
+    // make random adjustment for center position, so raytracing region step over will not end up in error state
+    vec3 voxel_center = vec3(voxel_pos * 4) + vec3(2.01, 1.99, 2.00);
 
-    RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 100.0, 100), 5.0);
+    RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 150.0, 100), 5.0);
 
     float dis_sum = 0.0;
     for (int i = 0; i < shadow_ray_result.intersection_count; i++) {
         dis_sum += shadow_ray_result.intersections[i].distance;
     }
 
-    light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = color_to_uint(vec4(1.0, 0.0, 0.0, clamp(1.0 - dis_sum / 4.0, 0.0, 1.0))); // color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
+    light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = color_to_uint(vec4(1.0, 0.0, 0.0, clamp(0.5 - dis_sum / 32.0, 0.0, 1.0))); // color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
 }
