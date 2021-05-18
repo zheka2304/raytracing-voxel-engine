@@ -75,6 +75,10 @@ layout(rgba32f, binding = 0) writeonly uniform highp image2D COLOR_OUTPUT;
 layout(rgba32f, binding = 1) writeonly uniform highp image2D LIGHT_OUTPUT;
 layout(rgba32f, binding = 2) writeonly uniform highp image2D DEPTH_OUTPUT;
 
+//
+
+#define LIGHT_DATA_UNIT_COUNT 5
+
 // --- raytracing logic ---
 
 #define PI 3.1415926
@@ -460,7 +464,7 @@ vec4 get_light_at_position_i(ivec3 ipos) {
 
     if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < chunk_region_size.x && chunk_pos_off.y < chunk_region_size.y && chunk_pos_off.z < chunk_region_size.z) {
         int buffer_offset = light_pass_offsets.offsets[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * chunk_region_size.z) * chunk_region_size.x];
-        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 32) * 32)) * 4;
+        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 32) * 32)) * LIGHT_DATA_UNIT_COUNT + 1;
         return uint_to_color(light_pass_buffer.data[light_offset]);
     }
 

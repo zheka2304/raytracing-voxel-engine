@@ -8,8 +8,13 @@ precision highp int;
 
 //
 
-// INITIAL_PASS must be defined for first pass, that initializes direct light & initial rays from point lights
-#define LIGHT_REFLECTION_COUNT 4
+// Amount of data units per light voxel
+#define LIGHT_DATA_UNIT_COUNT 5
+
+// Light voxel data structure:
+// index 0 - cached technical data, like blocked neighbour count, it is calculated on initial pass
+// index 1 - initial light value, calculated from sky & point lights
+// indices [2; LIGHT_DATA_UNIT_COUNT - 1] - at each index i, stored light value, calculated by casting rays from values at index i - 1
 
 //
 
@@ -84,7 +89,7 @@ struct Ray {
     int max_steps;
 };
 
-#define RAY_RESULT_MAX_INTERSECTS 16
+#define RAY_RESULT_MAX_INTERSECTS 8
 
 struct RayResultIntersect {
     ivec3 region_pos;   // position of tier 1 region
@@ -393,25 +398,38 @@ int get_blocked_neighbours_count(ivec3 p) {
 }
 
 void main() {
+    // get current light job and voxel position
     LightJob job = light_pass_jobs.jobs[gl_GlobalInvocationID.y];
     int voxel_index = int(gl_GlobalInvocationID.x);
     ivec3 voxel_pos = ivec3(voxel_index & 31, voxel_index >> 10, (voxel_index >> 5) & 31) + (job.chunk_position << 5);
 
-    // if voxel is non-empty or does not have neighbours (compute only for surfaces)
-    if (voxel_count_at(voxel_pos) != 0 || get_blocked_neighbours_count(voxel_pos) == 0) {
-        light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = 0u;
-        return;
-    }
-
     // make random adjustment for center position, so raytracing region step over will not end up in error state
     vec3 voxel_center = vec3(voxel_pos * 4) + vec3(2.01, 1.99, 2.00);
 
-    RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 150.0, 100), 5.0);
+    // for level 0 do initial light pass, calculating direct light from sky and light sources
+    if (job.level == 0) {
+        // on the first pass store blocked neighbour count for future passes
+        int blocked_neighbour_count = get_blocked_neighbours_count(voxel_pos);
+        light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT] = uint(blocked_neighbour_count);
 
-    float dis_sum = 0.0;
-    for (int i = 0; i < shadow_ray_result.intersection_count; i++) {
-        dis_sum += shadow_ray_result.intersections[i].distance;
+        // if voxel is non-empty or does not have neighbours (compute only for surfaces)
+        if (voxel_count_at(voxel_pos) != 0 || blocked_neighbour_count == 0) {
+            light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT + 1] = 0u;
+            return;
+        }
+
+        // cast shadow ray
+        RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 150.0, 100), 0.0);
+
+        float dis_sum = 0.0;
+        for (int i = 0; i < shadow_ray_result.intersection_count; i++) {
+            dis_sum += shadow_ray_result.intersections[i].distance;
+        }
+
+        light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT + 1] = color_to_uint(vec4(1.0, 0.0, 0.0, clamp(0.5 - dis_sum / 16.0, 0.0, 1.0))); // color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
+    } 
+    // for levels [1; LIGHT_DATA_UNIT_COUNT - 1] emit light rays from previous level
+    else {
+        //
     }
-
-    light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_REFLECTION_COUNT] = color_to_uint(vec4(1.0, 0.0, 0.0, clamp(0.5 - dis_sum / 32.0, 0.0, 1.0))); // color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
 }

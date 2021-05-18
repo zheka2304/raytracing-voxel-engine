@@ -338,7 +338,7 @@ void VoxelRenderEngine::render() {
 
 VoxelLightingEngine::VoxelLightingEngine(int maxLightChunks) : maxLightChunks(maxLightChunks) {
     lightBuffer = new gl::Buffer();
-    lightBuffer->setData(maxLightChunks * LIGHT_CHUNK_VOLUME * (LIGHT_REFLECTION_COUNT * sizeof(GLuint)), nullptr);
+    lightBuffer->setData(maxLightChunks * LIGHT_CHUNK_VOLUME * (LIGHT_BUFFER_UNIT_COUNT * sizeof(GLuint)), nullptr);
 }
 
 VoxelLightingEngine::~VoxelLightingEngine() noexcept {
@@ -360,7 +360,7 @@ Vec3i VoxelLightingEngine::prepareLightPass(VoxelRenderEngine& engine, Vec3i ren
                 int size = 32 * 32 * 32;
 
                 u_ProcessLightJobList.data.jobs[jobCount] = {
-                    jobCount,
+                    0,
                     Vec3i(x, y, z) + renderRegionOffset,
                     offset,
                     (32 * 32 * 32),

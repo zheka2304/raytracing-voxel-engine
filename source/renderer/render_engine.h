@@ -27,7 +27,7 @@ private:
 public:
     static const int WORK_GROUP_SIZE = 1024;
     static const int LIGHT_VOXEL_SIZE = 4;
-    static const int LIGHT_REFLECTION_COUNT = 4;
+    static const int LIGHT_BUFFER_UNIT_COUNT = 5;
     static const int LIGHT_CHUNK_SIZE = ChunkPos::CHUNK_SIZE / LIGHT_VOXEL_SIZE;
     static const int LIGHT_CHUNK_VOLUME = LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE;
 
