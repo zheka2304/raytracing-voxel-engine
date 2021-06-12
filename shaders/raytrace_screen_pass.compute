@@ -52,7 +52,7 @@ layout(binding = 8) STAGE_PRE_PASS(writeonly) STAGE_MAIN_PASS(readonly) buffer P
     float data[];
 } pre_raytrace_buffer;
 
-layout(binding = 9) readonly buffer PreRaytraceLod {
+layout(binding = 9) readonly buffer PreRenderPassData {
     int stride_bit;    // resolution downgrade (1 << stride_bit, 1 means x2, 2 means x4, 3 - x8, ...)
     ivec2 buffer_size; // pre-raytrace buffer dimensions
     float dis_1; // max distance at which tier 1 regions are used
@@ -60,10 +60,24 @@ layout(binding = 9) readonly buffer PreRaytraceLod {
     // after that distances full chunks are used
 } pre_raytrace_lod;
 
+layout(binding = 12) buffer LightBuffer {
+    uint data[];
+} light_pass_buffer;
+
+layout(binding = 13) buffer LightPassOffsetsBuffer {
+    ivec3 region_offset;   // chunk region offset
+    ivec3 region_size;     // chunk region size
+    int offsets[];         // chunk offsets by chunk position
+} light_pass_offsets;
+
 
 layout(rgba32f, binding = 0) writeonly uniform highp image2D COLOR_OUTPUT;
 layout(rgba32f, binding = 1) writeonly uniform highp image2D LIGHT_OUTPUT;
 layout(rgba32f, binding = 2) writeonly uniform highp image2D DEPTH_OUTPUT;
+
+//
+
+#define LIGHT_DATA_UNIT_COUNT 8
 
 // --- raytracing logic ---
 
@@ -119,6 +133,7 @@ struct RaytraceResult {
 #define BINARY_CHOICE_AB_A(A, B) A
 #define BINARY_CHOICE_AB_B(A, B) B
 
+// This will make simple DDA algorithm step using given RaytraceData variable.
 #define RAYTRACE_DDA_STEP(RAYTRACE_DATA, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         bvec3 _mask = lessThanEqual(RAYTRACE_DATA.rayL, min(RAYTRACE_DATA.rayL.yzx, RAYTRACE_DATA.rayL.zxy)); \
@@ -127,7 +142,20 @@ struct RaytraceResult {
         RAYTRACE_DATA.voxel_distance++; \
     }
 
-
+// This will get RaytraceData and prepare given RegTraverseData to step over (step out of) region of given size,
+// it is used to skip empty regions during raytracing.
+//
+// NOTE and TODO: This algorithm has an error state, when step will end up in region, diagonally aligned to the current one. An example is shown
+// below, ray is travelling from region C and must end up in region B, but in this case it might remain in region C and then reach max_step limit without result.
+// This is currently fixed by adjusting start position of the ray, so it will not start in region center, but must be fixed in some way in the future.
+//
+// +----+----+
+// |A   |B/  |
+// |    |/   |
+// +----+----+
+// |C  /|D   |
+// |  / |    |
+// +----+----+
 #define PREPARE_TO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, REGION_SIZE, REGION_SIZE_BIT_MASK, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         ivec3 COUNT_ = ivec3( \
@@ -166,6 +194,7 @@ struct RaytraceResult {
         } \
     }
 
+// Makes a step, prepared by PREPARE_TO_TRAVERSE_REGION for given RaytraceData and RegTraverseData.
 #define DO_TRAVERSE_REGION(RAYTRACE_DATA, DATA_VAR, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
     { \
         RAYTRACE_DATA.rayL += vec3(DATA_VAR.add_i) * RAYTRACE_DATA.rayS; \
@@ -173,8 +202,11 @@ struct RaytraceResult {
         RAYTRACE_DATA.voxel_distance = DATA_VAR.region_end; \
     }
 
+// Returns, if currently given RaytraceData has not reached end of the region, prepared by PREPARE_TO_TRAVERSE_REGION for given RegTraverseData.
+// Used fast-check end of iteration of prepared region.
 #define NOT_TRAVERSE_REGION_END(RAYTRACE_DATA, DATA_VAR) RAYTRACE_DATA.voxel_distance < DATA_VAR.region_end
 
+// For given RaytraceData extracts its distance including ray offset and normal to voxel side
 #define EXTRACT_RAYTRACE_DISTANCE_AND_SIDE(RAYTRACE_DATA, RESULT_VAR, SIDE_VAR) \
     { \
         vec3 _lastRayL = RAYTRACE_DATA.rayL - RAYTRACE_DATA.rayS; \
@@ -198,7 +230,7 @@ struct RaytraceResult {
         } \
     }
 
-
+// Used in screen pre-pass to exit from raytrace function when intersecting tier 1 region
 #define MAIN_RAYTRACE_FUNC_PRE_RAYTRACE_EXIT \
     result.voxel = 1u; \
     result.steps = i; \
@@ -206,6 +238,7 @@ struct RaytraceResult {
     return result; \
 
 
+// Main raytracing logic, uses a macro to remove ifs, checking if ray.x/y/z is positive and instead generate 8 combinations of same function.
 #define MAIN_RAYTRACE_FUNC(FUNC_NAME, IS_RAY_X_POSITIVE, IS_RAY_Y_POSITIVE, IS_RAY_Z_POSITIVE) \
 RayResult FUNC_NAME(RaytraceData raytrace_data, int max_steps, int max_distance) { \
     RegTraverseData tier1_region; \
@@ -325,6 +358,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_px_ny_nz, BINARY_CHOICE_AB_A, BINARY_CHOICE_AB_
 MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_B)
 
 
+// Caller for main raytrace func, which checks sign all ray components once and then calls appropriate function
 #define RAYTRACE_FUNC_CALL(RESULT_VAR, RAYTRACE_DATA, PARAMS) \
     if (RAYTRACE_DATA.ray.x > 0.0) { \
         if (RAYTRACE_DATA.ray.y > 0.0) { \
@@ -357,6 +391,7 @@ MAIN_RAYTRACE_FUNC(raytrace_next_nx_ny_nz, BINARY_CHOICE_AB_B, BINARY_CHOICE_AB_
     }
 
 
+// Casts a given Ray, returns RayResult, also allows to offset given ray to skip some distance from its beginning
 RayResult raytrace_direct(Ray ray_data, float ray_offset_dis) {
     RaytraceData raytrace_data;
     raytrace_data.ray = ray_data.ray = normalize(ray_data.ray);
@@ -414,7 +449,58 @@ float get_region_end_distance(vec3 pos, vec3 ray, float region_size) {
 }
 
 
+// ---- light ----
+
+vec4 uint_to_color(uint i) {
+    // rgba
+    return vec4(uvec4(i >> 24u, (i >> 16u) & 0xFFu, (i >> 8u) & 0xFFu, i & 0xFFu)) / 255.0;
+}
+
+vec4 uint_pair_to_color(uint rg, uint ba) {
+    return vec4(uvec4(rg & 0xFFFFu, rg >> 16u, ba & 0xFFFFu, ba >> 16u)) / 255.0;
+}
+
+vec4 get_light_at_position_i(ivec3 ipos) {
+    ivec3 chunk_pos = ipos >> 5;
+    ivec3 voxel_pos = ipos & 31;
+    ivec3 chunk_pos_off = chunk_pos - light_pass_offsets.region_offset;
+    ivec3 chunk_region_size = light_pass_offsets.region_size;
+
+    if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < chunk_region_size.x && chunk_pos_off.y < chunk_region_size.y && chunk_pos_off.z < chunk_region_size.z) {
+        int buffer_offset = light_pass_offsets.offsets[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * chunk_region_size.z) * chunk_region_size.x];
+        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 32) * 32)) * LIGHT_DATA_UNIT_COUNT;
+        return uint_to_color(light_pass_buffer.data[light_offset + LIGHT_DATA_UNIT_COUNT - 1]);
+    }
+
+    return vec4(0.0, 1.0, 0.0, 1.0);
+}
+
+vec4 get_light_at_position(vec3 position, vec3 normal) {
+    position /= 4.0;
+    vec3 fpos = fract(position);
+    vec3 fpos1 = 1.0 - fpos;
+    ivec3 ipos = ivec3(floor(position));
+    return get_light_at_position_i(ipos);
+
+    vec4 result = vec4(0.0);
+    float weight = 0.0;
+    for(int x = -1; x < 2; x++) {
+        for(int y = -1; y < 2; y++) {
+            for(int z = -1; z < 2; z++) {
+                float w1 = (x == -1 ? fpos1.x : (x == 1 ? fpos.x : 1.0)) * (y == -1 ? fpos1.y : (y == 1 ? fpos.y : 1.0)) * (z == -1 ? fpos1.z : (z == 1 ? fpos.z : 1.0));
+                float w2 = dot(vec3(x, y, z), normal) * 0.5 + 0.5;
+                float w = w1 * w2;
+                result += get_light_at_position_i(ipos + ivec3(x, y, z)) * w;
+                weight += w;
+            }
+        }
+    }
+    return result / weight;
+}
+
+
 // ---- raytrace caller ---
+
 #ifdef RENDER_STAGE_PRE_PASS
 void raytrace_pre_pass(
     Ray initial_ray,
@@ -499,6 +585,9 @@ RaytraceResult raytrace_main_pass(
         result.light = ambient_data.ambient_light_color.rgb;
     }
 
+    // vec4 gi_light = get_light_at_position(initial_ray_result.end + initial_ray_result.voxel_normal * 0.1, initial_ray_result.voxel_normal);
+    // result.light = result.light * 0.5 + gi_light.rgb * gi_light.a * 1.0;
+
     return result;
 }
 #endif
@@ -558,6 +647,9 @@ void main() {
             buffer_index,
             100.0
         );
+
+        // result.color = vec3(1.0);
+        // result.light = vec3(light_pass_input_buffer.chunk_region_size) / 2.0 + 0.5;
 
         // out_color = vec3(pre_raytrace_buffer.data[buffer_index]) / 100.0;
         imageStore(COLOR_OUTPUT, pixel, vec4(result.color, 1.0));

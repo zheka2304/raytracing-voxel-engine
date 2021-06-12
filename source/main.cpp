@@ -81,9 +81,9 @@ public:
                 float r = smooth_rand(fx, fz) * 0.125 +
                         smooth_rand(fx / 2.0f, fz / 2.0f) * 0.25 +
                         smooth_rand(fx / 4.0f, fz / 4.0f) * 0.5;
-                // r = float(abs(x - 64) < 16 && abs(z - 64) < 16);
+                // r = float(abs(x / 4 - 16) < 6 && abs(z / 4 - 16) < 6 && (chunk.position.x + chunk.position.z) % 2);
                 // r = 1.0 - (std::max(abs(x - 64), abs(z - 64))) / 64.0f;
-                float h = 8 + 48 * r;
+                float h = 12 + 48 * r;
                 for (int y = 0; y < 128; y++) {
                     int dx = x - 64;
                     int dy = y - 64;
@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
         WorkerThread* testBackgroundWorkingThread = new WorkerThread();
 
         std::shared_ptr<ChunkSource> chunkSource = std::make_shared<ThreadedChunkSource>(
-                std::make_shared<DebugChunkHandler>(), 3, 5000);
+                std::make_shared<DebugChunkHandler>(), 2, 5000);
 
         std::shared_ptr<Camera> camera = std::make_shared<OrthographicCamera>();
 

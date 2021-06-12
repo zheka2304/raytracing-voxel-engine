@@ -6,7 +6,7 @@ layout(binding = 8) buffer PreRaytraceBuffer {
     float data[];
 } pre_raytrace_buffer;
 
-layout(binding = 9) readonly buffer PreRaytraceLod {
+layout(binding = 9) readonly buffer PreRenderPassData {
     int stride_bit;    // resolution downgrade (1 << stride_bit, 1 means x2, 2 means x4, 3 - x8, ...)
     ivec2 buffer_size; // pre-raytrace buffer dimensions
     float dis_1; // max distance at which tier 1 regions are used

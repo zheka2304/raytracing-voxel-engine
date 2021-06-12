@@ -41,9 +41,13 @@ void main() {
     int bake_region_index = int(bake_region_offset) + 1;
 
     // one thread bakes 4x4x4 tier 1 voxel region
-    bool any_voxel = false;
 
-    // for (int i = 0; i < 100; i++)
+    uint voxel_count = 0u;
+    bvec3 slice_arr[16];
+    for (uint i = 0u; i < 16u; i++) {
+        slice_arr[i] = bvec3(false);
+    }
+
     for (uint y = 0u; y < 4u; y++) {
         for (uint z = 0u; z < 4u; z++) {
             for (uint x = 0u; x < 4u; x++) {
@@ -51,7 +55,10 @@ void main() {
                 uint voxel_index = voxel_pos.x | ((voxel_pos.z | (voxel_pos.y << 7)) << 7);
                 uint voxel = chunk.voxel_buffer[voxel_index];
                 if (voxel != 0u) {
-                    any_voxel = true;
+                    voxel_count++;
+                    slice_arr[y | (z << 4u)].x = true;
+                    slice_arr[x | (z << 4u)].y = true;
+                    slice_arr[x | (y << 4u)].z = true;
                 }
                 baked_chunk.render_buffer[bake_region_index] = voxel;
                 bake_region_index++;
@@ -59,8 +66,15 @@ void main() {
         }
     }
 
-    baked_chunk.render_buffer[bake_region_offset] = uint(any_voxel);
-    atomicAdd(tier2_region_state, uint(any_voxel));
+    uvec3 slice_val = uvec3(0);
+    for (uint i = 0u; i < 16u; i++) {
+        slice_val += uvec3(slice_arr[i]);
+    }
+
+    uint packed_data = voxel_count | (slice_val.x << 6) | (slice_val.y << 10) | (slice_val.z << 14);
+
+    baked_chunk.render_buffer[bake_region_offset] = packed_data;
+    atomicAdd(tier2_region_state, packed_data);
     barrier();
     memoryBarrier();
     baked_chunk.render_buffer[bake_tier2_region_offset] = tier2_region_state;
