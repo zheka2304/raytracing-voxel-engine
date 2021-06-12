@@ -8,15 +8,27 @@ precision highp int;
 
 //
 
-// Amount of data units per light voxel
-#define LIGHT_DATA_UNIT_COUNT 5
+// Amount of data units per light voxel, must be even
+#define LIGHT_DATA_UNIT_COUNT 8
+#define LIGHT_LEVEL_COUNT 2//((LIGHT_DATA_UNIT_COUNT - 2) / 2)
 
 // Light voxel data structure:
 // index 0 - cached technical data, like blocked neighbour count, it is calculated on initial pass
-// index 1 - initial light value, calculated from sky & point lights
-// indices [2; LIGHT_DATA_UNIT_COUNT - 1] - at each index i, stored light value, calculated by casting rays from values at index i - 1
+// index 1, 2 - initial light value, calculated from sky & point lights
+// indices [3; LIGHT_DATA_UNIT_COUNT - 2] - at each index pair i * 2 + 1, i * 2 + 2, where i is level from 1 to (LIGHT_DATA_UNIT_COUNT - 1) / 2
+// we store light value, that calculated by casting rays from values at level i - 1
+// index LIGHT_DATA_UNIT_COUNT - 1 - final value of the color
 
-//
+// Light value structure:
+// Consist of 2 integers with packed values RG and BA, all of the components are 16 bit size.a
+// We store non-normalized color structure, that takes 2 integers per value, but can be blended using atomicAdd,
+// so it can be done by casting rays from every source directly, not worrying about multiple threads blending one voxel color
+
+// technical data structure:
+// bits [0; 4] - blocked neighbour count (values are 0 - 27)
+// bits [5; 16] - for light level i (0 for initial light level), bit i + 5 is 1, when this light voxel
+//                is in range of any light source of level i and must be processed on level i + 1, and 0 otherwise
+
 
 layout(binding = 3) readonly buffer RenderBuffer {
     uint data[];
@@ -334,6 +346,8 @@ RayResult raytrace_direct(Ray ray_data, float ray_offset_dis) {
     raytrace_data.start = ray_data.start;
     raytrace_data.voxel_distance = 0;
 
+    ray_data.ray += (1.0 - abs(sign(ray_data.ray))) * 0.001;
+
     vec3 r2 = ray_data.ray * ray_data.ray;
     raytrace_data.rayS = vec3(
         sqrt(1.0 + r2.y / r2.x + r2.z / r2.x),
@@ -367,9 +381,79 @@ uint color_to_uint(vec4 color) {
     return (c.r << 24) | (c.g << 16) | (c.b << 8) | c.a;
 }
 
+vec4 uint_to_color(uint i) {
+    // rgba
+    return vec4(uvec4(i >> 24u, (i >> 16u) & 0xFFu, (i >> 8u) & 0xFFu, i & 0xFFu)) / 255.0;
+}
+
+vec4 normalize_packed_light_value(uvec2 packed_color) {
+    vec4 color = vec4(uvec4(packed_color.x & 0xFFFFu, packed_color.x >> 16u, packed_color.y & 0xFFFFu, packed_color.y >> 16u)) / 255.0;
+    color /= max(max(1.0, color.r), max(color.g, color.b));
+    return color;
+}
+
+#define LOOP_OVER_SPHERE(X, Y, Z, R, CODE) \
+    { \
+        int _rad_sqr = R * R; \
+        for (int X = -R; X <= R; X++) { \
+            for (int Y = -R; Y <= R; Y++) { \
+                for (int Z = -R; Z <= R; Z++) { \
+                    int _local_dis_sqr = X * X + Y * Y + Z * Z; \
+                    if (_local_dis_sqr > 0 && _local_dis_sqr <= _rad_sqr) CODE \
+                } \
+            } \
+        } \
+    }
+
+// loop over sphere, excluding center, but for radius values 0 - 5
+// pass constant values to macro instead of variable, and let the compiler optimize constant range for loop
+#define LOOP_OVER_SPHERE_PRECOMPILE_OPT(X, Y, Z, R, CODE) \
+    if (R > 0) { \
+        if (R > 5) LOOP_OVER_SPHERE(X, Y, Z, R, CODE) \
+        else if (R == 1) LOOP_OVER_SPHERE(X, Y, Z, 1, CODE) \
+        else if (R == 2) LOOP_OVER_SPHERE(X, Y, Z, 2, CODE) \
+        else if (R == 3) LOOP_OVER_SPHERE(X, Y, Z, 3, CODE) \
+        else if (R == 4) LOOP_OVER_SPHERE(X, Y, Z, 4, CODE) \
+        else if (R == 5) LOOP_OVER_SPHERE(X, Y, Z, 5, CODE) \
+    }
+
+
+//
 
 #define VOLUME_THRESHOLD_REFLECT 0
 #define VOLUME_THRESHOLD_BLOCK 0
+
+int get_light_buffer_index(ivec3 ipos) {
+    ivec3 chunk_pos = ipos >> 5;
+    ivec3 voxel_pos = ipos & 31;
+    ivec3 chunk_pos_off = chunk_pos - light_pass_offsets.region_offset;
+    ivec3 chunk_region_size = light_pass_offsets.region_size;
+    if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < chunk_region_size.x && chunk_pos_off.y < chunk_region_size.y && chunk_pos_off.z < chunk_region_size.z) {
+        int buffer_offset = light_pass_offsets.offsets[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * chunk_region_size.z) * chunk_region_size.x];
+        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 32) * 32)) * LIGHT_DATA_UNIT_COUNT;
+        return light_offset;
+    }
+    return 0;
+}
+
+uvec2 clear_light_value(int buffer_index, int level) {
+    int index = buffer_index + level * 2 + 1;
+    uvec2 value = uvec2(light_pass_buffer.data[index], light_pass_buffer.data[index + 1]);
+    light_pass_buffer.data[index] = 0u;
+    light_pass_buffer.data[index + 1] = 0u;
+    return value;
+}
+
+void add_packed_light_value(int buffer_index, int level, uvec2 packed_value) {
+    int index = buffer_index + level * 2 + 1;
+    atomicAdd(light_pass_buffer.data[index], packed_value.x);
+    atomicAdd(light_pass_buffer.data[index + 1], packed_value.y);
+}
+
+void add_light_value(int buffer_index, int level, vec4 light_value) {
+    uvec4 light_value_i = uvec4(clamp(vec4(light_value.rgb * light_value.a, light_value.a), 0.0, 1.0) * 255.0);
+    add_packed_light_value(buffer_index, level, uvec2(light_value_i.r | (light_value_i.g << 16u), light_value_i.b | (light_value_i.a << 16u)));
+}
 
 int voxel_count_at(ivec3 pos) {
     ivec3 chunk_pos = pos >> 5;
@@ -397,10 +481,21 @@ int get_blocked_neighbours_count(ivec3 p) {
     return count;
 }
 
+
+struct LightPropagateAgent {
+    vec3 position;
+    vec3 step;
+};
+
+void light_propagate(vec3 source, float offset_distance, vec4 light_value) {
+
+}
+
 void main() {
     // get current light job and voxel position
     LightJob job = light_pass_jobs.jobs[gl_GlobalInvocationID.y];
     int voxel_index = int(gl_GlobalInvocationID.x);
+    int light_buffer_offset = (job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT;
     ivec3 voxel_pos = ivec3(voxel_index & 31, voxel_index >> 10, (voxel_index >> 5) & 31) + (job.chunk_position << 5);
 
     // make random adjustment for center position, so raytracing region step over will not end up in error state
@@ -408,28 +503,95 @@ void main() {
 
     // for level 0 do initial light pass, calculating direct light from sky and light sources
     if (job.level == 0) {
+        // TODO: this must be done as separate pass, and not as the beginning of the initial light pass
+        // on the initial pass finish light calculation:
+        {
+            // consume and normalize light value from last level, that contains all previous levels
+            vec4 last_light_value = normalize_packed_light_value(clear_light_value(light_buffer_offset, LIGHT_LEVEL_COUNT - 1));
+            light_pass_buffer.data[light_buffer_offset + LIGHT_DATA_UNIT_COUNT - 1] = color_to_uint(last_light_value);
+        }
+
         // on the first pass store blocked neighbour count for future passes
         int blocked_neighbour_count = get_blocked_neighbours_count(voxel_pos);
-        light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT] = uint(blocked_neighbour_count);
+        light_pass_buffer.data[light_buffer_offset] = uint(blocked_neighbour_count);
 
         // if voxel is non-empty or does not have neighbours (compute only for surfaces)
         if (voxel_count_at(voxel_pos) != 0 || blocked_neighbour_count == 0) {
-            light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT + 1] = 0u;
             return;
         }
 
         // cast shadow ray
         RayResult shadow_ray_result = raytrace_direct(Ray(voxel_center, -ambient_data.direct_light_ray, 150.0, 100), 0.0);
 
+        // calculate light value from skylight
         float dis_sum = 0.0;
         for (int i = 0; i < shadow_ray_result.intersection_count; i++) {
             dis_sum += shadow_ray_result.intersections[i].distance;
         }
+        vec4 light_value = vec4(1.0, 0.0, 0.0, clamp(0.5 - dis_sum / 8.0, 0.0, 1.0));
 
-        light_pass_buffer.data[(job.buffer_offset + voxel_index) * LIGHT_DATA_UNIT_COUNT + 1] = color_to_uint(vec4(1.0, 0.0, 0.0, clamp(0.5 - dis_sum / 16.0, 0.0, 1.0))); // color_to_uint(vec4(vec3(job.chunk_position & 3) / 4.0, 1.0));// voxel_index % 3 == 0 ? 0xFF00FFAAu : 0x00FF00AAu;
-    } 
+        // add skylight to current voxel
+        add_light_value(light_buffer_offset, 0, light_value);
+    }
     // for levels [1; LIGHT_DATA_UNIT_COUNT - 1] emit light rays from previous level
     else {
-        //
+        // consume previous level light value and add it to the current level
+        uvec2 packed_light_value = clear_light_value(light_buffer_offset, (job.level + (LIGHT_LEVEL_COUNT - 1)) % LIGHT_LEVEL_COUNT);
+        add_packed_light_value(light_buffer_offset, job.level, packed_light_value);
+
+        // get normalized light value to emit
+        /* vec4 light_value = normalize_packed_light_value(packed_light_value);
+        if (light_value.a > 0.25) {
+            LOOP_OVER_SPHERE(x, y, z, 3, {
+                ivec3 target_pos = voxel_pos + ivec3(x, y, z);
+                vec3 target_center = vec3(target_pos * 4) + vec3(2.01, 1.99, 2.00);
+
+                vec3 ray = target_center - voxel_center;
+                RayResult ray_result = raytrace_direct(Ray(voxel_center, ray, 25.0, 20), 0.0);
+                float dis_sum = 0.0;
+                for (int i = 0; i < ray_result.intersection_count; i++) {
+                    dis_sum += ray_result.intersections[i].distance;
+                }
+                if (dis_sum < 2.0)
+                add_light_value(get_light_buffer_index(target_pos), job.level, vec4(0.0, 0.0, 1.0, 0.1));
+            });
+        } */
+
+
+        /*
+        // consume light cache bit for this voxel and clear it
+        uint light_cache_value = light_pass_buffer.data[light_buffer_offset];
+        uint light_cache_bit_mask = (1u << uint(job.level - 1 + 5));
+        uint light_cache_bit = light_cache_value & light_cache_bit_mask;
+        light_pass_buffer.data[light_buffer_offset] = light_cache_value & (~light_cache_bit_mask);
+
+        // all light cache bits must be consumed before going further, so no race conditions will occur
+        barrier();
+
+        vec4 reflected_light = vec4(0.0);
+
+        light_pass_buffer.data[light_buffer_offset + job.level + 1] = light_cache_bit == 0u ? color_to_uint(vec4(0.0, 0.0, 1.0, 0.5)) : color_to_uint(vec4(1.0, 0.0, 1.0, 0.5));
+
+
+        // reset buffer value
+        light_pass_buffer.data[light_buffer_offset + job.level + 1] = 0u;
+        barrier();
+
+        // get light for job.level - 1
+        vec4 light_value = uint_to_color(light_pass_buffer.data[light_buffer_offset + job.level]);
+
+        // if it is bright enough to emit light
+        // set nearby voxel value to 1
+        if (light_value.a > 0.25) {
+            for (int x = -3; x <= 3; x++) {
+                for (int y = -3; x <= 3; x++) {
+                    for (int z = -3; z <= 3; z++) {
+                        if (x == 0 && y == 0 && z == 0) continue;
+                        // no race condition will occur, as similar value is always set
+                        light_pass_buffer.data[get_light_buffer_index(voxel_pos + ivec3(x, y, z)) + job.level + 1] = 1u;
+                    }
+                }
+            }
+        } */
     }
 }

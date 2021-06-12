@@ -77,7 +77,7 @@ layout(rgba32f, binding = 2) writeonly uniform highp image2D DEPTH_OUTPUT;
 
 //
 
-#define LIGHT_DATA_UNIT_COUNT 5
+#define LIGHT_DATA_UNIT_COUNT 8
 
 // --- raytracing logic ---
 
@@ -456,6 +456,10 @@ vec4 uint_to_color(uint i) {
     return vec4(uvec4(i >> 24u, (i >> 16u) & 0xFFu, (i >> 8u) & 0xFFu, i & 0xFFu)) / 255.0;
 }
 
+vec4 uint_pair_to_color(uint rg, uint ba) {
+    return vec4(uvec4(rg & 0xFFFFu, rg >> 16u, ba & 0xFFFFu, ba >> 16u)) / 255.0;
+}
+
 vec4 get_light_at_position_i(ivec3 ipos) {
     ivec3 chunk_pos = ipos >> 5;
     ivec3 voxel_pos = ipos & 31;
@@ -464,8 +468,8 @@ vec4 get_light_at_position_i(ivec3 ipos) {
 
     if (chunk_pos_off.x >= 0 && chunk_pos_off.y >= 0 && chunk_pos_off.z >= 0 && chunk_pos_off.x < chunk_region_size.x && chunk_pos_off.y < chunk_region_size.y && chunk_pos_off.z < chunk_region_size.z) {
         int buffer_offset = light_pass_offsets.offsets[chunk_pos_off.x + (chunk_pos_off.z + chunk_pos_off.y * chunk_region_size.z) * chunk_region_size.x];
-        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 32) * 32)) * LIGHT_DATA_UNIT_COUNT + 1;
-        return uint_to_color(light_pass_buffer.data[light_offset]);
+        int light_offset = (buffer_offset + (voxel_pos.x + (voxel_pos.z + voxel_pos.y * 32) * 32)) * LIGHT_DATA_UNIT_COUNT;
+        return uint_to_color(light_pass_buffer.data[light_offset + LIGHT_DATA_UNIT_COUNT - 1]);
     }
 
     return vec4(0.0, 1.0, 0.0, 1.0);
@@ -571,7 +575,6 @@ RaytraceResult raytrace_main_pass(
 
         // run raytracing for shadows with precalculated parameters
         RayResult shadow_ray_result = raytrace_direct(shadow_ray, 0.0);
-        shadow_ray_result.voxel = 0u;
 
         vec3 normal = initial_ray_result.voxel_normal;
         float direct_light_intensity = shadow_ray_result.voxel == 0u ? 1.0 : ambient_data.ambient_light_color.a;
@@ -582,8 +585,8 @@ RaytraceResult raytrace_main_pass(
         result.light = ambient_data.ambient_light_color.rgb;
     }
 
-    vec4 gi_light = get_light_at_position(initial_ray_result.end + initial_ray_result.voxel_normal * 0.1, initial_ray_result.voxel_normal);
-    result.light = result.light * 0.5 + gi_light.rgb * gi_light.a * 1.0;
+    // vec4 gi_light = get_light_at_position(initial_ray_result.end + initial_ray_result.voxel_normal * 0.1, initial_ray_result.voxel_normal);
+    // result.light = result.light * 0.5 + gi_light.rgb * gi_light.a * 1.0;
 
     return result;
 }

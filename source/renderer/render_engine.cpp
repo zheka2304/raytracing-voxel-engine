@@ -347,6 +347,9 @@ VoxelLightingEngine::~VoxelLightingEngine() noexcept {
 
 
 Vec3i VoxelLightingEngine::prepareLightPass(VoxelRenderEngine& engine, Vec3i renderRegionOffset, Vec3i renderRegionSize) {
+    static int frame = 0;
+    int level = frame++ % 2;
+
     u_LightBufferOffsets.data.chunkBufferRegionOffset = renderRegionOffset;
     u_LightBufferOffsets.data.chunkBufferRegionSize = renderRegionSize;
 
@@ -360,7 +363,7 @@ Vec3i VoxelLightingEngine::prepareLightPass(VoxelRenderEngine& engine, Vec3i ren
                 int size = 32 * 32 * 32;
 
                 u_ProcessLightJobList.data.jobs[jobCount] = {
-                    0,
+                    level,
                     Vec3i(x, y, z) + renderRegionOffset,
                     offset,
                     (32 * 32 * 32),
