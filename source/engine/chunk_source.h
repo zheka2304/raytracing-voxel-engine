@@ -64,6 +64,8 @@ public:
         std::list<ChunkPos> regionLock;
         // if lock failed, should task be discarded of re-added at the end of task queue
         bool discardIfLockFailed = false;
+        // timeout to lock required region
+        int lockTimeout = 100;
 
         Task();
         Task(std::function<void()> task, std::list<ChunkPos>&& regionLock, bool discardIfLockFailed);
@@ -82,14 +84,14 @@ private:
 
     struct ChunkLock {
     private:
-        std::mutex* lock = new std::mutex;
+        std::timed_mutex* lock = new std::timed_mutex;
 
     public:
-        inline bool try_lock() { return lock->try_lock(); }
+        inline bool try_lock(int timeout) { return lock->try_lock_for(std::chrono::milliseconds(timeout)); }
         inline void unlock() { lock->unlock(); }
-        inline bool try_release() {
-            if (lock->try_lock()) {
-                std::mutex* _lock = lock;
+        inline bool try_release(int timeout) {
+            if (try_lock(timeout)) {
+                std::timed_mutex* _lock = lock;
                 lock = nullptr;
                 _lock->unlock();
                 delete(_lock);
@@ -150,7 +152,7 @@ public:
     void startUnload() override;
 
 private:
-    RegionLock tryLockRegion(std::list<ChunkPos> const& regionLock);
+    RegionLock tryLockRegion(std::list<ChunkPos> const& regionLock, int timeout);
     void unlockRegion(RegionLock& lock);
     void threadLoop(int);
     void _runTask(Task t);

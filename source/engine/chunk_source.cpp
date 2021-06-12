@@ -81,7 +81,7 @@ void ThreadedChunkSource::RegionLock::unlock() {
 ThreadedChunkSource::ChunkLock::~ChunkLock() {
     if (lock != nullptr) {
         lock->lock();
-        std::mutex* _lock = lock;
+        std::timed_mutex* _lock = lock;
         lock = nullptr;
         _lock->unlock();
         delete(_lock);
@@ -101,7 +101,7 @@ void ThreadedChunkSource::_runTask(Task task) {
     if (!task.preCheck()) {
         return;
     }
-    RegionLock lock = tryLockRegion(task.regionLock);
+    RegionLock lock = tryLockRegion(task.regionLock, task.lockTimeout);
     if (lock.owns()) {
         task.run();
         unlockRegion(lock);
@@ -137,7 +137,7 @@ void ThreadedChunkSource::addTask(Task const& task) {
     }
 }
 
-ThreadedChunkSource::RegionLock ThreadedChunkSource::tryLockRegion(std::list<ChunkPos> const& regionLock) {
+ThreadedChunkSource::RegionLock ThreadedChunkSource::tryLockRegion(std::list<ChunkPos> const& regionLock, int timeout) {
     if (regionLock.empty()) {
         return RegionLock(true);
     }
@@ -145,7 +145,7 @@ ThreadedChunkSource::RegionLock ThreadedChunkSource::tryLockRegion(std::list<Chu
     std::unordered_map<ChunkPos, ChunkLock*> ownedChunks;
     for (ChunkPos const& pos : regionLock) {
         ChunkLock& chunkLock = lockedChunks[pos];
-        if (chunkLock.try_lock()) {
+        if (chunkLock.try_lock(timeout)) {
             ownedChunks.emplace(pos, &chunkLock);
         } else {
             for (auto const& posAndMutex : ownedChunks) {
@@ -166,7 +166,7 @@ void ThreadedChunkSource::releaseExcessChunkLocks() {
     std::unique_lock<std::mutex> lock(lockedChunksMutex);
     if (lockedChunks.size() >= MAX_CHUNK_LOCKS) {
         for (auto it = lockedChunks.begin(); it != lockedChunks.end();) {
-            if (it->second.try_release()) {
+            if (it->second.try_release(0)) {
                 it = lockedChunks.erase(it);
             } else {
                 it++;
