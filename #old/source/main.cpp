@@ -90,7 +90,7 @@ public:
                     int dz = z - 64;
                     // int d = dx * dx + dy * dy + dz * dz;
                     // int c = (y == 0 || y == 127) + (x == 0 || x == 127) + (z == 0 || z == 127);
-                     chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h; //(dx * dx + dy * dy + dz * dz) < 32 * 32;
+                    chunk.voxelBuffer[x + (z + y * 128) * 128] = y < h; //(dx * dx + dy * dy + dz * dz) < 32 * 32;
                 }
             }
         }

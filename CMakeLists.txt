@@ -12,7 +12,7 @@ set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries")
 
 file(GLOB_RECURSE SOURCES
         "${SRC_DIR}/**.h"
-        "${SRC_DIR}/**.cpp"
+        "${SRC_DIR}/**.cc"
         )
 
 # Executable definition and properties
