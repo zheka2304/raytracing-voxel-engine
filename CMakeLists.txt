@@ -43,3 +43,9 @@ set(GLM_DIR "${LIB_DIR}/glm")
 # add_subdirectory("${GLM_DIR}")
 # target_link_libraries(${PROJECT_NAME} "glm")
 target_include_directories(${PROJECT_NAME} PRIVATE "${GLM_DIR}")
+
+# json cpp
+set(JSON_CPP_DIR "${LIB_DIR}/jsoncpp")
+add_subdirectory("${JSON_CPP_DIR}")
+target_link_libraries(${PROJECT_NAME} "jsoncpp_static")
+target_include_directories(${PROJECT_NAME} PRIVATE "${JSONCPP_INCLUDE_DIR}")
