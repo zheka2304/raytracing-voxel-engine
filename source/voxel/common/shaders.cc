@@ -15,6 +15,9 @@ Shader::Shader(const std::string& shader_name) :
     m_shader_name(shader_name) {
 }
 
+Shader::Shader(Shader&& other) : m_shader_name(std::move(other.m_shader_name)) {
+}
+
 Shader::~Shader() {
 }
 
@@ -36,6 +39,11 @@ ComputeShader::ComputeShader(ShaderManager& shader_manager, const std::string& s
 
 }
 
+ComputeShader::ComputeShader(ComputeShader&& other) : Shader(std::move(other)) {
+    m_handle = other.m_handle;
+    other.m_handle = 0;
+}
+
 ComputeShader::~ComputeShader() {
 
 }
@@ -52,6 +60,11 @@ GraphicsShader::GraphicsShader(const std::string& shader_name) : Shader(shader_n
 
 GraphicsShader::GraphicsShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& vertex_shader_source, const std::string& fragment_shader_source) : Shader(shader_name) {
 
+}
+
+GraphicsShader::GraphicsShader(GraphicsShader&& other) : Shader(std::move(other)) {
+    m_handle = other.m_handle;
+    other.m_handle = 0;
 }
 
 GraphicsShader::~GraphicsShader() {

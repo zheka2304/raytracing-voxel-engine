@@ -10,6 +10,7 @@
 #include <glad/glad.h>
 #include "voxel/common/logger.h"
 
+
 namespace voxel {
 namespace opengl {
 
@@ -21,6 +22,9 @@ private:
 
 public:
     Shader(std::string const& shader_name);
+    // shaders can be moved, but not copied, as any other opengl entity with integer handle
+    Shader(const Shader& other) = delete;
+    Shader(Shader&& other);
     virtual ~Shader();
 
     std::string getName();
@@ -34,6 +38,8 @@ private:
 public:
     ComputeShader(const std::string& shader_name);
     ComputeShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& shader_source);
+    ComputeShader(const ComputeShader& other) = delete;
+    ComputeShader(ComputeShader&& other);
     virtual ~ComputeShader();
 
     bool isValid() override;
@@ -46,6 +52,8 @@ private:
 public:
     GraphicsShader(const std::string& shader_name);
     GraphicsShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& vertex_shader_source, const std::string& fragment_shader_source);
+    GraphicsShader(const GraphicsShader& other) = delete;
+    GraphicsShader(GraphicsShader&& other);
     virtual ~GraphicsShader();
 
     bool isValid() override;
