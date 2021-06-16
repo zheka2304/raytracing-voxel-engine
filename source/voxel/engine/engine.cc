@@ -144,6 +144,12 @@ namespace voxel {
         }
     }
 
+    bool Context::initializeGlad() {
+        static std::mutex glad_init_mutex;
+        std::unique_lock<std::mutex> lock(glad_init_mutex);
+        return gladLoadGL();
+    }
+
     void Context::eventLoop() {
         // lock during checks and initialization
         std::unique_lock<std::mutex> lock(m_event_loop_mutex);
@@ -166,8 +172,7 @@ namespace voxel {
 
         // initialize GLAD
         glfwMakeContextCurrent(m_window);
-        int glad_init_result = gladLoadGL();
-        if (!glad_init_result) {
+        if (!initializeGlad()) {
             m_logger.message(Logger::flag_error | Logger::flag_critical, "Context", "failed to initialize GLAD");
             m_termination_pending = true;
             glfwDestroyWindow(m_window);
@@ -182,6 +187,9 @@ namespace voxel {
 
         // run main event loop
         while (!m_termination_pending) {
+            glClearColor(1.0, 0.0, 1.0, 1.0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
             // lock for executing each frame
             m_event_loop_mutex.lock();
 

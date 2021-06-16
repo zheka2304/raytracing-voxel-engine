@@ -113,6 +113,7 @@ public:
     void joinEventLoop();
 
 private:
+    bool initializeGlad();
     void eventLoop();
     void processEvents();
     void handleFrame();
