@@ -185,10 +185,10 @@ std::string ShaderManager::loadAndParseShaderSource(const std::string& source_na
     return source;
 }
 
-void ShaderManager::loadShaderList(const std::string& list_name) {
+void ShaderManager::loadDeclarationsJson(const std::string& list_name) {
     std::ifstream istream(m_shader_directory + list_name);
     if (!istream.is_open()) {
-        m_logger.message(Logger::flag_error, "ShaderManager", "failed to load shader list file: %s", list_name.data());
+        m_logger.message(Logger::flag_error, "ShaderManager", "failed to load declarations file: %s", list_name.data());
         return;
     }
 
@@ -196,6 +196,28 @@ void ShaderManager::loadShaderList(const std::string& list_name) {
     std::string json_errors;
     Json::Value json_root;
     if (Json::parseFromStream(Json::CharReaderBuilder(), istream, &json_root, &json_errors)) {
+        // get constants
+        Json::Value constants_json = json_root["constants"];
+        if (constants_json.isObject()) {
+            // iterate over all constants
+            for (auto it = constants_json.begin(); it != constants_json.end(); it++) {
+                std::string constant_name = it.key().asString();
+                Json::Value constant_value = *it;
+                if (constant_value.isInt()) {
+                    setConstant<int>(constant_name, constant_value.asInt());
+                } else if (constant_value.isDouble()) {
+                    setConstant<float>(constant_name, constant_value.asFloat());
+                } else if (constant_value.isString()) {
+                    setConstant<std::string>(constant_name, constant_value.asString());
+                } else {
+                    m_logger.message(Logger::flag_error, "ShaderManager",
+                                     "failed to add shader constant %s, unsupported value type",
+                                     constant_name.data());
+                }
+            }
+        }
+
+        // get shaders
         Json::Value shaders_json = json_root["shaders"];
         if (shaders_json.isObject()) {
             // iterate over all listed shaders

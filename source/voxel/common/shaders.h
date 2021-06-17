@@ -105,7 +105,7 @@ private:
 
 public:
     std::string loadAndParseShaderSource(const std::string& source_name, const std::vector<std::string>& defines);
-    void loadShaderList(const std::string& list_name);
+    void loadDeclarationsJson(const std::string& list_name);
 
     template<typename T>
     bool addShader(std::unique_ptr<Shader> shader_ptr) {
