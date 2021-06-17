@@ -76,6 +76,26 @@ bool GraphicsShader::isValid() {
 }
 
 
+ShaderManager::Constant::Constant(const std::string& name, const std::variant<int, float, std::string>& value) :
+        m_name(name), m_value(value) {
+}
+
+std::string ShaderManager::Constant::getName() {
+    return m_name;
+}
+
+std::string ShaderManager::Constant::toString() {
+    std::stringstream ss;
+    if (m_value.index() == 0) {
+        ss << std::get<int>(m_value);
+    } else if (m_value.index() == 1) {
+        ss << std::get<float>(m_value);
+    } else if (m_value.index() == 2) {
+        ss << std::get<std::string>(m_value);
+    }
+    return ss.str();
+}
+
 
 ShaderManager::ShaderManager(const std::string& shader_directory, const Logger& logger) :
     m_shader_directory(shader_directory), m_logger(logger) {
@@ -94,27 +114,42 @@ std::string ShaderManager::loadRawSource(const std::string& source_name) {
 }
 
 std::string ShaderManager::resolveIncludesInShaderSource(const std::string& source_name, const std::string& source) {
+    std::stringstream result;
     std::regex include_regex("#include\\s+[\"<]([A-Za-z0-9_\\-.]+)[\">]");
-    std::string result = source;
 
-    while (true) {
-        auto includes_begin = std::sregex_iterator(result.begin(), result.end(), include_regex);
-        auto includes_end = std::sregex_iterator();
-        if (includes_begin != includes_end) {
-            std::smatch match = *includes_begin;
-            std::string include_source_name = match[1].str();
-            std::string include_source = loadRawSource(include_source_name);
-            if (include_source.empty()) {
-                m_logger.message(Logger::flag_error, "ShaderManager", "failed to resolve shader include %s in %s", include_source_name.data(), source_name.data());
-            }
-            include_source = resolveIncludesInShaderSource(include_source_name, include_source);
-            result = result.substr(0, match.position()) + include_source + result.substr(match.position() + match.length());
-        } else {
-            break;
+    int last_pos = 0;
+    auto includes_begin = std::sregex_iterator(source.begin(), source.end(), include_regex);
+    auto includes_end = std::sregex_iterator();
+    for (auto it = includes_begin; it != includes_end; it++) {
+        std::match_results match = *it;
+        std::string include_source_name = match[1].str();
+        std::string include_source = loadRawSource(include_source_name);
+        if (include_source.empty()) {
+            m_logger.message(Logger::flag_error, "ShaderManager", "failed to resolve shader include %s in %s", include_source_name.data(), source_name.data());
         }
+        include_source = resolveIncludesInShaderSource(include_source_name, include_source);
+        result << source.substr(last_pos, match.position() - last_pos) << include_source << "\n";
+        last_pos = match.position() + match.length();
     }
+    result << source.substr(last_pos);
+    return result.str();
+}
 
-    return result;
+std::string ShaderManager::resolveUniqueConstantsInShaderSource(const std::string& source_name,
+                                                             const std::string& source) {
+    std::stringstream result;
+    std::regex constant_regex("\\$\\{\\s*([A-Za-z0-9_.\\-]+)\\s*\\}");
+
+    int last_pos = 0;
+    auto constants_begin = std::sregex_iterator(source.begin(), source.end(), constant_regex);
+    auto constants_end = std::sregex_iterator();
+    for (auto it = constants_begin; it != constants_end; it++) {
+        std::match_results match = *it;
+        result << source.substr(last_pos, match.position() - last_pos) << getOrCreateConstant(match[1].str()).toString();
+        last_pos = match.position() + match.length();
+    }
+    result << source.substr(last_pos);
+    return result.str();
 }
 
 std::string ShaderManager::addDefinesToShaderSource(const std::string& source, const std::vector<std::string>& defines) {
@@ -146,6 +181,7 @@ std::string ShaderManager::loadAndParseShaderSource(const std::string& source_na
     }
     source = resolveIncludesInShaderSource(source_name, source);
     source = addDefinesToShaderSource(source, defines);
+    source = resolveUniqueConstantsInShaderSource(source_name, source);
     return source;
 }
 
@@ -207,6 +243,23 @@ void ShaderManager::loadShaderList(const std::string& list_name) {
                          "failed to load shader list: %s, failed to parse json: \n%s", list_name.data(),
                          json_errors.data());
     }
+}
+
+ShaderManager::Constant& ShaderManager::getConstant(const std::string& name) {
+    auto found = m_constants_map.find(name);
+    if (found == m_constants_map.end()) {
+        static ShaderManager::Constant fallback_constant("fallback_constant", 0);
+        return fallback_constant;
+    }
+    return found->second;
+}
+
+ShaderManager::Constant& ShaderManager::getOrCreateConstant(const std::string& name) {
+    auto found = m_constants_map.find(name);
+    if (found != m_constants_map.end()) {
+        return found->second;
+    }
+    return m_constants_map.emplace(name, ShaderManager::Constant(name, int(m_constants_map.size() + 1))).first->second;
 }
 
 } // opengl

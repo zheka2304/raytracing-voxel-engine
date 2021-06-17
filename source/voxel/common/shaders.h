@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 #include <typeindex>
+#include <variant>
 
 #include <glad/glad.h>
 #include "voxel/common/logger.h"
@@ -61,12 +62,34 @@ public:
 
 
 class ShaderManager {
+public:
+    // represents constant, that is inserted in shader code
+    class Constant {
+        std::string m_name;
+        std::variant<int, float, std::string> m_value;
+
+    public:
+        explicit Constant(const std::string& name, const std::variant<int, float, std::string>& value);
+        Constant(const Constant& other) = default;
+        Constant(Constant&& other) = default;
+
+        std::string getName();
+        std::string toString();
+
+        template<typename T>
+        inline T getValue() {
+            return std::get<T>(m_value);
+        }
+    };
+
 private:
     std::string m_shader_directory;
     Logger m_logger;
 
     std::unordered_map<std::string, std::pair<std::type_index, std::unique_ptr<Shader>>> m_shader_map;
     std::unordered_map<std::type_index, std::unique_ptr<Shader>> m_shader_fallback_map;
+
+    std::unordered_map<std::string, Constant> m_constants_map;
 
 public:
     ShaderManager(const std::string& shader_directory, const Logger& logger);
@@ -77,6 +100,7 @@ public:
 private:
     std::string loadRawSource(const std::string& source_name);
     std::string resolveIncludesInShaderSource(const std::string& source_name, const std::string& source);
+    std::string resolveUniqueConstantsInShaderSource(const std::string& source_name, const std::string& source);
     std::string addDefinesToShaderSource(const std::string& source, const std::vector<std::string>& defines);
 
 public:
@@ -134,6 +158,20 @@ public:
         }
     }
 
+    Constant& getConstant(const std::string& name);
+    Constant& getOrCreateConstant(const std::string& name);
+
+    template<typename T>
+    Constant& setConstant(const std::string& name, T value) {
+        auto found = m_constants_map.find(name);
+        if (found != m_constants_map.end()) {
+            m_logger.message(Logger::flag_error, "ShaderManager", "constant %s is already defined and cannot be changed", name.data());
+            return found->second;
+        }
+
+        // emplace new constant and return reference to it
+        return m_constants_map.emplace(name, Constant(name, value)).first->second;
+    }
 };
 
 } // opengl
