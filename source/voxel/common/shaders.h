@@ -174,7 +174,39 @@ public:
     }
 };
 
+template<typename T>
+class ShaderConstantRef {
+    bool m_initialized = false;
+    T m_value;
+
+public:
+    inline bool isInitialized() {
+        return m_initialized;
+    }
+
+    inline void initialize(ShaderManager& shader_manager, std::string const& shader_constant_name) {
+        m_value = shader_manager.getConstant(shader_constant_name).getValue<T>();
+        m_initialized = true;
+    }
+
+    inline T get() {
+        return m_value;
+    }
+};
+
 } // opengl
 } // voxel
+
+
+// this macro is used for fast access to shader constants,
+// it is caching values for each thread separately, because there is normally one shader manager per context, for
+// more complex scenario avoid using it
+// note: for cleaner code, do not use it for strings, because this will make it not trivially destructible
+
+#define VOXEL_ENGINE_SHADER_CONSTANT(T, variable_name, shader_manager, shader_constant_name) \
+    static thread_local voxel::opengl::ShaderConstantRef<T> variable_name;                   \
+    if (!variable_name.isInitialized()) {                                                    \
+        variable_name.initialize(shader_manager, shader_constant_name);                      \
+    }
 
 #endif //VOXEL_ENGINE_SHADERS_H
