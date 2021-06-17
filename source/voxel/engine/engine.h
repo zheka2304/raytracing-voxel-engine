@@ -96,9 +96,13 @@ private:
     std::atomic_bool m_event_loop_running = false;
     std::condition_variable m_event_loop_start_notifier;
 
-    // callbacks
+    // window callbacks
+    std::function<void(Context&, render::RenderContext&)> m_init_callback;
+    std::function<void(Context&, render::RenderContext&)> m_frame_handle_callback;
     std::function<void(Context&)> m_event_process_callback;
-    std::function<void(Context&)> m_frame_handle_callback;
+    std::function<void(Context&, int, int)> m_window_resize_callback;
+    std::function<void(Context&, int)> m_window_focus_callback;
+    std::function<void(Context&)> m_destroy_callback;
 
 public:
     Context(std::weak_ptr<Engine> engine, const std::string& context_name);
@@ -113,8 +117,12 @@ public:
     GLFWwindow* getGlfwWindow();
     GLFWwindow* awaitGlfwWindow();
 
+    void setInitCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
+    void setFrameHandleCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
     void setEventProcessingCallback(const std::function<void(Context&)>& callback);
-    void setFrameHandleCallback(const std::function<void(Context&)>& callback);
+    void setWindowResizeCallback(const std::function<void(Context&, int, int)>& callback);
+    void setWindowFocusCallback(const std::function<void(Context&, int)>& callback);
+    void setDestroyCallback(const std::function<void(Context&)>& callback);
 
     // creates and initializes window with given parameters
     void initWindow(WindowParameters parameters, std::shared_ptr<Context> shared_context = nullptr);
@@ -139,6 +147,9 @@ private:
     void eventLoop();
     void processEvents();
     void handleFrame();
+
+    static void glfwWindowSizeCallback(GLFWwindow* window, int width, int height);
+    static void glfwWindowFocusCallback(GLFWwindow* window, int focus);
 };
 
 } // voxel

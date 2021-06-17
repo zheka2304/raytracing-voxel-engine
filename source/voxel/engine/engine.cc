@@ -95,14 +95,28 @@ namespace voxel {
         return m_window;
     }
 
+    void Context::setInitCallback(const std::function<void(Context&, render::RenderContext&)>& callback) {
+        m_init_callback = callback;
+    }
 
-
-    void Context::setFrameHandleCallback(const std::function<void(Context&)>& callback) {
+    void Context::setFrameHandleCallback(const std::function<void(Context&, render::RenderContext&)>& callback) {
         m_frame_handle_callback = callback;
     }
 
     void Context::setEventProcessingCallback(const std::function<void(Context&)>& callback) {
         m_event_process_callback = callback;
+    }
+
+    void Context::setWindowResizeCallback(const std::function<void(Context&, int, int)>& callback) {
+        m_window_resize_callback = callback;
+    }
+
+    void Context::setWindowFocusCallback(const std::function<void(Context&, int)>& callback) {
+        m_window_focus_callback = callback;
+    }
+
+    void Context::setDestroyCallback(const std::function<void(Context&)>& callback) {
+        m_destroy_callback = callback;
     }
 
     void Context::initWindow(WindowParameters parameters, std::shared_ptr<Context> shared_context) {
@@ -227,11 +241,7 @@ namespace voxel {
         }
 
         // run window initializer, if it was empty, initialization method was not called
-        m_logger.message(0, m_context_name, "init start");
         m_window_initializer();
-        const char* err;
-        glfwGetError(&err);
-        m_logger.message(0, m_context_name, "init end %p %s", m_window, err);
         if (m_window == nullptr) {
             m_logger.message(Logger::flag_error | Logger::flag_critical, "Context-" + m_context_name, "context started event loop without calling initWindow or initNoWindow, it will be terminated");
             m_termination_pending = true;
@@ -252,15 +262,38 @@ namespace voxel {
         // set window parameters and unlock
         glfwSwapInterval(1);
         glfwShowWindow(m_window);
+
+        // set window callbacks
+        glfwSetWindowUserPointer(m_window, this);
+        if (m_has_window) {
+            glfwSetWindowSizeCallback(m_window, glfwWindowSizeCallback);
+            glfwSetWindowFocusCallback(m_window, glfwWindowFocusCallback);
+        }
+
+        // invoke initialization callback first
+        if (m_init_callback) {
+            m_init_callback(*this, *m_render_context);
+        }
+
+        // then invoke size callback with initial size
+        if (m_window_resize_callback) {
+            int width, height;
+            glfwGetWindowSize(m_window, &width, &height);
+            m_window_resize_callback(*this, width, height);
+        }
+
+        // then invoke focus callback with focused state (window will always start focused)
+        if (m_window_focus_callback) {
+            m_window_focus_callback(*this, 1);
+        }
+
+        // unlock event loop mutex
         lock.unlock();
 
         m_event_loop_start_notifier.notify_all();
 
         // run main event loop
         while (!m_termination_pending) {
-            glClearColor(1.0, 0.0, 1.0, 1.0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
             // lock for executing each frame
             m_event_loop_mutex.lock();
 
@@ -283,17 +316,43 @@ namespace voxel {
             m_event_loop_mutex.unlock();
         }
 
+        // call destroy callback
+        if (m_destroy_callback) {
+            m_destroy_callback(*this);
+        }
+
         // destroy window at the end of the loop
         glfwDestroyWindow(m_window);
         m_window = nullptr;
     }
 
     void Context::processEvents() {
-
+        if (m_event_process_callback) {
+            m_event_process_callback(*this);
+        }
     }
 
     void Context::handleFrame() {
-        // m_logger.message(Logger::flag_debug, "Context-" + m_context_name, "+");
+        glClearColor(1.0, 0.0, 1.0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (m_frame_handle_callback) {
+            m_frame_handle_callback(*this, *m_render_context);
+        }
+    }
+
+    void Context::glfwWindowSizeCallback(GLFWwindow* window, int width, int height) {
+        Context* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
+        if (context->m_window_resize_callback) {
+            context->m_window_resize_callback(*context, width, height);
+        }
+    }
+
+    void Context::glfwWindowFocusCallback(GLFWwindow* window, int focus) {
+        Context* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
+        if (context->m_window_focus_callback) {
+            context->m_window_focus_callback(*context, focus);
+        }
     }
 
 } // voxel
