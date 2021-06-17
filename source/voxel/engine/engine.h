@@ -13,7 +13,7 @@
 
 #include "voxel/common/utils/worker_thread.h"
 #include "voxel/common/logger.h"
-#include "voxel/engine/render.h"
+#include "voxel/engine/render/render_context.h"
 
 
 namespace voxel {

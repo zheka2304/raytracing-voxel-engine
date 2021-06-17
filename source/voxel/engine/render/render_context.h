@@ -1,5 +1,5 @@
-#ifndef VOXEL_ENGINE_RENDER_H
-#define VOXEL_ENGINE_RENDER_H
+#ifndef VOXEL_ENGINE_RENDER_CONTEXT_H
+#define VOXEL_ENGINE_RENDER_CONTEXT_H
 
 #include <glad/glad.h>
 #include "voxel/common/logger.h"
@@ -28,4 +28,4 @@ public:
 } // render
 } // voxel
 
-#endif //VOXEL_ENGINE_RENDER_H
+#endif //VOXEL_ENGINE_RENDER_CONTEXT_H
