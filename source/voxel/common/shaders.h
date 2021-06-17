@@ -70,6 +70,8 @@ private:
 
 public:
     ShaderManager(const std::string& shader_directory, const Logger& logger);
+    ShaderManager(const ShaderManager& other) = delete;
+    ShaderManager(ShaderManager&& other) = delete;
     ~ShaderManager();
 
 private:

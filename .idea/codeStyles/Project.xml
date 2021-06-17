@@ -6,10 +6,8 @@
       <option name="SPACE_AFTER_POINTER_IN_DECLARATION" value="true" />
       <option name="SPACE_BEFORE_REFERENCE_IN_DECLARATION" value="false" />
       <option name="SPACE_AFTER_REFERENCE_IN_DECLARATION" value="true" />
-      <option name="TYPE_QUALIFIERS_PLACEMENT" value="AFTER" />
     </Objective-C>
     <Objective-C-extensions>
-      <option name="TYPE_QUALIFIERS_PLACEMENT" value="AFTER" />
       <extensions>
         <pair source="cc" header="h" fileNamingConvention="NONE" />
         <pair source="c" header="h" fileNamingConvention="NONE" />

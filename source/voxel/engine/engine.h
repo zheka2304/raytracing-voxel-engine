@@ -11,7 +11,9 @@
 
 #include <GLFW/glfw3.h>
 
+#include "voxel/common/utils/worker_thread.h"
 #include "voxel/common/logger.h"
+#include "voxel/engine/render.h"
 
 
 namespace voxel {
@@ -34,6 +36,9 @@ class Engine : public std::enable_shared_from_this<Engine> {
     // list of all spawned contexts
     std::vector<std::shared_ptr<Context>> m_contexts;
 
+    // thread for initializing glfw contexts and other glfw-related work
+    utils::WorkerThread m_glfw_thread;
+
 public:
     Engine();
     Engine(const Engine& other) = delete;
@@ -44,11 +49,14 @@ public:
     int initialize();
     int getInitializationResult();
 
+    // get thread to execute all glfw initialization
+    utils::WorkerThread& getGlfwThread();
+
     // getters
     Logger& getLogger();
 
     // creates and initializes new context from this engine
-    std::shared_ptr<Context> newContext();
+    std::shared_ptr<Context> newContext(const std::string& context_name);
 
     // joins all active contexts event loops, consider using this in main after doing all initialization and starting all event loops
     void joinAllEventLoops();
@@ -65,8 +73,10 @@ public:
     };
 
 private:
+    std::string m_context_name;
     std::weak_ptr<Engine> m_engine;
     std::shared_ptr<World> m_world;
+    std::shared_ptr<render::RenderContext> m_render_context;
 
     Logger m_logger;
 
@@ -86,15 +96,25 @@ private:
     std::atomic_bool m_event_loop_running = false;
     std::condition_variable m_event_loop_start_notifier;
 
+    // callbacks
+    std::function<void(Context&)> m_event_process_callback;
+    std::function<void(Context&)> m_frame_handle_callback;
+
 public:
-    Context(std::weak_ptr<Engine> engine);
+    Context(std::weak_ptr<Engine> engine, const std::string& context_name);
     Context(const Context& other) = delete;
     Context(Context&& other) = delete;
     ~Context();
 
     // getters
+    std::string getContextName();
+    Engine& getEngine();
+    Logger& getLogger();
     GLFWwindow* getGlfwWindow();
+    GLFWwindow* awaitGlfwWindow();
 
+    void setEventProcessingCallback(const std::function<void(Context&)>& callback);
+    void setFrameHandleCallback(const std::function<void(Context&)>& callback);
 
     // creates and initializes window with given parameters
     void initWindow(WindowParameters parameters, std::shared_ptr<Context> shared_context = nullptr);
@@ -114,14 +134,11 @@ public:
 
 private:
     bool initializeGlad();
+    void initializeRenderContext(std::shared_ptr<Context> shared_context);
+
     void eventLoop();
     void processEvents();
     void handleFrame();
-};
-
-// represents single voxel world data and must be attached to context to run rendering
-class World {
-
 };
 
 } // voxel
