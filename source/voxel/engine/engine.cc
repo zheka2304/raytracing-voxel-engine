@@ -170,7 +170,7 @@ namespace voxel {
         m_window_initializer = [=] () -> void {
             // create invisible window
             glfwDefaultWindowHints();
-            // glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
             m_window = glfwCreateWindow(640, 480, "hidden", nullptr,
                                         shared_context.get() != nullptr ? shared_context->awaitGlfwWindow() : nullptr);
