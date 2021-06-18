@@ -2,7 +2,7 @@
 
 
 namespace voxel {
-namespace vec_math {
+namespace math {
 
 Vec2::Vec2() : x(0), y(0) {
 
@@ -36,5 +36,5 @@ Vec3i::Vec3i(integer_t x, integer_t y, integer_t z) : x(x), y(y), z(z) {
 
 }
 
-} // vec_math
+} // math
 } // voxel
