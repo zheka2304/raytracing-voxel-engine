@@ -1,7 +1,5 @@
 #include "render_target.h"
 
-#include "voxel/common/shaders.h"
-
 
 namespace voxel {
 namespace render {

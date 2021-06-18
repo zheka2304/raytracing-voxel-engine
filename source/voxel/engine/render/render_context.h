@@ -3,7 +3,7 @@
 
 #include <glad/glad.h>
 #include "voxel/common/logger.h"
-#include "voxel/common/shaders.h"
+#include "voxel/common/opengl.h"
 
 
 namespace voxel {
