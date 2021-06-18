@@ -4,13 +4,18 @@ namespace voxel {
 namespace render {
 
 Camera::Camera() :
-    m_uniform_projection([=] () {
-        return new opengl::ShaderUniformBuffer<CameraProjection>("raytrace.camera_projection", &m_projection);
-    }) {
+        m_projection_uniform("raytrace.camera_projection") {
+}
+
+CameraProjection& Camera::getProjection() {
+    return *m_projection_uniform;
 }
 
 void Camera::render(RenderContext& context, RenderTarget& target) {
-    m_uniform_projection->bindUniform(context.getShaderManager());
+    m_thread_guard.guard();
+    
+    opengl::ShaderManager& shader_manager = context.getShaderManager();
+    m_projection_uniform.bindUniform(shader_manager);
 }
 
 } // render

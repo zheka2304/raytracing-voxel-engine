@@ -15,39 +15,8 @@ namespace opengl {
 // All further entities are designed only to work inside single RenderContext and with single ShaderManager
 // passing different contexts each time will result in undefined behavior and most likely crash
 
-// Used to create opengl related entities only when render thread will require them for the first time
-template<typename T>
-class OnDemand {
-    std::function<T*()> m_factory;
-    T* m_ptr = nullptr;
-public:
 
-    OnDemand() {}
-    OnDemand(const std::function<T*()>& factory) : m_factory(factory) {
-    }
-
-    inline T& get() {
-        if (m_ptr == nullptr) {
-            m_ptr = m_factory();
-        }
-        return *m_ptr;
-    }
-
-    inline T& get(const std::function<T*()>& factory) {
-        m_factory = factory;
-        return get();
-    }
-
-    inline T* operator->() {
-        return &get();
-    }
-
-    inline T& operator*() {
-        return get();
-    }
-};
-
-// Universal class for opengl buffers
+// Universal base class for opengl buffers
 class Buffer {
 private:
     // buffer handle, 0 if buffer is invalid
