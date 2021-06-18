@@ -31,8 +31,11 @@ public:
     GLuint getAllocatedSize();
     bool isValid();
 
-    void setData(size_t size, void* data, GLuint access_type);
+    void setData(size_t size, void* data, GLuint access_type, bool unbind = true);
     void preallocate(size_t size, GLuint access_type);
+
+    void bindBuffer();
+    void unbindBuffer();
 };
 
 

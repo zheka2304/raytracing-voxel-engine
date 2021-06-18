@@ -40,15 +40,29 @@ bool Buffer::isValid() {
     return m_handle != 0;
 }
 
-void Buffer::setData(size_t size, void* data, GLuint access_type) {
+void Buffer::setData(size_t size, void* data, GLuint access_type, bool unbind) {
     glBindBuffer(m_buffer_type, m_handle);
     glBufferData(m_buffer_type, size, data, access_type);
-    glBindBuffer(m_buffer_type, 0);
+    if (unbind) {
+        glBindBuffer(m_buffer_type, 0);
+    }
     m_allocated_size = size;
 }
 
 void Buffer::preallocate(size_t size, GLuint access_type) {
     setData(size, nullptr, access_type);
+}
+
+void Buffer::bindBuffer() {
+    if (m_handle != 0) {
+        glBindBuffer(m_buffer_type, m_handle);
+    }
+}
+
+void Buffer::unbindBuffer() {
+    if (m_handle != 0) {
+        glBindBuffer(m_buffer_type, 0);
+    }
 }
 
 

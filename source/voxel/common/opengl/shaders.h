@@ -44,6 +44,7 @@ public:
     virtual ~ComputeShader();
 
     bool isValid() override;
+    void dispatch(int size_x = 1, int size_y = 1, int size_z = 1);
 };
 
 class GraphicsShader : public Shader {
@@ -58,6 +59,8 @@ public:
     virtual ~GraphicsShader();
 
     bool isValid() override;
+    void bind();
+    void unbind();
 };
 
 

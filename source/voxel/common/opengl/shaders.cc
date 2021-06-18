@@ -80,6 +80,14 @@ bool ComputeShader::isValid() {
     return m_handle != 0;
 }
 
+void ComputeShader::dispatch(int size_x, int size_y, int size_z) {
+    if (m_handle != 0) {
+        glUseProgram(m_handle);
+        glDispatchCompute(size_x, size_y, size_z);
+        glUseProgram(0);
+    }
+}
+
 
 
 GraphicsShader::GraphicsShader(const std::string& shader_name) : Shader(shader_name) {
@@ -145,6 +153,14 @@ GraphicsShader::~GraphicsShader() {
 
 bool GraphicsShader::isValid() {
     return m_handle != 0;
+}
+
+void GraphicsShader::bind() {
+    glUseProgram(m_handle);
+}
+
+void GraphicsShader::unbind() {
+    glUseProgram(0);
 }
 
 

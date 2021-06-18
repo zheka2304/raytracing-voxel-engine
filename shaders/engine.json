@@ -1,5 +1,11 @@
 {
   "shaders": {
+    "basic_texture": {
+      "type": "graphics",
+      "vertex": "basic_texture.vert",
+      "fragment": "basic_texture.frag"
+    },
+
     "raytrace_screen_pass": {
       "type": "compute",
       "source": "raytrace_screen_pass.compute"
