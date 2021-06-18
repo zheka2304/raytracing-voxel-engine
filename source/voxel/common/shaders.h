@@ -104,6 +104,8 @@ private:
     std::string addDefinesToShaderSource(const std::string& source, const std::vector<std::string>& defines);
 
 public:
+    Logger& getLogger();
+
     std::string loadAndParseShaderSource(const std::string& source_name, const std::vector<std::string>& defines);
     void loadDeclarationsJson(const std::string& list_name);
 

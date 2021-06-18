@@ -132,8 +132,6 @@ namespace voxel {
             return;
         }
 
-        initializeRenderContext(shared_context);
-
         m_window_initializer = [=] () -> void {
             glfwDefaultWindowHints();
             for (auto& hint : parameters.hints) {
@@ -149,6 +147,8 @@ namespace voxel {
 
             // initialized with window
             m_has_window = true;
+
+            initializeRenderContext(shared_context);
         };
     }
 
@@ -165,8 +165,6 @@ namespace voxel {
             return;
         }
 
-        initializeRenderContext(shared_context);
-
         m_window_initializer = [=] () -> void {
             // create invisible window
             glfwDefaultWindowHints();
@@ -177,6 +175,8 @@ namespace voxel {
 
             // initialized without window
             m_has_window = false;
+
+            initializeRenderContext(shared_context);
         };
     }
 
@@ -250,7 +250,6 @@ namespace voxel {
 
         // initialize GLAD
         glfwMakeContextCurrent(m_window);
-
         if (!initializeGlad()) {
             m_logger.message(Logger::flag_error | Logger::flag_critical, "Context-" + m_context_name, "failed to initialize GLAD");
             m_termination_pending = true;
@@ -258,6 +257,9 @@ namespace voxel {
             m_window = nullptr;
             return;
         }
+
+        // initialize render context
+        m_render_context->initialize();
 
         // set window parameters and unlock
         glfwSwapInterval(1);

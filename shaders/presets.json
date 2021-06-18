@@ -1,0 +1,6 @@
+{
+  "constants": {
+    // size of the screen pass compute shader work group
+    "raytrace.screen_pass_work_group_size": 24
+  }
+}

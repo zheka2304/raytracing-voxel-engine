@@ -1,0 +1,8 @@
+{
+  "shaders": {
+    "raytrace_screen_pass": {
+      "type": "compute",
+      "source": "raytrace_screen_pass.compute"
+    },
+  }
+}

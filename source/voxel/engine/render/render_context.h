@@ -22,6 +22,8 @@ public:
     RenderContext(RenderContext&& other) = delete;
     ~RenderContext();
 
+    void initialize();
+
     opengl::ShaderManager& getShaderManager();
 };
 

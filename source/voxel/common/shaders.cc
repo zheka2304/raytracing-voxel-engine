@@ -36,7 +36,35 @@ ComputeShader::ComputeShader(const std::string& shader_name) : Shader(shader_nam
 }
 
 ComputeShader::ComputeShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& shader_source) : Shader(shader_name) {
+    GLint is_compilation_successful;
+    const int compilation_info_log_size = 1024;
+    GLchar compilation_info_log[compilation_info_log_size];
 
+    // compile shader
+    GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
+    const char* shader_source_c = shader_source.c_str();
+    glShaderSource(shader, 1, &shader_source_c, nullptr);
+    glCompileShader(shader);
+
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &is_compilation_successful);
+    if (!is_compilation_successful) {
+        glGetShaderInfoLog(shader, compilation_info_log_size, nullptr, compilation_info_log);
+        shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to compile compute shader %s:\n%s", shader_name.data(), compilation_info_log);
+    }
+
+    // link shader
+    m_handle = glCreateProgram();
+    glAttachShader(m_handle, shader);
+    glLinkProgram(m_handle);
+
+    glGetProgramiv(m_handle, GL_LINK_STATUS, &is_compilation_successful);
+    if (!is_compilation_successful) {
+        glGetProgramInfoLog(m_handle, compilation_info_log_size, nullptr, compilation_info_log);
+        shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to link compute shader %s:\n%s", shader_name.data(), compilation_info_log);
+    }
+
+    // cleanup
+    glDeleteShader(shader);
 }
 
 ComputeShader::ComputeShader(ComputeShader&& other) : Shader(std::move(other)) {
@@ -59,7 +87,49 @@ GraphicsShader::GraphicsShader(const std::string& shader_name) : Shader(shader_n
 }
 
 GraphicsShader::GraphicsShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& vertex_shader_source, const std::string& fragment_shader_source) : Shader(shader_name) {
+    GLint is_compilation_successful;
+    const int compilation_info_log_size = 1024;
+    GLchar compilation_info_log[compilation_info_log_size];
 
+    // vertex shader
+    GLuint vertex_shader_handle = glCreateShader(GL_VERTEX_SHADER);
+    const char* vertex_shader_source_c = vertex_shader_source.c_str();
+    glShaderSource(vertex_shader_handle, 1, &vertex_shader_source_c, nullptr);
+    glCompileShader(vertex_shader_handle);
+
+    glGetShaderiv(vertex_shader_handle, GL_COMPILE_STATUS, &is_compilation_successful);
+    if (!is_compilation_successful) {
+        glGetShaderInfoLog(vertex_shader_handle, compilation_info_log_size, nullptr, compilation_info_log);
+        shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to compile vertex shader %s:\n%s", shader_name.data(), compilation_info_log);
+    }
+
+    // fragment shader
+    GLuint fragment_shader_handle = glCreateShader(GL_FRAGMENT_SHADER);
+    const char* fragment_shader_source_c = fragment_shader_source.c_str();
+    glShaderSource(fragment_shader_handle, 1, &fragment_shader_source_c, nullptr);
+    glCompileShader(fragment_shader_handle);
+
+    glGetShaderiv(fragment_shader_handle, GL_COMPILE_STATUS, &is_compilation_successful);
+    if (!is_compilation_successful) {
+        glGetShaderInfoLog(fragment_shader_handle, compilation_info_log_size, nullptr, compilation_info_log);
+        shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to compile fragment shader %s:\n%s", shader_name.data(), compilation_info_log);
+    }
+
+    // link shaders
+    m_handle = glCreateProgram();
+    glAttachShader(m_handle, vertex_shader_handle);
+    glAttachShader(m_handle, fragment_shader_handle);
+    glLinkProgram(m_handle);
+
+    glGetProgramiv(m_handle, GL_LINK_STATUS, &is_compilation_successful);
+    if (!is_compilation_successful) {
+        glGetProgramInfoLog(m_handle, compilation_info_log_size, nullptr, compilation_info_log);
+        shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to link graphics shader %s:\n%s", shader_name.data(), compilation_info_log);
+    }
+
+    // cleanup
+    glDeleteShader(vertex_shader_handle);
+    glDeleteShader(fragment_shader_handle);
 }
 
 GraphicsShader::GraphicsShader(GraphicsShader&& other) : Shader(std::move(other)) {
@@ -68,7 +138,9 @@ GraphicsShader::GraphicsShader(GraphicsShader&& other) : Shader(std::move(other)
 }
 
 GraphicsShader::~GraphicsShader() {
-
+    if (m_handle != 0) {
+        glDeleteProgram(m_handle);
+    }
 }
 
 bool GraphicsShader::isValid() {
@@ -102,6 +174,10 @@ ShaderManager::ShaderManager(const std::string& shader_directory, const Logger& 
 }
 
 ShaderManager::~ShaderManager() {
+}
+
+Logger& ShaderManager::getLogger() {
+    return m_logger;
 }
 
 std::string ShaderManager::loadRawSource(const std::string& source_name) {

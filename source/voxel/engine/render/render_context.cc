@@ -10,15 +10,22 @@ RenderContext::RenderContext(std::weak_ptr<Engine> engine) :
         m_logger(engine.lock()->getLogger()),
         // TODO: shaders directory must be acquired from engine config
         m_shader_manager("shaders/", m_logger) {
-    m_shader_manager.loadDeclarationsJson("engine.json");
 }
 
 RenderContext::~RenderContext() {
 }
 
+
 opengl::ShaderManager& RenderContext::getShaderManager() {
     return m_shader_manager;
 }
+
+void RenderContext::initialize() {
+    m_logger.message(Logger::flag_debug, "RenderContext", "initializing render context");
+    m_shader_manager.loadDeclarationsJson("presets.json");
+    m_shader_manager.loadDeclarationsJson("engine.json");
+}
+
 
 } // render
 } // voxel
