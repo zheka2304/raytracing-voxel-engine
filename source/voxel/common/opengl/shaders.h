@@ -10,6 +10,7 @@
 
 #include <glad/glad.h>
 #include "voxel/common/logger.h"
+#include "voxel/common/utils/thread_guard.h"
 
 
 namespace voxel {
@@ -61,6 +62,7 @@ public:
     bool isValid() override;
     void bind();
     void unbind();
+    GLuint getUniform(const char* name);
 };
 
 
@@ -179,6 +181,37 @@ public:
     }
 };
 
+
+/*
+ * Reference to shader, that is usually used in combination with with macro VOXEL_ENGINE_SHADER_REF.
+ */
+template<typename T>
+class ShaderRef {
+    bool m_initialized = false;
+    T* m_shader = nullptr;
+
+public:
+    inline bool isInitialized() {
+        return m_initialized;
+    }
+
+    inline void initialize(ShaderManager& shader_manager, const std::string& shader_name) {
+        m_shader = &shader_manager.getShader<T>(shader_name);
+        m_initialized = true;
+    }
+
+    inline T* operator-> () {
+        return m_shader;
+    }
+
+    inline T& operator* () {
+        return *m_shader;
+    }
+};
+
+/*
+ * Reference to shader constant, that is usually used in combination with with macro VOXEL_ENGINE_SHADER_CONSTANT.
+ */
 template<typename T>
 class ShaderConstantRef {
     bool m_initialized = false;
@@ -189,7 +222,7 @@ public:
         return m_initialized;
     }
 
-    inline void initialize(ShaderManager& shader_manager, std::string const& shader_constant_name) {
+    inline void initialize(ShaderManager& shader_manager, const std::string& shader_constant_name) {
         m_value = shader_manager.getConstant(shader_constant_name).getValue<T>();
         m_initialized = true;
     }
@@ -199,8 +232,19 @@ public:
     }
 };
 
+
 } // opengl
 } // voxel
+
+
+// this macro is used for fast access to shaders
+// it is caching values for each thread separately, because there is normally one shader manager per context
+
+#define VOXEL_ENGINE_SHADER_REF(T, variable_name, shader_manager, shader_name) \
+    static thread_local voxel::opengl::ShaderRef<T> variable_name;             \
+    if (!variable_name.isInitialized()) {                                      \
+        variable_name.initialize(shader_manager, shader_name);                 \
+    }
 
 
 // this macro is used for fast access to shader constants,
@@ -212,6 +256,14 @@ public:
     static thread_local voxel::opengl::ShaderConstantRef<T> variable_name;                   \
     if (!variable_name.isInitialized()) {                                                    \
         variable_name.initialize(shader_manager, shader_constant_name);                      \
+    }
+
+
+// simple macro for caching uniform handles, must always receive same shader, because it is not checking it
+#define VOXEL_ENGINE_SHADER_UNIFORM(variable_name, shader, uniform_name) \
+    static thread_local GLuint variable_name = -1;                       \
+    if (variable_name == -1) {                                           \
+        variable_name = (shader).getUniform(uniform_name);               \
     }
 
 #endif //VOXEL_ENGINE_SHADERS_H

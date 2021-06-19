@@ -44,6 +44,14 @@ bool Texture::isValid() {
     return m_handle != 0;
 }
 
+void Texture::bind(GLuint index, GLuint uniform) {
+    glActiveTexture(GL_TEXTURE0 + index);
+    glBindTexture(GL_TEXTURE_2D, m_handle);
+    if (uniform != -1) {
+        glUniform1i(uniform, index);
+    }
+}
+
 
 } // opengl
 } // voxel

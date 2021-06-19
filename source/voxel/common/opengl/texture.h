@@ -22,6 +22,7 @@ public:
 
     GLuint getHandle();
     bool isValid();
+    void bind(GLuint index = 0, GLuint uniform = -1);
 };
 
 

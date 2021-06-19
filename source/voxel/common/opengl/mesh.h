@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <glad/glad.h>
-#include <iostream>
 
 #include "voxel/common/math/vec.h"
 #include "voxel/common/math/color.h"

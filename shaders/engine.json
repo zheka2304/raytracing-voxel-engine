@@ -1,9 +1,24 @@
 {
   "shaders": {
+    "basic_color": {
+      "type": "graphics",
+      "vertex": "basic_shader.vert",
+      "fragment": "basic_shader.frag",
+      "defines": ["D_COLOR"]
+    },
+
     "basic_texture": {
       "type": "graphics",
-      "vertex": "basic_texture.vert",
-      "fragment": "basic_texture.frag"
+      "vertex": "basic_shader.vert",
+      "fragment": "basic_shader.frag",
+      "defines": ["D_TEXTURE"]
+    },
+
+    "colored_texture": {
+      "type": "graphics",
+      "vertex": "basic_shader.vert",
+      "fragment": "basic_shader.frag",
+      "defines": ["D_COLOR","D_TEXTURE"]
     },
 
     "raytrace_screen_pass": {

@@ -163,6 +163,11 @@ void GraphicsShader::unbind() {
     glUseProgram(0);
 }
 
+GLuint GraphicsShader::getUniform(const char* name) {
+    std::cout << name << ": " << glGetUniformLocation(m_handle, name) << "\n";
+    return glGetUniformLocation(m_handle, name);
+}
+
 
 ShaderManager::Constant::Constant(const std::string& name, const std::variant<int, float, std::string>& value) :
         m_name(name), m_value(value) {
