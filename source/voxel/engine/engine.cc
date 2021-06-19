@@ -15,12 +15,14 @@ namespace voxel {
             ctx->terminateEventLoop();
         }
 
-        if (m_initialization_result == 0) {
-            m_logger.message(Logger::flag_info, "Engine", "destroying engine, terminating GLFW");
-            glfwTerminate();
-        } else {
-            m_logger.message(Logger::flag_info, "Engine", "destroying uninitialized engine");
-        }
+        m_glfw_thread.await([=] () -> void {
+            if (m_initialization_result == 0) {
+                m_logger.message(Logger::flag_info, "Engine", "destroying engine, terminating GLFW");
+                glfwTerminate();
+            } else {
+                m_logger.message(Logger::flag_info, "Engine", "destroying uninitialized engine");
+            }
+        });
     }
 
     int Engine::initialize() {
@@ -322,6 +324,9 @@ namespace voxel {
         if (m_destroy_callback) {
             m_destroy_callback(*this);
         }
+
+        // destroy render context
+        m_render_context.reset();
 
         // destroy window at the end of the loop
         glfwDestroyWindow(m_window);
