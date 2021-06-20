@@ -24,14 +24,14 @@ struct CameraProjection {
     GLSL_BUFFER_ALIGN(16) math::Vec3 m_rotation;
 
     // orthographic projection parameters: (x, y) is size of the camera view in chunk units
-    GLSL_BUFFER_ALIGN(16) math::Vec2 m_ortho_range;
+    GLSL_BUFFER_ALIGN(8) math::Vec2 m_ortho_range;
 
     // perspective parameters: (x, y) is coefficients of ray direction displacement from the position relative to screen center,
     // where relative position x and y are in range (-1; 1), this values are usually calculated from vertical and horizontal FOV
-    GLSL_BUFFER_ALIGN(16) math::Vec2 m_perspective;
+    GLSL_BUFFER_ALIGN(8) math::Vec2 m_perspective;
 
     // x is near plane and y is far plane
-    GLSL_BUFFER_ALIGN(16) math::Vec2 m_distance_range;
+    GLSL_BUFFER_ALIGN(8) math::Vec2 m_distance_range;
 
     void setOrtho(float w, float h);
     void setFov(float fov, float ratio);

@@ -1,5 +1,7 @@
 #include "camera.h"
 
+#include <math.h>
+
 
 namespace voxel {
 namespace render {
@@ -11,7 +13,17 @@ void CameraProjection::setFov(float fov, float ratio) {
         return;
     }
 
+    float tg = tan(fov / 2.0f);
+    m_perspective.x = tg;
+    m_perspective.y = tg * ratio;
+}
 
+void CameraProjection::setOrtho(float w, float h) {
+    m_ortho_range = math::Vec2(w / 2.0f, h / 2.0f);
+}
+
+void CameraProjection::setNearAndFar(float near, float far) {
+    m_distance_range = math::Vec2(near, far);
 }
 
 

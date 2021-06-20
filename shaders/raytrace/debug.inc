@@ -6,7 +6,7 @@
 
 #define RAYTRACE_DEBUG_CHECKERBOARD_SIZE 1.0
 
-vec3 raycast_debug(Ray ray) {
+vec3 raycastDebugCheckerboard(Ray ray) {
     // normalize
     ray.ray = normalize(ray.ray);
 
