@@ -2,7 +2,7 @@
 
 #define WORK_GROUP_SIZE ${raytrace.screen_pass_work_group_size}
 
-layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
+layout(local_size_x = ${raytrace.screen_pass_work_group_size}, local_size_y = ${raytrace.screen_pass_work_group_size}, local_size_z = 1) in;
 layout(std430) buffer;
 
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
@@ -12,4 +12,14 @@ layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp ima
 
 
 void main() {
+    // get pixel and discard excess ones
+    ivec2 image_size = imageSize(output_texture_color);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    /*if (pixel.x >= image_size.x || pixel.y >= image_size.y) {
+        return;
+    }*/
+
+    imageStore(output_texture_color, pixel, vec4(1.0, 0.5, 0.0, 1.0));
+    imageStore(output_texture_light, pixel, vec4(1.0));
+    imageStore(output_texture_depth, pixel, vec4(vec3(0.0), 1.0));
 }

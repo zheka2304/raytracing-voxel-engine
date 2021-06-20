@@ -10,6 +10,7 @@
 
 #include <glad/glad.h>
 #include "voxel/common/logger.h"
+#include "voxel/common/math/vec.h"
 #include "voxel/common/utils/thread_guard.h"
 
 
@@ -46,6 +47,7 @@ public:
 
     bool isValid() override;
     void dispatch(int size_x = 1, int size_y = 1, int size_z = 1);
+    void dispatch(math::Vec3i size);
 };
 
 class GraphicsShader : public Shader {

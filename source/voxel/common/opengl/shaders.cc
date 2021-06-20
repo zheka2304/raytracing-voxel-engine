@@ -5,7 +5,6 @@
 #include <regex>
 #include <json/value.h>
 #include <json/reader.h>
-#include <iostream>
 
 
 namespace voxel {
@@ -88,6 +87,10 @@ void ComputeShader::dispatch(int size_x, int size_y, int size_z) {
     }
 }
 
+void ComputeShader::dispatch(math::Vec3i size) {
+    dispatch(size.x, size.y, size.z);
+}
+
 
 
 GraphicsShader::GraphicsShader(const std::string& shader_name) : Shader(shader_name) {
@@ -164,7 +167,6 @@ void GraphicsShader::unbind() {
 }
 
 GLuint GraphicsShader::getUniform(const char* name) {
-    std::cout << name << ": " << glGetUniformLocation(m_handle, name) << "\n";
     return glGetUniformLocation(m_handle, name);
 }
 
