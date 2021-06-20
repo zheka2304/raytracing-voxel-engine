@@ -23,13 +23,13 @@
 
     "raytrace_screen_pass": {
       "type": "compute",
-      "source": "raytrace_screen_pass.compute"
+      "source": "raytrace/screen_pass.compute"
     },
 
     "raytrace_combine_pass": {
       "type": "graphics",
       "vertex": "basic_shader.vert",
-      "fragment": "raytrace_combine_pass.frag",
+      "fragment": "postprocess/raytrace_combine_pass.frag",
       "defines": ["D_TEXTURE"]
     }
   }

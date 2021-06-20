@@ -1,0 +1,9 @@
+
+#ifndef VOXEL_ENGINE_COMMON_INC
+#define VOXEL_ENGINE_COMMON_INC
+
+// shorter compute shader buffer declaration
+#define COMPUTE_SHADER_BUFFER(BINDING, ACCESS_PERMISSIONS, TYPE_NAME, NAME, STRUCT) \
+    layout(binding = BINDING) ACCESS_PERMISSIONS buffer TYPE_NAME STRUCT NAME;
+
+#endif  // VOXEL_ENGINE_COMMON_INC

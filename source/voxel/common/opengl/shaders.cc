@@ -214,7 +214,7 @@ std::string ShaderManager::loadRawSource(const std::string& source_name) {
 
 std::string ShaderManager::resolveIncludesInShaderSource(const std::string& source_name, const std::string& source) {
     std::stringstream result;
-    std::regex include_regex("#include\\s+[\"<]([A-Za-z0-9_\\-.]+)[\">]");
+    std::regex include_regex("#include\\s+[\"<]([A-Za-z0-9_\\-.\\/]+)[\">]");
 
     int last_pos = 0;
     auto includes_begin = std::sregex_iterator(source.begin(), source.end(), include_regex);

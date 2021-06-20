@@ -32,6 +32,10 @@ struct CameraProjection {
 
     // x is near plane and y is far plane
     GLSL_BUFFER_ALIGN(16) math::Vec2 m_distance_range;
+
+    void setOrtho(float w, float h);
+    void setFov(float fov, float ratio);
+    void setNearAndFar(float near, float far);
 };
 
 /*

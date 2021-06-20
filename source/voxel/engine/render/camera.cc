@@ -4,6 +4,17 @@
 namespace voxel {
 namespace render {
 
+
+void CameraProjection::setFov(float fov, float ratio) {
+    if (fov == 0 || ratio == 0) {
+        m_perspective = math::Vec2(0, 0);
+        return;
+    }
+
+
+}
+
+
 Camera::Camera() :
         m_projection_uniform("raytrace.camera_projection") {
 }
