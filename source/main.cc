@@ -19,7 +19,7 @@ int main() {
         camera = new voxel::render::Camera();
         camera->getProjection().m_position = voxel::math::Vec3(0, 1, 0);
 
-        mouse_control = new voxel::input::MouseControl(ctx.getGlfwWindow());
+        mouse_control = new voxel::input::MouseControl(ctx.getWindowHandler());
         mouse_control->setMode(voxel::input::MouseControl::Mode::IN_GAME);
     });
 

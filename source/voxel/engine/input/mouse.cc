@@ -4,29 +4,34 @@
 namespace voxel {
 namespace input {
 
-MouseControl::MouseControl(GLFWwindow* window) : m_window(window) {
+MouseControl::MouseControl(WindowHandler& window_handler) : m_window_handler(&window_handler) {
+    m_window_handler->addListener(this);
 }
 
 MouseControl::~MouseControl() {
     _removeMode(m_mode);
+    if (m_window_handler != nullptr) {
+        m_window_handler->removeListener(this);
+    }
 }
 
 void MouseControl::_initMode(Mode mode) {
+    GLFWwindow* window = m_window_handler->getWindow();
     switch (mode) {
         case Mode::IN_GAME: {
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
             int w, h;
-            glfwGetWindowSize(m_window, &w, &h);
+            glfwGetWindowSize(window, &w, &h);
             m_last_pos.x = m_current_pos.x = w / 2.0f;
             m_last_pos.y = m_current_pos.y = h / 2.0f;
-            glfwSetCursorPos(m_window, m_current_pos.x, m_current_pos.y);
+            glfwSetCursorPos(window, m_current_pos.x, m_current_pos.y);
             break;
         }
 
         case Mode::IN_UI: {
             double x, y;
-            glfwGetCursorPos(m_window, &x, &y);
+            glfwGetCursorPos(window, &x, &y);
             m_last_pos.x = m_current_pos.x = x;
             m_last_pos.y = m_current_pos.y = y;
             break;
@@ -39,9 +44,10 @@ void MouseControl::_initMode(Mode mode) {
 }
 
 void MouseControl::_removeMode(Mode mode) {
+    GLFWwindow* window = m_window_handler->getWindow();
     switch (mode) {
         case Mode::IN_GAME:
-            glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             break;
 
         case Mode::IN_UI:
@@ -50,6 +56,18 @@ void MouseControl::_removeMode(Mode mode) {
         case Mode::RELEASED:
             break;
     }
+}
+
+void MouseControl::onWindowFocusGained() {
+    _initMode(m_mode);
+}
+
+void MouseControl::onWindowFocusLost() {
+    _removeMode(m_mode);
+}
+
+void MouseControl::onWindowHandlerDestroyed() {
+    m_window_handler = nullptr;
 }
 
 void MouseControl::setMode(Mode mode) {
@@ -61,36 +79,24 @@ void MouseControl::setMode(Mode mode) {
 }
 
 void MouseControl::update() {
-    int focus = glfwGetWindowAttrib(m_window, GLFW_FOCUSED);
-    if (m_focus != focus) {
-        m_focus = focus;
-        if (!m_focus) {
-            _removeMode(m_mode);
-            m_active = false;
-        }
+    if (m_window_handler == nullptr || !m_window_handler->isFocused()) {
+        return;
     }
 
-    if (!m_active) {
-        if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS) {
-            _initMode(m_mode);
-            m_active = true;
-        } else {
-            return;
-        }
-    }
+    GLFWwindow* window = m_window_handler->getWindow();
 
     m_last_pos = m_current_pos;
 
     double x, y;
-    glfwGetCursorPos(m_window, &x, &y);
+    glfwGetCursorPos(window, &x, &y);
     m_current_pos.x = x;
     m_current_pos.y = y;
 
     switch (m_mode) {
         case Mode::IN_GAME: {
             int w, h;
-            glfwGetWindowSize(m_window, &w, &h);
-            glfwSetCursorPos(m_window, m_last_pos.x = w / 2.0f, m_last_pos.y = h / 2.0f);
+            glfwGetWindowSize(window, &w, &h);
+            glfwSetCursorPos(window, m_last_pos.x = w / 2.0f, m_last_pos.y = h / 2.0f);
             break;
         }
 
@@ -115,7 +121,10 @@ math::Vec2 MouseControl::getMouseMove() {
 }
 
 int MouseControl::getMouseButton(int button) {
-    return glfwGetMouseButton(m_window, button);
+    if (m_window_handler == nullptr) {
+        return 0;
+    }
+    return glfwGetMouseButton(m_window_handler->getWindow(), button);
 }
 
 } // input

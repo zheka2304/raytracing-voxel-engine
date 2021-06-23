@@ -97,6 +97,13 @@ namespace voxel {
         return m_window;
     }
 
+    WindowHandler& Context::getWindowHandler() {
+        if (m_window_handler == nullptr) {
+            throw std::runtime_error("Context-" + m_context_name + ": Context::getWindowHandler() called while not initialized");
+        }
+        return *m_window_handler;
+    }
+
     void Context::setInitCallback(const std::function<void(Context&, render::RenderContext&)>& callback) {
         m_init_callback = callback;
     }
@@ -249,6 +256,7 @@ namespace voxel {
             m_termination_pending = true;
             return;
         }
+        m_window_handler = new WindowHandler(m_window);
 
         // initialize GLAD
         glfwMakeContextCurrent(m_window);
@@ -331,9 +339,14 @@ namespace voxel {
         // destroy window at the end of the loop
         glfwDestroyWindow(m_window);
         m_window = nullptr;
+        delete(m_window_handler);
+        m_window_handler = nullptr;
     }
 
     void Context::processEvents() {
+        if (m_window_handler != nullptr) {
+            m_window_handler->update();
+        }
         if (m_event_process_callback) {
             m_event_process_callback(*this);
         }

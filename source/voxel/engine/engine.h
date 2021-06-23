@@ -13,6 +13,7 @@
 
 #include "voxel/common/utils/worker_thread.h"
 #include "voxel/common/logger.h"
+#include "voxel/engine/window_handler.h"
 #include "voxel/engine/render/render_context.h"
 
 
@@ -83,6 +84,9 @@ private:
     // GLFW window (in GLFW acts like context)
     GLFWwindow* m_window = nullptr;
 
+    // window handler
+    WindowHandler* m_window_handler = nullptr;
+
     // true, if window was initialized via initWindow(), in case of initNoWindow() or no init call it is false
     bool m_has_window = false;
 
@@ -116,6 +120,7 @@ public:
     Logger& getLogger();
     GLFWwindow* getGlfwWindow();
     GLFWwindow* awaitGlfwWindow();
+    WindowHandler& getWindowHandler();
 
     void setInitCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
     void setFrameHandleCallback(const std::function<void(Context&, render::RenderContext&)>& callback);

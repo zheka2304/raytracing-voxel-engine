@@ -4,12 +4,13 @@
 #include <glfw/glfw3.h>
 
 #include "voxel/common/math/vec.h"
+#include "voxel/engine/window_handler.h"
 
 
 namespace voxel {
 namespace input {
 
-class MouseControl {
+class MouseControl : IWindowHandlerListener {
 public:
     enum class Mode {
         RELEASED,
@@ -18,7 +19,7 @@ public:
     };
 
 private:
-    GLFWwindow* m_window;
+    WindowHandler* m_window_handler;
 
     Mode m_mode = Mode::RELEASED;
     int m_focus = 1;
@@ -29,8 +30,13 @@ private:
 
     void _initMode(Mode mode);
     void _removeMode(Mode mode);
+
+    void onWindowFocusGained() override;
+    void onWindowFocusLost() override;
+    void onWindowHandlerDestroyed() override;
+
 public:
-    MouseControl(GLFWwindow* window);
+    MouseControl(WindowHandler& window_handler);
     MouseControl(const MouseControl& other) = delete;
     MouseControl(MouseControl&& other) = default;
     ~MouseControl();
