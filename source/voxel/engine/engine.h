@@ -103,7 +103,7 @@ private:
     // window callbacks
     std::function<void(Context&, render::RenderContext&)> m_init_callback;
     std::function<void(Context&, render::RenderContext&)> m_frame_handle_callback;
-    std::function<void(Context&)> m_event_process_callback;
+    std::function<void(Context&, WindowHandler&)> m_event_process_callback;
     std::function<void(Context&, int, int)> m_window_resize_callback;
     std::function<void(Context&, int)> m_window_focus_callback;
     std::function<void(Context&)> m_destroy_callback;
@@ -124,7 +124,7 @@ public:
 
     void setInitCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
     void setFrameHandleCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
-    void setEventProcessingCallback(const std::function<void(Context&)>& callback);
+    void setEventProcessingCallback(const std::function<void(Context&, WindowHandler&)>& callback);
     void setWindowResizeCallback(const std::function<void(Context&, int, int)>& callback);
     void setWindowFocusCallback(const std::function<void(Context&, int)>& callback);
     void setDestroyCallback(const std::function<void(Context&)>& callback);

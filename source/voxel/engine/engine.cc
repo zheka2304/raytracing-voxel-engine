@@ -112,7 +112,7 @@ namespace voxel {
         m_frame_handle_callback = callback;
     }
 
-    void Context::setEventProcessingCallback(const std::function<void(Context&)>& callback) {
+    void Context::setEventProcessingCallback(const std::function<void(Context&, WindowHandler&)>& callback) {
         m_event_process_callback = callback;
     }
 
@@ -346,9 +346,9 @@ namespace voxel {
     void Context::processEvents() {
         if (m_window_handler != nullptr) {
             m_window_handler->update();
-        }
-        if (m_event_process_callback) {
-            m_event_process_callback(*this);
+            if (m_event_process_callback) {
+                m_event_process_callback(*this, *m_window_handler);
+            }
         }
     }
 

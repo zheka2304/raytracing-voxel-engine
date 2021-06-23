@@ -36,7 +36,7 @@ private:
     void onWindowHandlerDestroyed() override;
 
 public:
-    MouseControl(WindowHandler& window_handler);
+    explicit MouseControl(WindowHandler& window_handler);
     MouseControl(const MouseControl& other) = delete;
     MouseControl(MouseControl&& other) = default;
     ~MouseControl();

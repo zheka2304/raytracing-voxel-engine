@@ -1,6 +1,6 @@
 #include <iostream>
 #include "voxel/engine/engine.h"
-#include "voxel/engine/input/mouse.h"
+#include "voxel/engine/input/simple_input.h"
 #include "voxel/engine/render/camera.h"
 
 
@@ -13,14 +13,14 @@ int main() {
     context->initWindow({640, 640, "test", {}});
 
     static voxel::render::Camera* camera = nullptr;
-    static voxel::input::MouseControl* mouse_control = nullptr;
+    static voxel::input::SimpleInput* simple_input = nullptr;
 
     context->setInitCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         camera = new voxel::render::Camera();
-        camera->getProjection().m_position = voxel::math::Vec3(0, 1, 0);
+        camera->getProjection().m_position = voxel::math::Vec3(0, 2, 0);
 
-        mouse_control = new voxel::input::MouseControl(ctx.getWindowHandler());
-        mouse_control->setMode(voxel::input::MouseControl::Mode::IN_GAME);
+        simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
+        simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
     });
 
     context->setWindowResizeCallback([] (voxel::Context& ctx, int w, int h) -> void {
@@ -33,13 +33,8 @@ int main() {
         std::cout << "window focus: " << focus << "\n";
     });
 
-    context->setEventProcessingCallback([] (voxel::Context& ctx) {
-        mouse_control->update();
-
-        voxel::math::Vec2 mouse_move = mouse_control->getMouseMove() / 100;
-        voxel::math::Vec3& camera_rotation = camera->getProjection().m_rotation;
-        camera_rotation.y += mouse_move.x;
-        camera_rotation.x = std::max(-3.1416f / 2.0f, std::min(3.1416f / 2.0f, camera_rotation.x - mouse_move.y));
+    context->setEventProcessingCallback([] (voxel::Context& ctx, voxel::WindowHandler& window_handler) {
+        simple_input->update(*camera);
     });
 
     context->setFrameHandleCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
