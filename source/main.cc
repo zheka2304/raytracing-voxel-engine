@@ -2,6 +2,7 @@
 #include "voxel/engine/engine.h"
 #include "voxel/engine/input/simple_input.h"
 #include "voxel/engine/render/camera.h"
+#include "voxel/common/utils/time.h"
 
 
 int main() {
@@ -56,6 +57,8 @@ int main() {
         render_target->getResultTexture().bind(0, uniform_texture_0);
         quad->render();
 
+        voxel::utils::Stopwatch stopwatch;
+        glFinish();
     });
 
     context->runEventLoop();
