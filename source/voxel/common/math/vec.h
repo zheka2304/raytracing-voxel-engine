@@ -12,206 +12,248 @@ namespace math {
 typedef float real_t;
 typedef int integer_t;
 
-class Vec2f {
+template<typename T, int N>
+class VectorBaseClass;
+
+template<typename T>
+class VectorBaseClass<T, 2> {
 public:
-    real_t x, y;
+    union {
+        T data[2];
+        struct {
+            T x, y;
+        };
+    };
 
-    Vec2f();
+    inline VectorBaseClass(T x, T y) : x(x), y(y) { }
+    inline VectorBaseClass(T v) : x(v), y(v) { }
+    inline VectorBaseClass() : x(0), y(0) { }
+};
 
-    Vec2f(real_t x, real_t y);
+template<typename T>
+class VectorBaseClass<T, 3> {
+public:
+    union {
+        T data[3];
+        struct {
+            T x, y, z;
+        };
+    };
 
-    inline Vec2f operator+(Vec2f const& other) const {
-        return Vec2f(x + other.x, y + other.y);
+    inline VectorBaseClass(T x, T y, T z) : x(x), y(y), z(z) { }
+    inline VectorBaseClass(T v) : x(v), y(v), z(v) { }
+    inline VectorBaseClass() : x(0), y(0), z(0) { }
+};
+
+template<typename T>
+class VectorBaseClass<T, 4> {
+public:
+    union {
+        T data[4];
+        struct {
+            T x, y, z, w;
+        };
+    };
+
+    inline VectorBaseClass(T x, T y, T z, T w) : x(x), y(y), z(z), w(w) { }
+    inline VectorBaseClass(T v) : x(v), y(v), z(v), w(v) { }
+    inline VectorBaseClass() : x(0), y(0), z(0), w(0) { }
+};
+
+
+
+template<typename T, int N>
+class VectorTemplate : public VectorBaseClass<T, N> {
+public:
+    using VectorBaseClass<T, N>::VectorBaseClass;
+
+    inline VectorTemplate(T* data) {
+        for (int i = 0; i < N; i++) {
+            this->data[i] = data[i];
+        }
     }
 
-    inline Vec2f operator-(Vec2f const& other) const {
-        return Vec2f(x - other.x, y - other.y);
+    template<typename T2>
+    inline VectorTemplate<T, N> operator+(VectorTemplate<T2, N> const& other) const {
+        VectorTemplate<T, N> output;
+        for (int i = 0; i < N; i++) {
+            output.data[i] = this->data[i] + other.data[i];
+        }
+        return output;
     }
 
-    inline Vec2f operator*(Vec2f const& other) const {
-        return Vec2f(x * other.x, y * other.y);
+    template<typename T2>
+    inline const VectorTemplate<T, N>& operator+=(VectorTemplate<T2, N> const& other) const {
+        for (int i = 0; i < N; i++) {
+            this->data[i] += other.data[i];
+        }
+        return *this;
     }
 
-    inline Vec2f operator*(real_t number) const {
-        return Vec2f(x * number, y * number);
+    template<typename T2>
+    inline VectorTemplate<T, N> operator-(VectorTemplate<T2, N> const& other) const {
+        VectorTemplate<T, N> output;
+        for (int i = 0; i < N; i++) {
+            output.data[i] = this->data[i] - other.data[i];
+        }
+        return output;
     }
 
-    inline Vec2f operator/(Vec2f const& other) const {
-        return Vec2f(x / other.x, y / other.y);
+    template<typename T2>
+    inline const VectorTemplate<T, N>& operator-=(VectorTemplate<T2, N> const& other) const {
+        for (int i = 0; i < N; i++) {
+            this->data[i] -= other.data[i];
+        }
+        return *this;
     }
 
-    inline Vec2f operator/(real_t number) const {
-        return Vec2f(x / number, y / number);
+    template<typename T2>
+    inline VectorTemplate<T, N> operator*(VectorTemplate<T2, N> const& other) const {
+        VectorTemplate<T, N> output;
+        for (int i = 0; i < N; i++) {
+            output.data[i] = this->data[i] * other.data[i];
+        }
+        return output;
+    }
+
+    template<typename T2>
+    inline const VectorTemplate<T, N>& operator*=(VectorTemplate<T2, N> const& other) const {
+        for (int i = 0; i < N; i++) {
+            this->data[i] *= other.data[i];
+        }
+        return *this;
+    }
+
+    template<typename T2>
+    inline VectorTemplate<T, N> operator*(T2 other) const {
+        VectorTemplate<T, N> output;
+        for (int i = 0; i < N; i++) {
+            output.data[i] = this->data[i] * other;
+        }
+        return output;
+    }
+
+    template<typename T2>
+    inline const VectorTemplate<T, N>& operator*=(T2 other) const {
+        for (int i = 0; i < N; i++) {
+            this->data[i] *= other;
+        }
+        return *this;
+    }
+
+    template<typename T2>
+    inline VectorTemplate<T, N> operator/(VectorTemplate<T2, N> const& other) const {
+        VectorTemplate<T, N> output;
+        for (int i = 0; i < N; i++) {
+            output.data[i] = this->data[i] / other.data[i];
+        }
+        return output;
+    }
+
+    template<typename T2>
+    inline const VectorTemplate<T, N>& operator/=(VectorTemplate<T2, N> const& other) const {
+        for (int i = 0; i < N; i++) {
+            this->data[i] /= other.data[i];
+        }
+        return *this;
+    }
+
+    template<typename T2>
+    inline VectorTemplate<T, N> operator/(T2 other) const {
+        VectorTemplate<T, N> output;
+        for (int i = 0; i < N; i++) {
+            output.data[i] = this->data[i] / other;
+        }
+        return output;
+    }
+
+    template<typename T2>
+    inline const VectorTemplate<T, N>& operator/=(T2 other) const {
+        for (int i = 0; i < N; i++) {
+            this->data[i] /= other;
+        }
+        return *this;
     }
 };
 
 
-class Vec3f {
-public:
-    real_t x, y, z;
+typedef VectorTemplate<real_t, 2> Vec2f;
+typedef VectorTemplate<real_t, 3> Vec3f;
+typedef VectorTemplate<real_t, 4> Vec4f;
 
-    Vec3f();
+typedef VectorTemplate<integer_t, 2> Vec2i;
+typedef VectorTemplate<integer_t, 3> Vec3i;
+typedef VectorTemplate<integer_t, 4> Vec4i;
 
-    Vec3f(real_t x, real_t y, real_t z);
 
-    inline Vec3f operator+(Vec3f const& other) const {
-        return Vec3f(x + other.x, y + other.y, z + other.z);
+template<typename T, int N>
+inline VectorTemplate<T, N> floor(VectorTemplate<T, N> v) {
+    VectorTemplate<T, N> output;
+    for (int i = 0; i < N; i++) {
+        output.data[i] = ::floor(v.data[i]);
     }
-
-    inline Vec3f operator-(Vec3f const& other) const {
-        return Vec3f(x - other.x, y - other.y, z - other.z);
-    }
-
-    inline Vec3f operator*(Vec3f const& other) const {
-        return Vec3f(x * other.x, y * other.y, z * other.z);
-    }
-
-    inline Vec3f operator*(real_t number) const {
-        return Vec3f(x * number, y * number, z * number);
-    }
-
-    inline Vec3f operator/(Vec3f const& other) const {
-        return Vec3f(x / other.x, y / other.y, z / other.z);
-    }
-
-    inline Vec3f operator/(real_t number) const {
-        return Vec3f(x / number, y / number, z / number);
-    }
-};
-
-
-class Vec2i {
-public:
-    integer_t x, y;
-
-    Vec2i();
-
-    Vec2i(integer_t x, integer_t y);
-
-    inline Vec2i operator+(Vec2i const& other) const {
-        return Vec2i(x + other.x, y + other.y);
-    }
-
-    inline Vec2i operator-(Vec2i const& other) const {
-        return Vec2i(x - other.x, y - other.y);
-    }
-
-    inline Vec2i operator*(Vec2i const& other) const {
-        return Vec2i(x * other.x, y * other.y);
-    }
-
-    inline Vec2i operator*(integer_t number) const {
-        return Vec2i(x * number, y * number);
-    }
-
-    inline Vec2i operator/(Vec2i const& other) const {
-        return Vec2i(x / other.x, y / other.y);
-    }
-
-    inline Vec2i operator/(integer_t number) const {
-        return Vec2i(x / number, y / number);
-    }
-};
-
-
-class Vec3i {
-public:
-    integer_t x, y, z;
-
-    Vec3i();
-
-    Vec3i(integer_t x, integer_t y, integer_t z);
-
-    inline Vec3i operator+(Vec3i const& other) const {
-        return Vec3i(x + other.x, y + other.y, z + other.z);
-    }
-
-    inline Vec3i operator-(Vec3i const& other) const {
-        return Vec3i(x - other.x, y - other.y, z - other.z);
-    }
-
-    inline Vec3i operator*(Vec3i const& other) const {
-        return Vec3i(x * other.x, y * other.y, z * other.z);
-    }
-
-    inline Vec3i operator*(integer_t number) const {
-        return Vec3i(x * number, y * number, z * number);
-    }
-
-    inline Vec3i operator/(Vec3i const& other) const {
-        return Vec3i(x / other.x, y / other.y, z / other.z);
-    }
-
-    inline Vec3i operator/(integer_t number) const {
-        return Vec3i(x / number, y / number, z / number);
-    }
-};
-
-
-inline Vec2f floor(Vec2f v) {
-    return Vec2f(::floor(v.x), ::floor(v.y));
+    return output;
 }
 
-inline Vec3f floor(Vec3f v) {
-    return Vec3f(::floor(v.x), ::floor(v.y), ::floor(v.z));
+template<typename T, int N>
+inline VectorTemplate<integer_t, N> floor_to_int(VectorTemplate<T, N> v) {
+    VectorTemplate<integer_t, N> output;
+    for (int i = 0; i < N; i++) {
+        output.data[i] = (integer_t) ::floor(v.data[i]);
+    }
+    return output;
 }
 
-inline Vec2i floor_to_int(Vec2f v) {
-    return Vec2i((int) ::floor(v.x), (int) ::floor(v.y));
+template<typename T, int N>
+inline VectorTemplate<T, N> ceil(VectorTemplate<T, N> v) {
+    VectorTemplate<T, N> output;
+    for (int i = 0; i < N; i++) {
+        output.data[i] = ::ceil(v.data[i]);
+    }
+    return output;
 }
 
-inline Vec3i floor_to_int(Vec3f v) {
-    return Vec3i((int) ::floor(v.x), (int) ::floor(v.y), (int) ::floor(v.z));
+template<typename T, int N>
+inline VectorTemplate<integer_t, N> ceil_to_int(VectorTemplate<T, N> v) {
+    VectorTemplate<integer_t, N> output;
+    for (int i = 0; i < N; i++) {
+        output.data[i] = (integer_t) ::ceil(v.data[i]);
+    }
+    return output;
 }
 
-inline Vec2f ceil(Vec2f v) {
-    return Vec2f(::ceil(v.x), ::ceil(v.y));
+template<typename T, int N>
+inline T len_sq(VectorTemplate<T, N> v) {
+    T result = 0;
+    for (int i = 0; i < N; i++) {
+        T component = v.data[i];
+        result += component * component;
+    }
+    return result;
 }
 
-inline Vec3f ceil(Vec3f v) {
-    return Vec3f(::ceil(v.x), ::ceil(v.y), ::ceil(v.z));
+template<typename T, int N>
+inline real_t len(VectorTemplate<T, N> v) {
+    T result = 0;
+    for (int i = 0; i < N; i++) {
+        T component = v.data[i];
+        result += component * component;
+    }
+    return sqrt((real_t) result);
 }
 
-inline Vec2i ceil_to_int(Vec2f v) {
-    return Vec2i((int) ::ceil(v.x), (int) ::ceil(v.y));
+template<typename T, int N>
+inline VectorTemplate<T, N> normalize(VectorTemplate<T, N> v) {
+    return v / len(v);
 }
 
-inline Vec3i ceil_to_int(Vec3f v) {
-    return Vec3i((int) ::ceil(v.x), (int) ::ceil(v.y), (int) ::ceil(v.z));
-}
-
-inline real_t len_sq(Vec2f v) {
-    return v.x * v.x + v.y * v.y;
-}
-
-inline real_t len(Vec2f v) {
-    return sqrt(v.x * v.x + v.y * v.y);
-}
-
-inline real_t len_sq(Vec3f v) {
-    return v.x * v.x + v.y * v.y + v.z * v.z;
-}
-
-inline real_t len(Vec3f v) {
-    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-}
-
-inline Vec2f normalize(Vec2f v) {
-    real_t l = len(v);
-    return v / l;
-}
-
-inline Vec3f normalize(Vec3f v) {
-    real_t l = len(v);
-    return v / l;
-}
-
-inline real_t dot(Vec2f v1, Vec2f v2) {
-    return v1.x * v2.x + v1.y * v2.y;
-}
-
-inline real_t dot(Vec3f v1, Vec3f v2) {
-    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+template<typename T1, typename T2, int N>
+inline real_t dot(VectorTemplate<T1, N> v1, VectorTemplate<T2, N> v2) {
+    T1 result = 0;
+    for (int i = 0; i < N; i++) {
+        result += v1.data[i] * v2.data[i];
+    }
+    return result;
 }
 
 inline Vec3f cross(Vec3f v1, Vec3f v2) {
