@@ -75,7 +75,7 @@ public:
     }
 
     template<typename T2>
-    inline auto operator+(VectorTemplate<T2, N> const& other) const {
+    inline auto operator+(const VectorTemplate<T2, N>& other) const {
         typedef decltype(static_cast<T>(1) + static_cast<T2>(1)) result_type;
         VectorTemplate<result_type, N> output;
         for (int i = 0; i < N; i++) {
@@ -85,7 +85,7 @@ public:
     }
 
     template<typename T2>
-    inline const VectorTemplate<T, N>& operator+=(VectorTemplate<T2, N> const& other) const {
+    inline const VectorTemplate<T, N>& operator+=(const VectorTemplate<T2, N>& other) {
         for (int i = 0; i < N; i++) {
             this->data[i] += other.data[i];
         }
@@ -93,7 +93,7 @@ public:
     }
 
     template<typename T2>
-    inline auto operator-(VectorTemplate<T2, N> const& other) const {
+    inline auto operator-(const VectorTemplate<T2, N>& other) const {
         typedef decltype(static_cast<T>(1) - static_cast<T2>(1)) result_type;
         VectorTemplate<result_type , N> output;
         for (int i = 0; i < N; i++) {
@@ -103,7 +103,7 @@ public:
     }
 
     template<typename T2>
-    inline const VectorTemplate<T, N>& operator-=(VectorTemplate<T2, N> const& other) const {
+    inline const VectorTemplate<T, N>& operator-=(const VectorTemplate<T2, N>& other) {
         for (int i = 0; i < N; i++) {
             this->data[i] -= other.data[i];
         }
@@ -111,7 +111,7 @@ public:
     }
 
     template<typename T2>
-    inline auto operator*(VectorTemplate<T2, N> const& other) const {
+    inline auto operator*(const VectorTemplate<T2, N>& other) const {
         typedef decltype(static_cast<T>(1) * static_cast<T2>(1)) result_type;
         VectorTemplate<result_type, N> output;
         for (int i = 0; i < N; i++) {
@@ -121,7 +121,7 @@ public:
     }
 
     template<typename T2>
-    inline const VectorTemplate<T, N>& operator*=(VectorTemplate<T2, N> const& other) const {
+    inline const VectorTemplate<T, N>& operator*=(const VectorTemplate<T2, N>& other) {
         for (int i = 0; i < N; i++) {
             this->data[i] *= other.data[i];
         }
@@ -139,7 +139,7 @@ public:
     }
 
     template<typename T2>
-    inline const VectorTemplate<T, N>& operator*=(T2 other) const {
+    inline const VectorTemplate<T, N>& operator*=(T2 other) {
         for (int i = 0; i < N; i++) {
             this->data[i] *= other;
         }
@@ -147,7 +147,7 @@ public:
     }
 
     template<typename T2>
-    inline auto operator/(VectorTemplate<T2, N> const& other) const {
+    inline auto operator/(const VectorTemplate<T2, N>& other) const {
         typedef decltype(static_cast<T>(1) / static_cast<T2>(1)) result_type;
         VectorTemplate<result_type, N> output;
         for (int i = 0; i < N; i++) {
@@ -157,7 +157,7 @@ public:
     }
 
     template<typename T2>
-    inline const VectorTemplate<T, N>& operator/=(VectorTemplate<T2, N> const& other) const {
+    inline const VectorTemplate<T, N>& operator/=(const VectorTemplate<T2, N>& other) {
         for (int i = 0; i < N; i++) {
             this->data[i] /= other.data[i];
         }
@@ -175,7 +175,7 @@ public:
     }
 
     template<typename T2>
-    inline const VectorTemplate<T, N>& operator/=(T2 other) const {
+    inline const VectorTemplate<T, N>& operator/=(T2 other) {
         for (int i = 0; i < N; i++) {
             this->data[i] /= other;
         }
