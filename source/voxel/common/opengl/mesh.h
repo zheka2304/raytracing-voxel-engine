@@ -31,11 +31,11 @@ struct VertexField {
 // default vertex format struct, that contains all required basic vertex attributes
 struct DefaultVertexFormat {
     // 0) position of the vertex offset=0, size=3
-    math::Vec3 position;
+    math::Vec3f position;
     // 1) normal vector of the vertex offset=3, size=3
-    math::Vec3 normal;
+    math::Vec3f normal;
     // 2) texture coordinate of the vertex offset=6, size=2
-    math::Vec2 uv;
+    math::Vec2f uv;
     // 3) RGBA color of the vertex offset=8, size=4
     math::Color color;
     // total size = 12 * 4 = 48

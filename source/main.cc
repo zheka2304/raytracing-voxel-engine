@@ -17,7 +17,7 @@ int main() {
 
     context->setInitCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         camera = new voxel::render::Camera();
-        camera->getProjection().m_position = voxel::math::Vec3(0, 2, 0);
+        camera->getProjection().m_position = voxel::math::Vec3f(0, 2, 0);
 
         simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
         simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);

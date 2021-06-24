@@ -25,8 +25,8 @@ private:
     int m_focus = 1;
     bool m_active = true;
 
-    math::Vec2 m_last_pos;
-    math::Vec2 m_current_pos;
+    math::Vec2f m_last_pos;
+    math::Vec2f m_current_pos;
 
     void _initMode(Mode mode);
     void _removeMode(Mode mode);
@@ -44,9 +44,9 @@ public:
     void setMode(Mode mode);
     void update();
 
-    math::Vec2 getLastPos();
-    math::Vec2 getMousePos();
-    math::Vec2 getMouseMove();
+    math::Vec2f getLastPos();
+    math::Vec2f getMousePos();
+    math::Vec2f getMouseMove();
     int getMouseButton(int button);
 };
 

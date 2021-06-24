@@ -14,8 +14,8 @@ namespace opengl {
 
 class FullScreenQuad {
     struct VertexFormat {
-        math::Vec3 position;
-        math::Vec2 uv;
+        math::Vec3f position;
+        math::Vec2f uv;
 
         inline static std::vector<VertexField> fields() {
             return {

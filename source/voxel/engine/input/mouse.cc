@@ -108,15 +108,15 @@ void MouseControl::update() {
     }
 }
 
-math::Vec2 MouseControl::getLastPos() {
+math::Vec2f MouseControl::getLastPos() {
     return m_last_pos;
 }
 
-math::Vec2 MouseControl::getMousePos() {
+math::Vec2f MouseControl::getMousePos() {
     return m_current_pos;
 }
 
-math::Vec2 MouseControl::getMouseMove() {
+math::Vec2f MouseControl::getMouseMove() {
     return m_current_pos - m_last_pos;
 }
 

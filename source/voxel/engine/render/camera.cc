@@ -9,7 +9,7 @@ namespace render {
 
 void CameraProjection::setFov(float fov, float ratio) {
     if (fov == 0 || ratio == 0) {
-        m_perspective = math::Vec2(0, 0);
+        m_perspective = math::Vec2f(0, 0);
         return;
     }
 
@@ -19,11 +19,11 @@ void CameraProjection::setFov(float fov, float ratio) {
 }
 
 void CameraProjection::setOrtho(float w, float h) {
-    m_ortho_range = math::Vec2(w / 2.0f, h / 2.0f);
+    m_ortho_range = math::Vec2f(w / 2.0f, h / 2.0f);
 }
 
 void CameraProjection::setNearAndFar(float near, float far) {
-    m_distance_range = math::Vec2(near, far);
+    m_distance_range = math::Vec2f(near, far);
 }
 
 

@@ -4,19 +4,19 @@
 namespace voxel {
 namespace math {
 
-Vec2::Vec2() : x(0), y(0) {
+Vec2f::Vec2f() : x(0), y(0) {
 
 }
 
-Vec2::Vec2(real_t x, real_t y) : x(x), y(y) {
+Vec2f::Vec2f(real_t x, real_t y) : x(x), y(y) {
 
 }
 
-Vec3::Vec3() : x(0), y(0), z(0) {
+Vec3f::Vec3f() : x(0), y(0), z(0) {
 
 }
 
-Vec3::Vec3(real_t x, real_t y, real_t z) : x(x), y(y), z(z) {
+Vec3f::Vec3f(real_t x, real_t y, real_t z) : x(x), y(y), z(z) {
 
 }
 
