@@ -22,7 +22,7 @@ void getAllCameraVectors(out vec3 forward, out vec3 right, out vec3 up) {
         sin(rotation.x),
         cos_pitch * cos(rotation.y)
     );
-    right = vec3(forward.z, 0.0, -forward.x);
+    right = vec3(cos(rotation.y), 0.0, -sin(rotation.y));
     up = cross(forward, right);
 }
 

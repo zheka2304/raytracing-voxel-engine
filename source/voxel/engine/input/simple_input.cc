@@ -35,20 +35,22 @@ void SimpleInput::update(render::Camera& camera) {
         GLFWwindow* window = m_window_handler.getWindow();
         voxel::math::Vec3f& camera_position = camera.getProjection().m_position;
         if (glfwGetKey(window, GLFW_KEY_W)) {
-            camera_position.x += sin(camera_rotation.y) * m_movement_speed;
-            camera_position.z += cos(camera_rotation.y) * m_movement_speed;
+            camera_position.x += cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
+            camera_position.y += sin(camera_rotation.x) * m_movement_speed;
+            camera_position.z += cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
         }
         if (glfwGetKey(window, GLFW_KEY_S)) {
-            camera_position.x -= sin(camera_rotation.y) * m_movement_speed;
-            camera_position.z -= cos(camera_rotation.y) * m_movement_speed;
+            camera_position.x -= cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
+            camera_position.y -= sin(camera_rotation.x) * m_movement_speed;
+            camera_position.z -= cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
         }
         if (glfwGetKey(window, GLFW_KEY_D)) {
-            camera_position.x += cos(camera_rotation.y) * m_movement_speed;
-            camera_position.z -= sin(camera_rotation.y) * m_movement_speed;
+            camera_position.x += cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
+            camera_position.z -= cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
         }
         if (glfwGetKey(window, GLFW_KEY_A)) {
-            camera_position.x -= cos(camera_rotation.y) * m_movement_speed;
-            camera_position.z += sin(camera_rotation.y) * m_movement_speed;
+            camera_position.x -= cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
+            camera_position.z += cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
         }
     }
 }

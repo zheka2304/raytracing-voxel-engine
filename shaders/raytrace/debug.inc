@@ -11,7 +11,7 @@ vec3 raycastDebugCheckerboard(Ray ray) {
     ray.ray = normalize(ray.ray);
 
     // sky
-    if (ray.ray.y > 0.0) {
+    if (ray.ray.y * ray.start.y > 0.0) {
         return vec3(0.5, 0.5, 1.0);
     } else {
         vec3 floor_pos = ray.start - ray.ray * (ray.start.y / ray.ray.y);
