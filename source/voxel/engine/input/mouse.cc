@@ -96,7 +96,7 @@ void MouseControl::update() {
         case Mode::IN_GAME: {
             int w, h;
             glfwGetWindowSize(window, &w, &h);
-            glfwSetCursorPos(window, m_last_pos.x = w / 2.0f, m_last_pos.y = h / 2.0f);
+            glfwSetCursorPos(window, m_last_pos.x = int(w / 2.0f), m_last_pos.y = int(h / 2.0f));
             break;
         }
 
