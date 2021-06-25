@@ -8,6 +8,7 @@ layout(std430) buffer;
 
 #include "raytrace/camera.inc"
 #include "raytrace/debug.inc"
+#include "raytrace/raycast.inc"
 
 
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
@@ -27,7 +28,7 @@ void main() {
     // screen position in range of [-1, 1)
     vec2 screen_position = vec2(pixel) / vec2(image_size) * 2.0 - 1.0;
 
-    imageStore(output_texture_color, pixel, vec4(raycastDebugCheckerboard(getCameraRay(screen_position)), 1.0));
+    imageStore(output_texture_color, pixel, vec4(raycastVoxelWorld(getCameraRay(screen_position), true), 1.0));
     imageStore(output_texture_light, pixel, vec4(1.0));
     imageStore(output_texture_depth, pixel, vec4(vec3(0.0), 1.0));
 }
