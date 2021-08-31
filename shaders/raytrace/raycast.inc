@@ -67,32 +67,30 @@ RaycastResult debugRaycastNoHit() {
 }
 
 RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
-    if (ray.ray.x >= 0.0 || ray.ray.y >= 0.0 || ray.ray.z >= 0.0) return debugRaycast(vec3(.5, 0.0, 0.0));
-
-    // ray.start = vec3(0.0);
-
     // p(t) = p + t * d
     // d = ray.ray, p = ray.start;
     // t_v(v) = (1 / d) * v + (-p / d)
     // t_v(v) = t_coef * v + t_bias;
     vec3 t_coef = 1.0 / -abs(ray.ray);
-    vec3 t_bias = -ray.start * t_coef;
+    vec3 t_bias = -ray.start / ray.ray;
 
     int octant_mask = 7;
-    if (ray.ray.x > 0.0) { octant_mask ^= 1; /* t_bias.x = 3.0 * t_coef.x - t_bias.x; */ }
-    if (ray.ray.y > 0.0) { octant_mask ^= 2; /* t_bias.y = 3.0 * t_coef.y - t_bias.y; */ }
-    if (ray.ray.z > 0.0) { octant_mask ^= 4; /* t_bias.z = 3.0 * t_coef.z - t_bias.z; */ }
+    if (ray.ray.x > 0.0) { octant_mask ^= 1; chunk_offset.x = -(chunk_offset.x + 0.5) - 0.5; }
+    if (ray.ray.y > 0.0) { octant_mask ^= 2; chunk_offset.y = -(chunk_offset.y + 0.5) - 0.5; }
+    if (ray.ray.z > 0.0) { octant_mask ^= 4; chunk_offset.z = -(chunk_offset.z + 0.5) - 0.5; }
 
     Stack stack;
     stack.size = 0;
 
     Cube cube;
-    cube.pos = chunk_offset; //vec3(-10.0);
+    cube.pos = chunk_offset;
     cube.scale_exp = 1.0;
     cube.scale_i = 23;
 
+    vec3 t_start_v = (cube.pos + cube.scale_exp) * t_coef + t_bias;
     vec3 t_end_v = cube.pos * t_coef + t_bias;
-    float t, t_min = 0.0, t_max = min(t_end_v.x, min(t_end_v.y, t_end_v.z));
+    float t_min = max(t_start_v.x, max(t_start_v.y, t_start_v.z));
+    float t_max = min(t_end_v.x, min(t_end_v.y, t_end_v.z));
     int idx = 0;
 
     // return vec3(t_min, t_max, 0.0) / 10.0;
@@ -105,8 +103,8 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
         vec3 t_corner_v = cube.pos * t_coef + t_bias;
         float t_corner_max = min(t_corner_v.x, min(t_corner_v.y, t_corner_v.z));
 
-        if ((idx ^ octant_mask) == 3) {
-            float k = float(overflow) / 5.0;
+        if ((idx ^ octant_mask) == 3 && stack.size > 0) {
+            float k = float(stack.size + 1) / 7.0;
             vec3 t_side_v = (cube.pos + cube.scale_exp) * t_coef + t_bias;
             float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
             if (t_side_v.x >= t_side_min) return debugRaycast(vec3(1.0, 0.0, 0.0) * k);
@@ -123,10 +121,10 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
             if (t_min < t_voxel_max) {
                 // PUSH
                 if (stack.size > 20) {
-                    return debugRaycast(vec3(0.0, 1.0, 0.0));
+                    return debugRaycast(vec3(1.0, 1.0, 0.0));
                 }
 
-                if (stack.size < 50 && (overflow == 1 || (idx ^ octant_mask) == 5 || (idx ^ octant_mask) == 6)) {
+                if (overflow == 1 || overflow > 1 && ((idx ^ octant_mask) == 5 || (idx ^ octant_mask) == 6) && stack.size < 7) {
                     stack.nodes[stack.size++] = StackNode(0, t_max, cube, idx);
 
                     idx = 0;
