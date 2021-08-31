@@ -14,6 +14,7 @@ struct RaycastResult {
     float distance;
     vec3 end;
     vec3 normal;
+    vec3 color;
 };
 
 #endif  // VOXEL_ENGINE_RAYTRACE_TYPES_INC

@@ -4,7 +4,10 @@
     "raytrace.screen_pass_work_group_size": 24,
 
     // voxel chunk lookup map size, NOTE: must be power of 2
-    "raytrace.voxel_chunk_map_size": 4096,
+    "raytrace.voxel_chunk_map_size": 16384,
+
+    // voxel chunk lookup map unit capacity
+    "raytrace.voxel_chunk_map_unit_capacity": 16,
 
 
     // --- image units ---
