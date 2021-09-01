@@ -40,7 +40,7 @@ public:
 
 
 // represents buffer, that is bound to specified shader constant name
-// only one implementation should exist per shader manager
+// only one instance? should exist per shader manager
 class ShaderStorageBuffer : public Buffer {
     std::string m_constant_name;
     ShaderConstantRef<int> m_constant_ref;

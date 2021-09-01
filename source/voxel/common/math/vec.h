@@ -4,14 +4,11 @@
 #define VOXEL_ENGINE_VEC_H
 
 #include <math.h>
+#include "voxel/common/types.h"
 
 
 namespace voxel {
 namespace math {
-
-typedef float real_t;
-typedef int integer_t;
-
 
 template<typename T, int N>
 class VectorBaseClass;
@@ -184,13 +181,13 @@ public:
 };
 
 
-typedef VectorTemplate<real_t, 2> Vec2f;
-typedef VectorTemplate<real_t, 3> Vec3f;
-typedef VectorTemplate<real_t, 4> Vec4f;
+typedef VectorTemplate<f32, 2> Vec2f;
+typedef VectorTemplate<f32, 3> Vec3f;
+typedef VectorTemplate<f32, 4> Vec4f;
 
-typedef VectorTemplate<integer_t, 2> Vec2i;
-typedef VectorTemplate<integer_t, 3> Vec3i;
-typedef VectorTemplate<integer_t, 4> Vec4i;
+typedef VectorTemplate<i32, 2> Vec2i;
+typedef VectorTemplate<i32, 3> Vec3i;
+typedef VectorTemplate<i32, 4> Vec4i;
 
 
 template<typename T, int N>
@@ -203,10 +200,10 @@ inline VectorTemplate<T, N> floor(VectorTemplate<T, N> v) {
 }
 
 template<typename T, int N>
-inline VectorTemplate<integer_t, N> floor_to_int(VectorTemplate<T, N> v) {
-    VectorTemplate<integer_t, N> output;
+inline VectorTemplate<i32, N> floor_to_int(VectorTemplate<T, N> v) {
+    VectorTemplate<i32, N> output;
     for (int i = 0; i < N; i++) {
-        output.data[i] = (integer_t) ::floor(v.data[i]);
+        output.data[i] = (i32) ::floor(v.data[i]);
     }
     return output;
 }
@@ -221,10 +218,10 @@ inline VectorTemplate<T, N> ceil(VectorTemplate<T, N> v) {
 }
 
 template<typename T, int N>
-inline VectorTemplate<integer_t, N> ceil_to_int(VectorTemplate<T, N> v) {
-    VectorTemplate<integer_t, N> output;
+inline VectorTemplate<i32, N> ceil_to_int(VectorTemplate<T, N> v) {
+    VectorTemplate<i32, N> output;
     for (int i = 0; i < N; i++) {
-        output.data[i] = (integer_t) ::ceil(v.data[i]);
+        output.data[i] = (i32) ::ceil(v.data[i]);
     }
     return output;
 }
@@ -240,13 +237,13 @@ inline T len_sq(VectorTemplate<T, N> v) {
 }
 
 template<typename T, int N>
-inline real_t len(VectorTemplate<T, N> v) {
+inline f32 len(VectorTemplate<T, N> v) {
     T result = 0;
     for (int i = 0; i < N; i++) {
         T component = v.data[i];
         result += component * component;
     }
-    return sqrt((real_t) result);
+    return sqrt((f32) result);
 }
 
 template<typename T, int N>
