@@ -2,6 +2,7 @@
 #include "voxel/engine/engine.h"
 #include "voxel/engine/input/simple_input.h"
 #include "voxel/engine/render/camera.h"
+#include "voxel/engine/world/chunk.h"
 #include "voxel/common/utils/time.h"
 
 
@@ -48,27 +49,18 @@ int main() {
         if (!render_target) {
             render_target = new voxel::render::RenderTarget(1024, 1024);
 
-            voxel::i32* test_chunk_buffer = new voxel::i32[65536];
-            for (int i = 0; i < 65536; i++) {
-                test_chunk_buffer[i] = 1;
+            auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
+            // chunk->preallocate(5000, 5000);
+            for (voxel::u32 x = 0; x < 64; x++) {
+                for (voxel::u32 z = 0; z < 64; z++) {
+                    for (voxel::u32 y = 0; y < (rand() & 3); y ++) {
+                        chunk->setVoxel({6, x, y, z});
+                    }
+                }
             }
-            test_chunk_buffer[0] = 0x80000000u;
-            test_chunk_buffer[2] = 3;
-            test_chunk_buffer[3] = 0x80000000u;
-            test_chunk_buffer[4] = 0;
-            test_chunk_buffer[5] = 10; // idx 0, // 3 + 10 = 13
-            test_chunk_buffer[6] = 0;
-            test_chunk_buffer[7] = 0;
-            test_chunk_buffer[8] = 0;
-            test_chunk_buffer[9] = 0;
-            test_chunk_buffer[10] = 0;
-            test_chunk_buffer[11] = 0;
-            test_chunk_buffer[12] = 10; // idx 7
-            test_chunk_buffer[13] = 0xC0000000u;
-
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
-            buffer->setData(65536 * sizeof(voxel::i32), test_chunk_buffer, GL_STATIC_DRAW);
+            buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
             buffer->bind(render_context.getShaderManager());
         }
 
