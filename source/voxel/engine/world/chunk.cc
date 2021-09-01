@@ -13,7 +13,7 @@ Chunk::Chunk(ChunkPosition position) : m_position(position) {
     m_buffer_voxel_span = HEADER_SIZE + 512 * TREE_NODE_SIZE;
     m_buffer_size = m_buffer_voxel_span + 4096 * VOXEL_SIZE;
 
-    m_buffer_tree_offset = HEADER_SIZE;
+    m_buffer_tree_offset = HEADER_SIZE + TREE_NODE_SIZE;
     m_buffer_voxels_offset = m_buffer_voxel_span;
 
     // allocate buffer
@@ -21,7 +21,8 @@ Chunk::Chunk(ChunkPosition position) : m_position(position) {
     // header
     m_buffer[0] = 0x80000000u; // magic constant
     m_buffer[1] = 0u;          // reserved
-    m_buffer[2] = 3u;          // empty child at idx 0
+    m_buffer[2] = 3u;          // empty child at idx 0 - link to chunk root
+    m_buffer[3] = 0x80000000u; // empty chunk root
 }
 
 Chunk::~Chunk() {
@@ -60,10 +61,6 @@ void Chunk::preallocate(int32_t tree_nodes, int32_t voxels) {
 
         // if voxel span must be shifted
         if (voxel_span_shift != 0) {
-            // shift header pointer if required
-            if (m_buffer[2] >= m_buffer_voxel_span) {
-                m_buffer[2] += voxel_span_shift;
-            }
             // iterate over all child pointers in all tree nodes
             for (i32 i = HEADER_SIZE; i < m_buffer_tree_offset; i += TREE_NODE_SIZE) {
                 for (i32 j = 2; j < TREE_NODE_SIZE; j++) {
@@ -126,11 +123,20 @@ u32 Chunk::_allocateNewVoxel(u32 color, u32 material) {
 }
 
 void Chunk::setVoxel(VoxelPosition position) {
-    u32 tree_ptr = 0;
+    u32 tree_ptr = 3;
+
+    // in case of scale = 0, override chunk root as voxel
+    if (position.scale == 0) {
+        m_buffer[tree_ptr] |= 0xC0000000u;
+        return;
+    // else assure, that chunk root is marked as tree node
+    } else {
+        m_buffer[tree_ptr] = (m_buffer[tree_ptr] & 0x3FFFFFFFu) | 0x80000000u;
+    }
 
     // recursively allocate all required tree nodes
     // after loop exits, tree_ptr must contain pointer to the parent tree node of required voxel
-    for (i8 i = position.scale; i > 0; i--) {
+    for (i32 i = position.scale - 1; i > 0; i--) {
         // get idx from i bit of position (from highest to lowest)
         u8 idx = ((((position.x >> i) & 1) << 0) | (((position.y >> i) & 1) << 1) | (((position.z >> i) & 1) << 2)) ^ 7;
 
@@ -167,7 +173,7 @@ void Chunk::setVoxel(VoxelPosition position) {
     if (child != 0) {
         // proceed and override it
         tree_ptr += child;
-        m_buffer[tree_ptr] = 1;
+        m_buffer[tree_ptr] = 1u | 0x40000000u;
         m_buffer[tree_ptr + 1] = 2;
     } else {
         // otherwise allocate new one

@@ -50,14 +50,20 @@ int main() {
             render_target = new voxel::render::RenderTarget(1024, 1024);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
-            // chunk->preallocate(5000, 5000);
+//            chunk->preallocate(21512, 137352);
             for (voxel::u32 x = 0; x < 64; x++) {
                 for (voxel::u32 z = 0; z < 64; z++) {
-                    for (voxel::u32 y = 0; y < (rand() & 3); y ++) {
-                        chunk->setVoxel({6, x, y, z});
+                    for (voxel::u32 y = 0; y < 64; y ++) {
+                        int dx = int(x) - 32;
+                        int dy = int(y) - 32;
+                        int dz = int(z) - 32;
+                        if (dx * dx + dy * dy + dz * dz < 32 * 32) {
+                            chunk->setVoxel({6, x, y, z});
+                        }
                     }
                 }
             }
+            chunk->setVoxel({1, 0, 0, 0});
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
             buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
