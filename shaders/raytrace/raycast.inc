@@ -89,11 +89,10 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
 
     vec3 t_start_v = (cube.pos + cube.scale_exp) * t_coef + t_bias;
     vec3 t_end_v = cube.pos * t_coef + t_bias;
-    float t_min = max(t_start_v.x, max(t_start_v.y, t_start_v.z));
+    float t_min = max(0.0, max(t_start_v.x, max(t_start_v.y, t_start_v.z)));
     float t_max = min(t_end_v.x, min(t_end_v.y, t_end_v.z));
     int idx = 0;
-
-    // return vec3(t_min, t_max, 0.0) / 10.0;
+    uint voxel_pointer = chunk_index;
 
     int overflow = 0;
     bool skip_push = false;
