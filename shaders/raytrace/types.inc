@@ -15,6 +15,7 @@ struct RaycastResult {
     vec3 end;
     vec3 normal;
     vec3 color;
+    uint steps;
 };
 
 #endif  // VOXEL_ENGINE_RAYTRACE_TYPES_INC

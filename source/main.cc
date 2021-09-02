@@ -1,4 +1,6 @@
 #include <iostream>
+#include <sstream>
+
 #include "voxel/engine/engine.h"
 #include "voxel/engine/input/simple_input.h"
 #include "voxel/engine/render/camera.h"
@@ -39,7 +41,7 @@ int main() {
         simple_input->update(*camera);
     });
 
-    context->setFrameHandleCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
+    context->setFrameHandleCallback([context] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         static voxel::opengl::FullScreenQuad* quad = nullptr;
         if (!quad) {
             quad = new voxel::opengl::FullScreenQuad();
@@ -80,6 +82,18 @@ int main() {
 
         voxel::utils::Stopwatch stopwatch;
         glFinish();
+
+        static int frame_counter = 0;
+        static long long last_frame_timestamp = voxel::utils::getTimestampMillis();
+        if (frame_counter % 30 == 0) {
+            long long timestamp = voxel::utils::getTimestampMillis();
+            std::stringstream ss;
+            ss << "fps: " << 30.0 / (timestamp - last_frame_timestamp) * 1000.0;
+            glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
+            last_frame_timestamp = timestamp;
+        }
+
+        frame_counter++;
     });
 
     context->runEventLoop();
