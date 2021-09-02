@@ -60,12 +60,12 @@ int main() {
                         int dy = int(y) - 32;
                         int dz = int(z) - 32;
                         if (dx * dx + dy * dy + dz * dz < 32 * 32) {
-                            chunk->setVoxel({6, x, y, z});
+                            chunk->setVoxel({6, x, y, z}, (31 << 25) | 0x00FFFF, 0);
                         }
                     }
                 }
             }
-            chunk->setVoxel({1, 0, 0, 0});
+            chunk->setVoxel({1, 0, 0, 0}, (31 << 25) | 0xFF0000, 0);
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
             buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);

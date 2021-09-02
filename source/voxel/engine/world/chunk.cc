@@ -42,7 +42,7 @@ const i32 Chunk::getBufferSize() const {
 }
 
 
-void Chunk::preallocate(int32_t tree_nodes, int32_t voxels) {
+void Chunk::preallocate(i32 tree_nodes, i32 voxels) {
     // std::cout << "preallocate " << tree_nodes << ", " << voxels << "\n";
 
     // calculate required tree and voxel span sizes and new buffer size
@@ -54,6 +54,10 @@ void Chunk::preallocate(int32_t tree_nodes, int32_t voxels) {
     if (new_buffer_size > m_buffer_size) {
         // reallocate buffer
         m_buffer = static_cast<u32*>(realloc(m_buffer, new_buffer_size * sizeof(u32)));
+        if (m_buffer == nullptr) {
+            throw std::bad_alloc();
+        }
+
         m_buffer_size = new_buffer_size;
 
         // voxel span shift = new voxel span offset - old voxel span offset
@@ -81,6 +85,15 @@ void Chunk::preallocate(int32_t tree_nodes, int32_t voxels) {
             m_buffer_voxels_offset += voxel_span_shift;
         }
     }
+}
+
+void Chunk::preallocate(i32 voxels) {
+    i32 estimated_nodes = 0;
+    while (voxels > 0) {
+        voxels /= 8;
+        estimated_nodes += voxels;
+    }
+    preallocate(estimated_nodes, voxels);
 }
 
 u32 Chunk::_getAllocatedNodeSpanSize() {
@@ -122,7 +135,7 @@ u32 Chunk::_allocateNewVoxel(u32 color, u32 material) {
     return ptr;
 }
 
-void Chunk::setVoxel(VoxelPosition position) {
+void Chunk::setVoxel(VoxelPosition position, u32 color, u32 material) {
     u32 tree_ptr = 3;
 
     // in case of scale = 0, override chunk root as voxel
@@ -173,11 +186,11 @@ void Chunk::setVoxel(VoxelPosition position) {
     if (child != 0) {
         // proceed and override it
         tree_ptr += child;
-        m_buffer[tree_ptr] = 1u | 0x40000000u;
-        m_buffer[tree_ptr + 1] = 2;
+        m_buffer[tree_ptr] = color | 0x40000000u;
+        m_buffer[tree_ptr + 1] = material;
     } else {
         // otherwise allocate new one
-        u32 next = _allocateNewVoxel(1, 2);
+        u32 next = _allocateNewVoxel(color, material);
         m_buffer[tree_ptr + 2 + idx] = next - tree_ptr;
     }
 }

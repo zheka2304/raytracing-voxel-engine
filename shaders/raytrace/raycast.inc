@@ -113,7 +113,48 @@ RaycastResult debugRaycastNoHit(uint steps) {
     return r;
 }
 
-RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
+RaycastResult _makeRaycastResult(Ray ray, vec3 t_side_v, uint voxel_index, uint voxel, uint steps) {
+    RaycastResult result;
+
+    float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
+    result.distance = t_side_min;
+    if (t_side_v.x >= t_side_min) result.normal = vec3(-1.0 * sign(ray.ray.x), 0.0, 0.0);
+    else if (t_side_v.y >= t_side_min) result.normal = vec3(0.0, -1.0 * sign(ray.ray.y), 0.0);
+    else if (t_side_v.z >= t_side_min) result.normal = vec3(0.0, 0.0, -1.0 * sign(ray.ray.z));
+
+    result.steps = steps;
+    result.voxel_index = voxel_index;
+    result.voxel = voxel;
+
+    return result;
+}
+
+RaycastResult _makeNoHitRaycastResult(uint steps) {
+    RaycastResult r;
+    r.voxel = 0u;
+    r.steps = steps;
+    return r;
+}
+
+// -- FLAGS FOR RAYCAST --
+// At the moment this flags are not well designed, and most likely will change, especially refraction-related stuff
+
+// If this flag is passed, raycast will not exit on first non-empty voxel,
+// instead it will calculate resulting color, considering all translucent voxels and exiting only after.
+#define RAYCAST_FLAG_OUTPUT_COLOR 1u
+
+// If this flag is passed, raycast will not exit on refractive voxel and will just ignore it.
+// If voxel is not transparent and RAYCAST_FLAG_OUTPUT_COLOR is not passed it will exit due to transparency condition.
+#define RAYCAST_FLAG_IGNORE_REFRACT 2u
+
+
+// Raycast over one voxel chunk, main logic is placed here
+RaycastResult raycastVoxelChunk(
+    Ray ray,                    // incoming ray
+    vec3 chunk_offset,          // offset of the chunk (position of the lower corner of the chunk cube)
+    uint chunk_pointer,         // pointer to the chunk root
+    uint raycast_flags          // flag parameters
+) {
     // Size of float mantissa.
     int s_max = 23;
 
@@ -136,7 +177,7 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
     RaycastStack stack;
     stack.size = 0;
     RaycastStackNode current;
-    current.voxel_pointer = chunk_index;
+    current.voxel_pointer = chunk_pointer;
 
     // Initialize other variables to start at the chunk root.
     vec3 pos = chunk_offset;
@@ -152,7 +193,7 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
 
     // Start the loop.
     uint steps = 0u;
-    while (steps++ < 1000u) {
+    while (steps++ < 1024u) {
         // T value of current cube corner.
         vec3 t_corner_v = pos * t_coef + t_bias;
         float t_corner_max = min(t_corner_v.x, min(t_corner_v.y, t_corner_v.z));
@@ -162,14 +203,27 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
 
         // If voxel marked as full, we hit it.
         if ((voxel_header & 0x40000000u) != 0u) {
-        // if ((idx ^ octant_mask) == 3 && stack.size > 0) {
-            // return debugRaycast(vec3(1.0, 0.0, 1.0) * float(steps) / 128.0, steps);
+            // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
+            vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
+
+            // Extract voxel alpha value and check if it is fully transparent.
+            uint voxel_alpha_i = (voxel_header >> 25u) & 0x1Fu;
+            if (voxel_alpha_i > 0u) {
+                // If output color flag is not set, exit on first non-transparent voxel
+                if ((raycast_flags & RAYCAST_FLAG_OUTPUT_COLOR) == 0u) {
+                    return _makeRaycastResult(ray, t_side_v, current.voxel_pointer, voxel_header, steps);
+                } else {
+                    // TODO: write this later
+                }
+            }
+
+            /*
             float k = float(stack.size + 1) / 7.0;
             vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
             float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
             if (t_side_v.x >= t_side_min) return debugRaycast(vec3(1.0, 0.0, 0.0) * k, steps);
             if (t_side_v.y >= t_side_min) return debugRaycast(vec3(0.0, 1.0, 0.0) * k, steps);
-            if (t_side_v.z >= t_side_min) return debugRaycast(vec3(0.0, 0.0, 1.0) * k, steps);
+            if (t_side_v.z >= t_side_min) return debugRaycast(vec3(0.0, 0.0, 1.0) * k, steps); */
         }
 
         // Check t span is non-empty.
@@ -183,6 +237,7 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
                 // If voxel is marked as tree node and we are not out of stack space.
                 if (stack.size < 23 && (voxel_header & 0x80000000u) != 0u) {
                     // PUSH
+
                     // Get child pointer for current idx and check it exists.
                     uint child = u_voxel_buffer.data[current.voxel_pointer + 2u + uint(idx ^ octant_mask)];
                     if (child != 0u) {
@@ -274,7 +329,7 @@ RaycastResult raycastVoxelChunk(Ray ray, vec3 chunk_offset, uint chunk_index) {
         }
     }
 
-    return debugRaycastNoHit(steps); //debugRaycast(vec3(1.0, 0.0, 1.0) * float(steps) / 128.0);
+    return _makeNoHitRaycastResult(steps);
 }
 
 vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
@@ -303,11 +358,13 @@ vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
     uint steps = 0u;
     for (int i = 0; i < 50; i++) {
         if (lookup_chunk(chunk_raycast.pos) != uint(-1)) {
-            RaycastResult chunk_result = raycastVoxelChunk(ray, vec3(chunk_raycast.pos), 0u);
+            RaycastResult chunk_result = raycastVoxelChunk(ray, vec3(chunk_raycast.pos), 0u, 0u);
             steps += chunk_result.steps;
             if (chunk_result.voxel != 0u) {
-                return chunk_result.color;
-                break;
+                uint voxel = chunk_result.voxel;
+                vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
+                float f = dot(chunk_result.normal, normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
+                return color * f;
             }
         }
 

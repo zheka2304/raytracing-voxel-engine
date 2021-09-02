@@ -41,13 +41,16 @@ public:
     const u32* getBuffer() const;
     const i32 getBufferSize() const;
 
+private:
     u32 _getAllocatedNodeSpanSize();
     u32 _getAllocatedVoxelSpanSize();
     u32 _allocateNewNode(u32 color, u32 material);
     u32 _allocateNewVoxel(u32 color, u32 material);
 
-    void setVoxel(VoxelPosition position);
-    void preallocate(int32_t tree_nodes, int32_t voxels);
+public:
+    void setVoxel(VoxelPosition position, u32 color, u32 material);
+    void preallocate(i32 tree_nodes, i32 voxels);
+    void preallocate(i32 voxels);
 };
 
 } // world
