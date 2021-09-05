@@ -24,7 +24,7 @@ int main() {
 
         simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
         simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
-        simple_input->setMovementSpeed(0.01f);
+        simple_input->setMovementSpeed(0.05f);
     });
 
     context->setWindowResizeCallback([] (voxel::Context& ctx, int w, int h) -> void {
@@ -49,7 +49,7 @@ int main() {
 
         static voxel::render::RenderTarget* render_target = nullptr;
         if (!render_target) {
-            render_target = new voxel::render::RenderTarget(1024, 1024);
+            render_target = new voxel::render::RenderTarget(4096, 4096);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
 //            chunk->preallocate(21512, 137352);
@@ -65,7 +65,7 @@ int main() {
                     }
                 }
             }
-            chunk->setVoxel({1, 0, 0, 0}, (31 << 25) | 0xFF0000, 0);
+            chunk->setVoxel({1, 0, 0, 0}, (16 << 25) | 0xFF0000, 0);
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
             buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
@@ -85,10 +85,12 @@ int main() {
 
         static int frame_counter = 0;
         static long long last_frame_timestamp = voxel::utils::getTimestampMillis();
-        if (frame_counter % 30 == 0) {
+        const int frames_per_measure = 30;
+        if (frame_counter % frames_per_measure == 0) {
             long long timestamp = voxel::utils::getTimestampMillis();
             std::stringstream ss;
-            ss << "fps: " << 30.0 / (timestamp - last_frame_timestamp) * 1000.0;
+            ss << "fps: " << int(float(frames_per_measure) / (timestamp - last_frame_timestamp) * 1000.0);
+            ss << " frame time: " <<  int((timestamp - last_frame_timestamp) / float(frames_per_measure)) << " ms";
             glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
             last_frame_timestamp = timestamp;
         }

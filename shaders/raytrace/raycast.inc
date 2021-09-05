@@ -1,14 +1,14 @@
-precision highp float;
-
-#ifndef VOXEL_ENGINE_RAYCAST_INC
-#define VOXEL_ENGINE_RAYCAST_INC
-
-#include "common.inc"
-#include "raytrace/types.inc"
-
-
 /*
-[4096 bytes per page, no more than 1 chunk per page]
+-- FILE HEADER --
+
+VOXEL DATA STRUCTURE
+
+Voxel material structure (stored in first 2 ints in voxel data):
+1) [0-8 R][9-16 G][17-24 B][25-29 - alpha][30 - full flag][31 - tree node flag]
+2) [0-2 blend mode]3-5 reserved for voxel normal][5-9 refraction value][10-12 reflection value]
+
+GPU voxel data structure:
+4096 bytes per page, no more than 1 chunk per page
 - starting with chunk root, each chunk is 1 or more continuous pages
 
 2 i32 per voxel for voxels (tree leaves)
@@ -31,7 +31,35 @@ Memory optimization pass:
 	1. Allocate new buffer, equal in size to the current one
 	2. Do a calculating pass: recursively determine memory for remaining tree nodes and voxels (leaves)
 	3. Do copying pass: recursively copy remaining tree nodes and voxels (leaves)
+
+LOCAL ARRAY OPTIMIZATION
+  When using local arrays with random access (non-constant indices), we are experiencing major performance dropdown.
+It is happening, because such local arrays are stored in local memory instead of registers. To optimize this for small sized
+(usually < 10) arrays, we use if conditions for all indices instead:
+
+    if (index == 0) arr[0] ...
+    else if (index == 1) arr[1] ...
+    else if (index == 2) arr[2] ...
+    ...
+
+  Relying on compile-time optimizations, we can turn this into a for loop:
+
+    for (int i = 0; i < *array_size_constant*; i++) {
+        if (i == index) {
+            arr[i] ...
+            break;
+        }
+    }
 */
+
+
+precision highp float;
+
+#ifndef VOXEL_ENGINE_RAYCAST_INC
+#define VOXEL_ENGINE_RAYCAST_INC
+
+#include "common.inc"
+#include "raytrace/types.inc"
 
 // contains all voxel data, indexed
 COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
@@ -50,6 +78,8 @@ COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_vo
 // hashmap for chunk lookup (size must be power of 2)
 #define VOXEL_CHUNK_LOOKUP_MAP_SIZE ${raytrace.voxel_chunk_map_size}u
 #define VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY ${raytrace.voxel_chunk_map_unit_capacity}u
+
+#define MAX_STEPS_PER_RAY 1024u
 
 COMPUTE_SHADER_BUFFER(${raytrace.voxel_chunk_map}, readonly, u_voxel_chunk_map_t, u_voxel_chunk_map, {
     uint data[];
@@ -79,6 +109,24 @@ uint lookup_chunk(ivec3 position) {
     return 0u;
 }
 
+struct RaycastResultSpan {
+    uvec2 mat;
+    vec2 span;
+};
+
+struct RaycastResult {
+    RaycastResultSpan spans[6];
+    int count;
+
+    uvec3 last_mat;
+    vec3 t_last_side_v;
+    bool in_voxel;
+
+    float distance;
+    vec3 end;
+    uint steps;
+};
+
 struct ChunkRaycastData {
     ivec3 pos;
     ivec3 pos_step;
@@ -91,69 +139,67 @@ struct RaycastStackNode {
     float t_max;
 };
 
-struct RaycastStack {
-    int size;
-    RaycastStackNode nodes[24];
-};
-
-
-RaycastResult debugRaycast(vec3 color, uint steps) {
-    RaycastResult r;
-    r.color = color;
-    r.voxel = 1u;
-    r.steps = steps;
-    return r;
-}
-
-RaycastResult debugRaycastNoHit(uint steps) {
-    RaycastResult r;
-    r.color = vec3(0.0);
-    r.voxel = 0u;
-    r.steps = steps;
-    return r;
-}
-
-RaycastResult _makeRaycastResult(Ray ray, vec3 t_side_v, uint voxel_index, uint voxel, uint steps) {
-    RaycastResult result;
-
+void _addRaycastSpan(
+    inout RaycastResult result,
+    Ray ray,
+    vec3 t_side_v,
+    vec3 t_last_side_v,
+    uint voxel_index,
+    uvec2 mat
+) {
+    // Calculate ray length
     float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
+    float t_last_side_min = max(t_last_side_v.x, max(t_last_side_v.y, t_last_side_v.z));
     result.distance = t_side_min;
-    if (t_side_v.x >= t_side_min) result.normal = vec3(-1.0 * sign(ray.ray.x), 0.0, 0.0);
-    else if (t_side_v.y >= t_side_min) result.normal = vec3(0.0, -1.0 * sign(ray.ray.y), 0.0);
-    else if (t_side_v.z >= t_side_min) result.normal = vec3(0.0, 0.0, -1.0 * sign(ray.ray.z));
 
-    result.steps = steps;
-    result.voxel_index = voxel_index;
-    result.voxel = voxel;
+    // Initialize and add 3 bit normal to voxel material (first bit is sign, next two are 1, 2 or 3 = x, y or z)
+    uint normal = 0u;
+    if (t_last_side_v.x >= t_last_side_min) normal = 2u | (floatBitsToUint(ray.ray.x) >> 31);
+    else if (t_last_side_v.y >= t_last_side_min) normal = 4u | (floatBitsToUint(ray.ray.y) >> 31);
+    else if (t_last_side_v.z >= t_last_side_min) normal = 6u | (floatBitsToUint(ray.ray.z) >> 31);
+    mat.y |= (normal << 3);
 
-    return result;
+    // Use local array compile-time optimization (search LOCAL ARRAY OPTIMIZATION)
+    int index = result.count++;
+    for (int i = 0; i < 6; i++) {
+        if (i == index) {
+            // Initialize new span and break
+            result.spans[i].mat = mat;
+            result.spans[i].span = vec2(t_last_side_min, t_side_min);
+            break;
+        }
+    }
 }
 
-RaycastResult _makeNoHitRaycastResult(uint steps) {
-    RaycastResult r;
-    r.voxel = 0u;
-    r.steps = steps;
+RaycastResultSpan getRaycastResultSpan(RaycastResult result, int k) {
+    for (int i = 0; i < 6; i++) {
+        if (i == k) {
+            return result.spans[i];
+        }
+    }
+    RaycastResultSpan r;
     return r;
 }
 
-// -- FLAGS FOR RAYCAST --
-// At the moment this flags are not well designed, and most likely will change, especially refraction-related stuff
-
-// If this flag is passed, raycast will not exit on first non-empty voxel,
-// instead it will calculate resulting color, considering all translucent voxels and exiting only after.
-#define RAYCAST_FLAG_OUTPUT_COLOR 1u
-
-// If this flag is passed, raycast will not exit on refractive voxel and will just ignore it.
-// If voxel is not transparent and RAYCAST_FLAG_OUTPUT_COLOR is not passed it will exit due to transparency condition.
-#define RAYCAST_FLAG_IGNORE_REFRACT 2u
-
+vec3 getVoxelNormalFromMaterial(uint material) {
+    uint normal_bits = ((material >> 3u) & 3u);
+    vec3 normal = (normal_bits & 1u) == 0u ? vec3(-1.0) : vec3(1.0);
+    normal_bits &= 6u;
+    if (normal_bits == 2u) normal *= vec3(1.0, 0.0, 0.0);
+    else if (normal_bits == 4u) normal *= vec3(0.0, 1.0, 0.0);
+    else if (normal_bits == 6u) normal *= vec3(0.0, 0.0, 1.0);
+    return normal;
+}
 
 // Raycast over one voxel chunk, main logic is placed here
-RaycastResult raycastVoxelChunk(
-    Ray ray,                    // incoming ray
-    vec3 chunk_offset,          // offset of the chunk (position of the lower corner of the chunk cube)
-    uint chunk_pointer,         // pointer to the chunk root
-    uint raycast_flags          // flag parameters
+// returns true, if ray has ended
+
+bool raycastVoxelChunk(
+    inout RaycastResult result,          // - result
+    Ray ray,                             // incoming ray
+    vec3 chunk_offset,                   // offset of the chunk (position of the lower corner of the chunk cube)
+    uint chunk_pointer,                  // pointer to the chunk root
+    int max_spans                        // maximum amount of returned spans of translucent voxels
 ) {
     // Size of float mantissa.
     int s_max = 23;
@@ -174,8 +220,7 @@ RaycastResult raycastVoxelChunk(
     if (ray.ray.z > 0.0) { octant_mask ^= 4; chunk_offset.z = -(chunk_offset.z + 0.5) - 0.5; }
 
     // Initialize stack and current node.
-    RaycastStack stack;
-    stack.size = 0;
+    RaycastStackNode stack[23];
     RaycastStackNode current;
     current.voxel_pointer = chunk_pointer;
 
@@ -192,8 +237,9 @@ RaycastResult raycastVoxelChunk(
     current.t_max = min(t_end_v.x, min(t_end_v.y, t_end_v.z));
 
     // Start the loop.
-    uint steps = 0u;
-    while (steps++ < 1024u) {
+    while (result.steps++ < MAX_STEPS_PER_RAY) {
+        bool on_mat_to_air_edge = false;
+
         // T value of current cube corner.
         vec3 t_corner_v = pos * t_coef + t_bias;
         float t_corner_max = min(t_corner_v.x, min(t_corner_v.y, t_corner_v.z));
@@ -202,28 +248,34 @@ RaycastResult raycastVoxelChunk(
         uint voxel_header = u_voxel_buffer.data[current.voxel_pointer];
 
         // If voxel marked as full, we hit it.
-        if ((voxel_header & 0x40000000u) != 0u) {
-            // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
-            vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
+        if ((voxel_header & 0xC0000000u) == 0x40000000u) {
+            result.in_voxel = true;
 
-            // Extract voxel alpha value and check if it is fully transparent.
-            uint voxel_alpha_i = (voxel_header >> 25u) & 0x1Fu;
-            if (voxel_alpha_i > 0u) {
-                // If output color flag is not set, exit on first non-transparent voxel
-                if ((raycast_flags & RAYCAST_FLAG_OUTPUT_COLOR) == 0u) {
-                    return _makeRaycastResult(ray, t_side_v, current.voxel_pointer, voxel_header, steps);
-                } else {
-                    // TODO: write this later
+            // Get voxel material and check for material change
+            uvec2 voxel_material = uvec2(voxel_header, u_voxel_buffer.data[current.voxel_pointer + 1u]);
+            if (voxel_material != result.last_mat.xy) {
+                // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
+                vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
+
+                // If last material is not 0, add span of it
+                if (result.last_mat.x != 0u) {
+                    _addRaycastSpan(result, ray, t_side_v, result.t_last_side_v, current.voxel_pointer, result.last_mat.xy);
                 }
-            }
 
-            /*
-            float k = float(stack.size + 1) / 7.0;
-            vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
-            float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
-            if (t_side_v.x >= t_side_min) return debugRaycast(vec3(1.0, 0.0, 0.0) * k, steps);
-            if (t_side_v.y >= t_side_min) return debugRaycast(vec3(0.0, 1.0, 0.0) * k, steps);
-            if (t_side_v.z >= t_side_min) return debugRaycast(vec3(0.0, 0.0, 1.0) * k, steps); */
+                // If we have reached span limit, or voxel is fully opaque,
+                // add last material with zero-length span and return true (ray end has been reached).
+                if (((voxel_header >> 25u) & 31u) == 31u || result.count >= max_spans - 1) {
+                    _addRaycastSpan(result, ray, t_side_v, t_side_v, current.voxel_pointer, voxel_material);
+                    return true;
+                }
+
+                // Update last material
+                result.last_mat.xy = voxel_material;
+                result.t_last_side_v = t_side_v;
+            }
+        // If we were in voxel, it means we advanced out of it
+        } else if (result.in_voxel) {
+            on_mat_to_air_edge = true;
         }
 
         // Check t span is non-empty.
@@ -235,14 +287,14 @@ RaycastResult raycastVoxelChunk(
             // Again check t span is non-empty.
             if (t_min < t_voxel_max) {
                 // If voxel is marked as tree node and we are not out of stack space.
-                if (stack.size < 23 && (voxel_header & 0x80000000u) != 0u) {
+                if (scale_i > 0 && (voxel_header & 0x80000000u) != 0u) {
                     // PUSH
 
                     // Get child pointer for current idx and check it exists.
                     uint child = u_voxel_buffer.data[current.voxel_pointer + 2u + uint(idx ^ octant_mask)];
                     if (child != 0u) {
                         // Put current voxel_pointer and t_max on stack at the current scale
-                        stack.nodes[scale_i] = current;
+                        stack[scale_i] = current;
                         current.voxel_pointer += child;
 
                         // Go down 1 scale and reset idx.
@@ -264,6 +316,21 @@ RaycastResult raycastVoxelChunk(
                     }
                 }
             }
+        }
+
+        // If we advanced out of material and have not pushed, it means, that we need to end current material span
+        if (on_mat_to_air_edge) {
+            result.in_voxel = false;
+
+            // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
+            vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
+
+            // Add last material span (result.in_voxel was true, so we advanced into material
+            _addRaycastSpan(result, ray, t_side_v, result.t_last_side_v, current.voxel_pointer, result.last_mat.xy);
+
+            // Set material to zero
+            result.last_mat = uvec3(0u);
+            result.t_last_side_v = t_side_v;
         }
 
         // ADVANCE
@@ -306,7 +373,7 @@ RaycastResult raycastVoxelChunk(
             scale_exp = intBitsToFloat((scale_i + 127 - s_max) << 23);
 
             // Now, using scale, extract voxel_pointer and t_max from stack at this scale
-            current = stack.nodes[scale_i];
+            current = stack[scale_i];
 
             // This will floor position to current scale, so it will be pointing to the lowest corner of the cube (see image above)
             int shx = floatBitsToInt(pos.x) >> scale_i;
@@ -322,14 +389,15 @@ RaycastResult raycastVoxelChunk(
             // Restore position.
             pos = chunk_offset + fract(pos);
 
-            // If we popped out of chunk, break
+            // If we popped out of chunk, return false, because the end is not reached yet
             if (scale_i >= s_max) {
-                break;
+                return false;
             }
         }
     }
 
-    return _makeNoHitRaycastResult(steps);
+    // We have reached step limit
+    return true;
 }
 
 vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
@@ -355,26 +423,51 @@ vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
             (ray.ray.z > 0.0 ? (float(chunk_raycast.pos.z + 1) - ray.start.z) : (ray.start.z - float(chunk_raycast.pos.z))) * chunk_raycast.rayS.z
         );
 
-    uint steps = 0u;
+    RaycastResult result;
+    result.last_mat = uvec3(0u);
+    result.count = 0;
+    result.steps = 0u;
+    result.in_voxel = false;
+
+    vec4 mixed_color = vec4(0.0);
     for (int i = 0; i < 50; i++) {
         if (lookup_chunk(chunk_raycast.pos) != uint(-1)) {
-            RaycastResult chunk_result = raycastVoxelChunk(ray, vec3(chunk_raycast.pos), 0u, 0u);
-            steps += chunk_result.steps;
-            if (chunk_result.voxel != 0u) {
-                uint voxel = chunk_result.voxel;
-                vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
-                float f = dot(chunk_result.normal, normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
-                return color * f;
+            if (raycastVoxelChunk(result, ray, vec3(chunk_raycast.pos), 0u, 6)) {
+                break;
             }
+        // If we advanced out of chunk, and have pending material span, finish it
+        } else if (result.in_voxel) {
+            result.in_voxel = false;
+
+            // Add last material span (result.in_voxel was true, so we advanced into material
+            _addRaycastSpan(result, ray, chunk_raycast.rayL, result.t_last_side_v, 0u, result.last_mat.xy);
+
+            // Set material to zero
+            result.last_mat = uvec3(0u);
+            result.t_last_side_v = chunk_raycast.rayL;
         }
 
         bvec3 mask = lessThanEqual(chunk_raycast.rayL, min(chunk_raycast.rayL.yzx, chunk_raycast.rayL.zxy));
         chunk_raycast.rayL += vec3(mask) * chunk_raycast.rayS;
         chunk_raycast.pos += ivec3(mask) * chunk_raycast.pos_step;
-        steps++;
+        result.steps++;
     }
 
-    return vec3(1.0, 0.0, 1.0) * float(steps) / 256.0;
+
+    // return vec3(result.count) / 6.0;
+    for (int i = result.count - 1; i >= 0; i--) {
+        RaycastResultSpan span = getRaycastResultSpan(result, i);
+        // return vec3(abs(span.span.x - span.span.y)) / 0.0001;
+        uint voxel = span.mat.x;
+        vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
+        float alpha = float((voxel >> 25u) & 31u) / 31.0;
+        float f = dot(getVoxelNormalFromMaterial(span.mat.y), normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
+        mixed_color = vec4(mixed_color.rgb, 1.0) * (1.0 - alpha) + alpha * vec4(color * f, alpha);
+        // return mixed_color.rgb;
+    }
+    return mixed_color.rgb;
+
+    return vec3(1.0, 0.0, 1.0) * float(result.steps) / 256.0;
 
 }
 
