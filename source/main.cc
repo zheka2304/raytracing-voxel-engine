@@ -49,7 +49,7 @@ int main() {
 
         static voxel::render::RenderTarget* render_target = nullptr;
         if (!render_target) {
-            render_target = new voxel::render::RenderTarget(512, 512);
+            render_target = new voxel::render::RenderTarget(4096, 4096);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
 //            chunk->preallocate(21512, 137352);
@@ -60,7 +60,7 @@ int main() {
                         int dy = int(y) - 32;
                         int dz = int(z) - 32;
                         if (dx * dx + dy * dy + dz * dz < 32 * 32) {
-                            chunk->setVoxel({6, x, y, z}, (16 << 25) | 0x00FFFF, 0);
+                            chunk->setVoxel({6, x, y, z}, (31 << 25) | 0x00FFFF, 0);
                         }
                     }
                 }

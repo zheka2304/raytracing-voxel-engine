@@ -5,7 +5,7 @@ VOXEL DATA STRUCTURE
 
 Voxel material structure (stored in first 2 ints in voxel data):
 1) [0-8 R][9-16 G][17-24 B][25-29 - alpha][30 - full flag][31 - tree node flag]
-2) [0-2 blend mode]3-5 reserved for voxel normal][5-9 refraction value][10-12 reflection value]
+2) [0-4 blend mode][5-7 reserved for voxel normal]
 
 GPU voxel data structure:
 4096 bytes per page, no more than 1 chunk per page
@@ -127,6 +127,7 @@ struct RaycastResult {
 struct MaterialRaycastData {
     uvec2 last_mat;
     vec3 t_last_side_v;
+    float t_chunk_end;
     bool in_voxel;
 };
 
@@ -150,10 +151,6 @@ void _addRaycastSpan(
     uint voxel_index,
     uvec2 mat
 ) {
-    if (mat.x == 0u) {
-        return;
-    }
-
     // Calculate ray length
     float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
     float t_last_side_min = max(t_last_side_v.x, max(t_last_side_v.y, t_last_side_v.z));
@@ -164,10 +161,10 @@ void _addRaycastSpan(
     if (t_last_side_v.x >= t_last_side_min) normal = 2u | (floatBitsToUint(ray.ray.x) >> 31);
     else if (t_last_side_v.y >= t_last_side_min) normal = 4u | (floatBitsToUint(ray.ray.y) >> 31);
     else if (t_last_side_v.z >= t_last_side_min) normal = 6u | (floatBitsToUint(ray.ray.z) >> 31);
-    mat.y |= (normal << 3);
+    mat.y |= (normal << 5);
 
     // constant mask for excluding normal from material
-    uvec2 material_cmp_mask = uvec2(0xFFFFFFFFu, 0xFFFFFFC7u);
+    uvec2 material_cmp_mask = uvec2(0xFFFFFFFFu, 0xFFFFFF1Fu);
 
     // Use local array compile-time optimization (search LOCAL ARRAY OPTIMIZATION)
     int index = result.count++;
@@ -202,7 +199,7 @@ RaycastResultSpan getRaycastResultSpan(RaycastResult result, int k) {
 }
 
 vec3 getVoxelNormalFromMaterial(uint material) {
-    uint normal_bits = ((material >> 3u) & 3u);
+    uint normal_bits = ((material >> 5u) & 3u);
     vec3 normal = (normal_bits & 1u) == 0u ? vec3(-1.0) : vec3(1.0);
     normal_bits &= 6u;
     if (normal_bits == 2u) normal *= vec3(1.0, 0.0, 0.0);
@@ -256,6 +253,9 @@ bool raycastVoxelChunk(
     vec3 t_end_v = pos * t_coef + t_bias;
     float t_min = max(0.0, max(t_start_v.x, max(t_start_v.y, t_start_v.z)));
     current.t_max = min(t_end_v.x, min(t_end_v.y, t_end_v.z));
+
+    // Store t_max, to use it, in case material span is ended after we advance to next chunk into non-existing chunk
+    material_data.t_chunk_end = current.t_max;
 
     // Start the loop.
     while (result.steps++ < MAX_STEPS_PER_RAY) {
@@ -421,7 +421,7 @@ bool raycastVoxelChunk(
     return true;
 }
 
-vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
+RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, bool request_cache_updates) {
     ChunkRaycastData chunk_raycast;
 
     if (abs(ray.ray.x) < 1e-23) ray.ray.x = 1e-23 * sign(ray.ray.x);
@@ -452,7 +452,7 @@ vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
     material_data.last_mat = uvec2(0u);
     material_data.in_voxel = false;
 
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < max_chunks; i++) {
         // Lookup chunk by position, and if it is found, raycast it
         uint chunk_pointer = lookup_chunk(chunk_raycast.pos);
         if (chunk_pointer != uint(-1)) {
@@ -465,11 +465,11 @@ vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
             material_data.in_voxel = false;
 
             // Add last material span (result.in_voxel was true, so we advanced into material
-            _addRaycastSpan(result, ray, chunk_raycast.rayL, material_data.t_last_side_v, 0u, material_data.last_mat);
+            _addRaycastSpan(result, ray, vec3(material_data.t_chunk_end), material_data.t_last_side_v, 0u, material_data.last_mat);
 
             // Set material to zero
             material_data.last_mat = uvec2(0u);
-            material_data.t_last_side_v = chunk_raycast.rayL;
+            material_data.t_last_side_v = vec3(material_data.t_chunk_end);
         }
 
         // Make DDA step to advance to next chunk
@@ -479,22 +479,10 @@ vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
         result.steps++;
     }
 
-    vec4 mixed_color = vec4(0.0);
-    // return vec3(result.count) / 6.0;
-    for (int i = result.count - 1; i >= 0; i--) {
-        RaycastResultSpan span = getRaycastResultSpan(result, i);
-        // return vec3(abs(span.span.x - span.span.y)) / 0.0001;
-        uint voxel = span.mat.x;
-        vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
-        float alpha = float((voxel >> 25u) & 31u) / 31.0;
-        float f = dot(getVoxelNormalFromMaterial(span.mat.y), normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
-        mixed_color = vec4(mixed_color.rgb, 1.0) * (1.0 - alpha) + alpha * vec4(color * f, alpha);
-        // return mixed_color.rgb;
-    }
-    return mixed_color.rgb;
+    // Calculate ray end
+    result.end = ray.start + ray.ray * result.distance;
 
-    return vec3(1.0, 0.0, 1.0) * float(result.steps) / 256.0;
-
+    return result;
 }
 
 #endif  // VOXEL_ENGINE_RAYCAST_INC
