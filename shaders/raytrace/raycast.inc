@@ -79,7 +79,8 @@ COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_vo
 #define VOXEL_CHUNK_LOOKUP_MAP_SIZE ${raytrace.voxel_chunk_map_size}u
 #define VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY ${raytrace.voxel_chunk_map_unit_capacity}u
 
-#define MAX_STEPS_PER_RAY 1024u
+#define MAX_STEPS_PER_RAY ${raytrace.max_steps_per_ray}u
+#define MATERIAL_SPAN_MERGE_COEF ${raytrace.material_span_merge_coef}
 
 COMPUTE_SHADER_BUFFER(${raytrace.voxel_chunk_map}, readonly, u_voxel_chunk_map_t, u_voxel_chunk_map, {
     uint data[];
@@ -118,13 +119,15 @@ struct RaycastResult {
     RaycastResultSpan spans[6];
     int count;
 
-    uvec3 last_mat;
-    vec3 t_last_side_v;
-    bool in_voxel;
-
     float distance;
     vec3 end;
     uint steps;
+};
+
+struct MaterialRaycastData {
+    uvec2 last_mat;
+    vec3 t_last_side_v;
+    bool in_voxel;
 };
 
 struct ChunkRaycastData {
@@ -147,6 +150,10 @@ void _addRaycastSpan(
     uint voxel_index,
     uvec2 mat
 ) {
+    if (mat.x == 0u) {
+        return;
+    }
+
     // Calculate ray length
     float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
     float t_last_side_min = max(t_last_side_v.x, max(t_last_side_v.y, t_last_side_v.z));
@@ -159,13 +166,26 @@ void _addRaycastSpan(
     else if (t_last_side_v.z >= t_last_side_min) normal = 6u | (floatBitsToUint(ray.ray.z) >> 31);
     mat.y |= (normal << 3);
 
+    // constant mask for excluding normal from material
+    uvec2 material_cmp_mask = uvec2(0xFFFFFFFFu, 0xFFFFFFC7u);
+
     // Use local array compile-time optimization (search LOCAL ARRAY OPTIMIZATION)
     int index = result.count++;
     for (int i = 0; i < 6; i++) {
         if (i == index) {
-            // Initialize new span and break
-            result.spans[i].mat = mat;
-            result.spans[i].span = vec2(t_last_side_min, t_side_min);
+            // If we can merge new span with last - merge them
+            if (i > 0 &&
+                result.spans[i - 1].span.y * MATERIAL_SPAN_MERGE_COEF > t_last_side_min &&     // spans are close enough
+                (result.spans[i - 1].mat & material_cmp_mask) == (mat & material_cmp_mask) &&  // materials match, excluding normal
+                t_last_side_min != t_side_min                                                  // and this is not last span
+            ) {
+                result.spans[i - 1].span.y = t_side_min;
+                result.count--;
+            // Else initialize new span and break
+            } else {
+                result.spans[i].mat = mat;
+                result.spans[i].span = vec2(t_last_side_min, t_side_min);
+            }
             break;
         }
     }
@@ -195,11 +215,12 @@ vec3 getVoxelNormalFromMaterial(uint material) {
 // returns true, if ray has ended
 
 bool raycastVoxelChunk(
-    inout RaycastResult result,          // - result
-    Ray ray,                             // incoming ray
-    vec3 chunk_offset,                   // offset of the chunk (position of the lower corner of the chunk cube)
-    uint chunk_pointer,                  // pointer to the chunk root
-    int max_spans                        // maximum amount of returned spans of translucent voxels
+    inout RaycastResult result,              // - result
+    inout MaterialRaycastData material_data, // - struct, containing current material span
+    Ray ray,                                 // incoming ray
+    vec3 chunk_offset,                       // offset of the chunk (position of the lower corner of the chunk cube)
+    uint chunk_pointer,                      // pointer to the chunk root
+    int max_spans                            // maximum amount of returned spans of translucent voxels
 ) {
     // Size of float mantissa.
     int s_max = 23;
@@ -249,17 +270,17 @@ bool raycastVoxelChunk(
 
         // If voxel marked as full, we hit it.
         if ((voxel_header & 0xC0000000u) == 0x40000000u) {
-            result.in_voxel = true;
+            material_data.in_voxel = true;
 
             // Get voxel material and check for material change
             uvec2 voxel_material = uvec2(voxel_header, u_voxel_buffer.data[current.voxel_pointer + 1u]);
-            if (voxel_material != result.last_mat.xy) {
+            if (voxel_material != material_data.last_mat) {
                 // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
                 vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
 
                 // If last material is not 0, add span of it
-                if (result.last_mat.x != 0u) {
-                    _addRaycastSpan(result, ray, t_side_v, result.t_last_side_v, current.voxel_pointer, result.last_mat.xy);
+                if (material_data.last_mat.x != 0u) {
+                    _addRaycastSpan(result, ray, t_side_v, material_data.t_last_side_v, current.voxel_pointer, material_data.last_mat);
                 }
 
                 // If we have reached span limit, or voxel is fully opaque,
@@ -270,11 +291,11 @@ bool raycastVoxelChunk(
                 }
 
                 // Update last material
-                result.last_mat.xy = voxel_material;
-                result.t_last_side_v = t_side_v;
+                material_data.last_mat = voxel_material;
+                material_data.t_last_side_v = t_side_v;
             }
         // If we were in voxel, it means we advanced out of it
-        } else if (result.in_voxel) {
+        } else if (material_data.in_voxel) {
             on_mat_to_air_edge = true;
         }
 
@@ -320,17 +341,17 @@ bool raycastVoxelChunk(
 
         // If we advanced out of material and have not pushed, it means, that we need to end current material span
         if (on_mat_to_air_edge) {
-            result.in_voxel = false;
+            material_data.in_voxel = false;
 
             // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
             vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
 
-            // Add last material span (result.in_voxel was true, so we advanced into material
-            _addRaycastSpan(result, ray, t_side_v, result.t_last_side_v, current.voxel_pointer, result.last_mat.xy);
+            // Add last material span (material_data.in_voxel was true, so we advanced into material
+            _addRaycastSpan(result, ray, t_side_v, material_data.t_last_side_v, current.voxel_pointer, material_data.last_mat);
 
             // Set material to zero
-            result.last_mat = uvec3(0u);
-            result.t_last_side_v = t_side_v;
+            material_data.last_mat = uvec2(0u);
+            material_data.t_last_side_v = t_side_v;
         }
 
         // ADVANCE
@@ -424,36 +445,41 @@ vec3 raycastVoxelWorld(Ray ray, bool request_cache_updates) {
         );
 
     RaycastResult result;
-    result.last_mat = uvec3(0u);
     result.count = 0;
     result.steps = 0u;
-    result.in_voxel = false;
 
-    vec4 mixed_color = vec4(0.0);
+    MaterialRaycastData material_data;
+    material_data.last_mat = uvec2(0u);
+    material_data.in_voxel = false;
+
     for (int i = 0; i < 50; i++) {
-        if (lookup_chunk(chunk_raycast.pos) != uint(-1)) {
-            if (raycastVoxelChunk(result, ray, vec3(chunk_raycast.pos), 0u, 6)) {
+        // Lookup chunk by position, and if it is found, raycast it
+        uint chunk_pointer = lookup_chunk(chunk_raycast.pos);
+        if (chunk_pointer != uint(-1)) {
+            // If ray end has been reached, break out of loop
+            if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, 6)) {
                 break;
             }
         // If we advanced out of chunk, and have pending material span, finish it
-        } else if (result.in_voxel) {
-            result.in_voxel = false;
+        } else if (material_data.in_voxel) {
+            material_data.in_voxel = false;
 
             // Add last material span (result.in_voxel was true, so we advanced into material
-            _addRaycastSpan(result, ray, chunk_raycast.rayL, result.t_last_side_v, 0u, result.last_mat.xy);
+            _addRaycastSpan(result, ray, chunk_raycast.rayL, material_data.t_last_side_v, 0u, material_data.last_mat);
 
             // Set material to zero
-            result.last_mat = uvec3(0u);
-            result.t_last_side_v = chunk_raycast.rayL;
+            material_data.last_mat = uvec2(0u);
+            material_data.t_last_side_v = chunk_raycast.rayL;
         }
 
+        // Make DDA step to advance to next chunk
         bvec3 mask = lessThanEqual(chunk_raycast.rayL, min(chunk_raycast.rayL.yzx, chunk_raycast.rayL.zxy));
         chunk_raycast.rayL += vec3(mask) * chunk_raycast.rayS;
         chunk_raycast.pos += ivec3(mask) * chunk_raycast.pos_step;
         result.steps++;
     }
 
-
+    vec4 mixed_color = vec4(0.0);
     // return vec3(result.count) / 6.0;
     for (int i = result.count - 1; i >= 0; i--) {
         RaycastResultSpan span = getRaycastResultSpan(result, i);

@@ -9,6 +9,12 @@
     // voxel chunk lookup map unit capacity
     "raytrace.voxel_chunk_map_unit_capacity": 16,
 
+    // absolute maximum of steps per single ray during raycast
+    "raytrace.max_steps_per_ray": 1024,
+
+    // materials span with same material, where end of previous span * coefficient >= start of a new span are merged
+    // removing unnecessary details from translucent material edges
+    "raytrace.material_span_merge_coef": 1.05,
 
     // --- image units ---
     "raytrace.color_texture": 0,
