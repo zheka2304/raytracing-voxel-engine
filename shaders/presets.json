@@ -16,6 +16,10 @@
     // removing unnecessary details from translucent material edges
     "raytrace.material_span_merge_coef": 1.05,
 
+    // lighting
+    "lighting.normal_fadeout_distance": 192,
+    "lighting.normal_fadeout_rate": 2.5,
+
     // --- image units ---
     "raytrace.color_texture": 0,
     "raytrace.light_texture": 1,

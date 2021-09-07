@@ -7,6 +7,16 @@
 #include "voxel/engine/world/chunk.h"
 #include "voxel/common/utils/time.h"
 
+voxel::u32 getNormalBits(voxel::f32 x, voxel::f32 y, voxel::f32 z, voxel::f32 weight) {
+    voxel::f32 xz = sqrt(x * x + z * z);
+    voxel::f32 yaw = atan2(z, x);
+    voxel::f32 pitch = atan2(y, xz);
+
+    const voxel::i32 bit_offset = 8;
+    return (voxel::u32((yaw + M_PI) / (M_PI * 2) * 63.0) |
+            (voxel::u32((pitch / M_PI + 0.5) * 31.0) << 6) |
+            (voxel::u32(weight * 15.0) << 11)) << bit_offset;
+}
 
 int main() {
 
@@ -60,12 +70,12 @@ int main() {
                         int dy = int(y) - 32;
                         int dz = int(z) - 32;
                         if (dx * dx + dy * dy + dz * dz < 32 * 32) {
-                            chunk->setVoxel({6, x, y, z}, (31 << 25) | 0x00FFFF, 0);
+                            chunk->setVoxel({6, x, y, z}, (31 << 25) | 0x00FFFF, getNormalBits(dx, dy, dz, 0.5));
                         }
                     }
                 }
             }
-            chunk->setVoxel({1, 0, 0, 0}, (16 << 25) | 0xFF0000, 0);
+            chunk->setVoxel({1, 0, 0, 0}, (16 << 25) | 0xFFFF00, 0);
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
             buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);

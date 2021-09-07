@@ -5,7 +5,7 @@ VOXEL DATA STRUCTURE
 
 Voxel material structure (stored in first 2 ints in voxel data):
 1) [0-8 R][9-16 G][17-24 B][25-29 - alpha][30 - full flag][31 - tree node flag]
-2) [0-4 blend mode][5-7 reserved for voxel normal]
+2) [0-4 blend mode][5-6 reserved][7 if set, all lighting is ignored][8-22 bits - normal]
 
 GPU voxel data structure:
 4096 bytes per page, no more than 1 chunk per page
@@ -52,8 +52,6 @@ It is happening, because such local arrays are stored in local memory instead of
     }
 */
 
-
-precision highp float;
 
 #ifndef VOXEL_ENGINE_RAYCAST_INC
 #define VOXEL_ENGINE_RAYCAST_INC
@@ -111,7 +109,7 @@ uint lookup_chunk(ivec3 position) {
 }
 
 struct RaycastResultSpan {
-    uvec2 mat;
+    uvec3 mat;
     vec2 span;
 };
 
@@ -125,7 +123,7 @@ struct RaycastResult {
 };
 
 struct MaterialRaycastData {
-    uvec2 last_mat;
+    uvec3 last_mat;
     vec3 t_last_side_v;
     float t_chunk_end;
     bool in_voxel;
@@ -149,7 +147,7 @@ void _addRaycastSpan(
     vec3 t_side_v,
     vec3 t_last_side_v,
     uint voxel_index,
-    uvec2 mat
+    uvec3 mat
 ) {
     // Calculate ray length
     float t_side_min = max(t_side_v.x, max(t_side_v.y, t_side_v.z));
@@ -161,10 +159,7 @@ void _addRaycastSpan(
     if (t_last_side_v.x >= t_last_side_min) normal = 2u | (floatBitsToUint(ray.ray.x) >> 31);
     else if (t_last_side_v.y >= t_last_side_min) normal = 4u | (floatBitsToUint(ray.ray.y) >> 31);
     else if (t_last_side_v.z >= t_last_side_min) normal = 6u | (floatBitsToUint(ray.ray.z) >> 31);
-    mat.y |= (normal << 5);
-
-    // constant mask for excluding normal from material
-    uvec2 material_cmp_mask = uvec2(0xFFFFFFFFu, 0xFFFFFF1Fu);
+    mat.z |= normal;
 
     // Use local array compile-time optimization (search LOCAL ARRAY OPTIMIZATION)
     int index = result.count++;
@@ -173,7 +168,7 @@ void _addRaycastSpan(
             // If we can merge new span with last - merge them
             if (i > 0 &&
                 result.spans[i - 1].span.y * MATERIAL_SPAN_MERGE_COEF > t_last_side_min &&     // spans are close enough
-                (result.spans[i - 1].mat & material_cmp_mask) == (mat & material_cmp_mask) &&  // materials match, excluding normal
+                result.spans[i - 1].mat.xy == mat.xy &&                                        // materials match
                 t_last_side_min != t_side_min                                                  // and this is not last span
             ) {
                 result.spans[i - 1].span.y = t_side_min;
@@ -196,16 +191,6 @@ RaycastResultSpan getRaycastResultSpan(RaycastResult result, int k) {
     }
     RaycastResultSpan r;
     return r;
-}
-
-vec3 getVoxelNormalFromMaterial(uint material) {
-    uint normal_bits = ((material >> 5u) & 3u);
-    vec3 normal = (normal_bits & 1u) == 0u ? vec3(-1.0) : vec3(1.0);
-    normal_bits &= 6u;
-    if (normal_bits == 2u) normal *= vec3(1.0, 0.0, 0.0);
-    else if (normal_bits == 4u) normal *= vec3(0.0, 1.0, 0.0);
-    else if (normal_bits == 6u) normal *= vec3(0.0, 0.0, 1.0);
-    return normal;
 }
 
 // Raycast over one voxel chunk, main logic is placed here
@@ -274,7 +259,7 @@ bool raycastVoxelChunk(
 
             // Get voxel material and check for material change
             uvec2 voxel_material = uvec2(voxel_header, u_voxel_buffer.data[current.voxel_pointer + 1u]);
-            if (voxel_material != material_data.last_mat) {
+            if (voxel_material != material_data.last_mat.xy) {
                 // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
                 vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
 
@@ -283,15 +268,15 @@ bool raycastVoxelChunk(
                     _addRaycastSpan(result, ray, t_side_v, material_data.t_last_side_v, current.voxel_pointer, material_data.last_mat);
                 }
 
-                // If we have reached span limit, or voxel is fully opaque,
+                // If we have reached span limit, or voxel is fully opaque with blend mode 0,
                 // add last material with zero-length span and return true (ray end has been reached).
-                if (((voxel_header >> 25u) & 31u) == 31u || result.count >= max_spans - 1) {
-                    _addRaycastSpan(result, ray, t_side_v, t_side_v, current.voxel_pointer, voxel_material);
+                if ((voxel_material & uvec2(0x3E000000u, 0x000000Fu)) == uvec2(31u << 25u, 0u) || result.count >= max_spans - 1) {
+                    _addRaycastSpan(result, ray, t_side_v, t_side_v, current.voxel_pointer, uvec3(voxel_material, scale_i << 3));
                     return true;
                 }
 
                 // Update last material
-                material_data.last_mat = voxel_material;
+                material_data.last_mat = uvec3(voxel_material, scale_i << 3);
                 material_data.t_last_side_v = t_side_v;
             }
         // If we were in voxel, it means we advanced out of it
@@ -350,7 +335,7 @@ bool raycastVoxelChunk(
             _addRaycastSpan(result, ray, t_side_v, material_data.t_last_side_v, current.voxel_pointer, material_data.last_mat);
 
             // Set material to zero
-            material_data.last_mat = uvec2(0u);
+            material_data.last_mat = uvec3(0u);
             material_data.t_last_side_v = t_side_v;
         }
 
@@ -449,7 +434,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, bool request_cache_upda
     result.steps = 0u;
 
     MaterialRaycastData material_data;
-    material_data.last_mat = uvec2(0u);
+    material_data.last_mat = uvec3(0u);
     material_data.in_voxel = false;
 
     for (int i = 0; i < max_chunks; i++) {
@@ -468,7 +453,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, bool request_cache_upda
             _addRaycastSpan(result, ray, vec3(material_data.t_chunk_end), material_data.t_last_side_v, 0u, material_data.last_mat);
 
             // Set material to zero
-            material_data.last_mat = uvec2(0u);
+            material_data.last_mat = uvec3(0u);
             material_data.t_last_side_v = vec3(material_data.t_chunk_end);
         }
 

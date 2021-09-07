@@ -9,13 +9,21 @@ layout(std430) buffer;
 #include "raytrace/camera.inc"
 #include "raytrace/debug.inc"
 #include "raytrace/raycast.inc"
+#include "raytrace/blending.inc"
+#include "raytrace/lighting.inc"
 
 
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
 layout(rgba32f, binding = ${raytrace.light_texture}) writeonly uniform highp image2D output_texture_light;
 layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp image2D output_texture_depth;
 
-
+void raytraceMainImage(
+    out vec4 color,
+    out vec4 light,
+    Ray ray
+) {
+    RaycastResult result = raycastVoxelWorld(ray, 50, true);
+}
 
 void main() {
     // get pixel and discard excess ones
@@ -29,16 +37,23 @@ void main() {
     vec2 screen_position = vec2(pixel) / vec2(image_size) * 2.0 - 1.0;
 
     //
-    RaycastResult result = raycastVoxelWorld(getCameraRay(screen_position), 50, true);
+    Ray ray = getCameraRay(screen_position);
+    RaycastResult result = raycastVoxelWorld(ray, 50, true);
     vec4 mixed_color = vec4(0.0);
     for (int i = result.count - 1; i >= 0; i--) {
         RaycastResultSpan span = getRaycastResultSpan(result, i);
         uint voxel = span.mat.x;
         vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
         float alpha = float((voxel >> 25u) & 31u) / 31.0;
-        if (alpha < 1.0) alpha = 1.0 - pow(1.0 - alpha, (span.span.y - span.span.x) / 0.5);
-        float f = dot(getVoxelNormalFromMaterial(span.mat.y), normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
-        mixed_color = mix(vec4(mixed_color.rgb, 1.0), vec4(color * f, alpha), alpha);
+        // if (alpha < 1.0) alpha = 1.0 - pow(1.0 - alpha, (span.span.y - span.span.x) / 0.5);
+        float f = dot(getVoxelNormal(span.mat, span.span), normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
+        mixed_color = blendVoxelColors(
+            mixed_color,
+            vec4(color * f, alpha),
+            span.mat,
+            ray.ray,
+            span.span.y - span.span.x
+        ); //mix(vec4(mixed_color.rgb, 1.0), vec4(color * f, alpha), alpha);
     }
 
     // return vec3(1.0, 0.0, 1.0) * float(result.steps) / 256.0;
