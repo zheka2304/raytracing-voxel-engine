@@ -18,11 +18,35 @@ layout(rgba32f, binding = ${raytrace.light_texture}) writeonly uniform highp ima
 layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp image2D output_texture_depth;
 
 void raytraceMainImage(
-    out vec4 color,
-    out vec4 light,
+    out vec4 o_color,
+    out vec4 o_light,
+    out float o_depth,
     Ray ray
 ) {
     RaycastResult result = raycastVoxelWorld(ray, 50, true);
+    o_color = vec4(0.0);
+    for (int i = result.count - 1; i >= 0; i--) {
+        RaycastResultSpan span = getRaycastResultSpan(result, i);
+        uint voxel = span.mat.x;
+        vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
+        float alpha = float((voxel >> 25u) & 31u) / 31.0;
+
+        float f = dot(getVoxelNormal(span.mat, span.span), normalize(vec3(3.0, 0.5, 1.0))) * 0.4 + 0.6;
+        if (raycastVoxelWorld(Ray(getRaycastSpanStart(ray, span), normalize(vec3(3.0, 0.5, 1.0)), 100.0), 2, false).count > 0) {
+            f = 0.2;
+        }
+
+        /*
+         */
+
+        o_color = blendVoxelColors(
+            o_color,
+            vec4(color * f, alpha),
+            span.mat,
+            ray.ray,
+            span.span.y - span.span.x
+        ); //mix(vec4(mixed_color.rgb, 1.0), vec4(color * f, alpha), alpha);
+    }
 }
 
 void main() {
@@ -38,27 +62,15 @@ void main() {
 
     //
     Ray ray = getCameraRay(screen_position);
-    RaycastResult result = raycastVoxelWorld(ray, 50, true);
-    vec4 mixed_color = vec4(0.0);
-    for (int i = result.count - 1; i >= 0; i--) {
-        RaycastResultSpan span = getRaycastResultSpan(result, i);
-        uint voxel = span.mat.x;
-        vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
-        float alpha = float((voxel >> 25u) & 31u) / 31.0;
-        // if (alpha < 1.0) alpha = 1.0 - pow(1.0 - alpha, (span.span.y - span.span.x) / 0.5);
-        float f = dot(getVoxelNormal(span.mat, span.span), normalize(vec3(1.0, 0.5, 2.0))) * 0.4 + 0.6;
-        mixed_color = blendVoxelColors(
-            mixed_color,
-            vec4(color * f, alpha),
-            span.mat,
-            ray.ray,
-            span.span.y - span.span.x
-        ); //mix(vec4(mixed_color.rgb, 1.0), vec4(color * f, alpha), alpha);
-    }
+
+    vec4 o_color;
+    vec4 o_light;
+    float o_depth;
+    raytraceMainImage(o_color, o_light, o_depth, ray);
 
     // return vec3(1.0, 0.0, 1.0) * float(result.steps) / 256.0;
 
-    imageStore(output_texture_color, pixel, vec4(mixed_color.rgb, 1.0));
+    imageStore(output_texture_color, pixel, vec4(o_color.rgb, 1.0));
     imageStore(output_texture_light, pixel, vec4(1.0));
     imageStore(output_texture_depth, pixel, vec4(vec3(0.0), 1.0));
 }

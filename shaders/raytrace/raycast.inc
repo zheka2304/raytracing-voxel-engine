@@ -58,6 +58,8 @@ It is happening, because such local arrays are stored in local memory instead of
 
 #include "common.inc"
 #include "raytrace/types.inc"
+#include "raytrace/lighting.inc"
+
 
 // contains all voxel data, indexed
 COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
@@ -85,9 +87,9 @@ COMPUTE_SHADER_BUFFER(${raytrace.voxel_chunk_map}, readonly, u_voxel_chunk_map_t
 })
 
 
-uint lookup_chunk(ivec3 position) {
+uint lookupVoxelChunk(ivec3 position) {
     uvec3 u_pos = uvec3(position);
-    return position.x < 0 && position.y < 0 && position.z == 0 ? 1u : uint(-1);
+    return position.x < 0 && position.y == 0 && position.z < 0 ? 1u : uint(-1);
 
     uint map_index = ((u_pos.x * 93911u) ^ (u_pos.y * 263167u) ^ (u_pos.z * 32993u)) & (VOXEL_CHUNK_LOOKUP_MAP_SIZE - 1u);
     map_index *= VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY;
@@ -193,6 +195,10 @@ RaycastResultSpan getRaycastResultSpan(RaycastResult result, int k) {
     return r;
 }
 
+vec3 getRaycastSpanStart(Ray ray, RaycastResultSpan span) {
+    return ray.start + span.span.x * ray.ray + getVoxelNormalFromMaterial(span.mat.z) * span.span.x * 1e-3;
+}
+
 // Raycast over one voxel chunk, main logic is placed here
 // returns true, if ray has ended
 
@@ -223,7 +229,7 @@ bool raycastVoxelChunk(
     if (ray.ray.z > 0.0) { octant_mask ^= 4; chunk_offset.z = -(chunk_offset.z + 0.5) - 0.5; }
 
     // Initialize stack and current node.
-    RaycastStackNode stack[23];
+    RaycastStackNode stack[24];
     RaycastStackNode current;
     current.voxel_pointer = chunk_pointer;
 
@@ -439,7 +445,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, bool request_cache_upda
 
     for (int i = 0; i < max_chunks; i++) {
         // Lookup chunk by position, and if it is found, raycast it
-        uint chunk_pointer = lookup_chunk(chunk_raycast.pos);
+        uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos);
         if (chunk_pointer != uint(-1)) {
             // If ray end has been reached, break out of loop
             if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, 6)) {

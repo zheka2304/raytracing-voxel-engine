@@ -14,7 +14,7 @@
 
 //
 vec3 getVoxelNormalFromMaterial(uint material_z) {
-    uint normal_bits = (material_z & 3u);
+    uint normal_bits = (material_z & 7u);
     vec3 normal = (normal_bits & 1u) == 0u ? vec3(-1.0) : vec3(1.0);
     normal_bits &= 6u;
     if (normal_bits == 2u) normal *= vec3(1.0, 0.0, 0.0);

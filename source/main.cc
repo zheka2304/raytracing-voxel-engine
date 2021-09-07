@@ -59,7 +59,7 @@ int main() {
 
         static voxel::render::RenderTarget* render_target = nullptr;
         if (!render_target) {
-            render_target = new voxel::render::RenderTarget(4096, 4096);
+            render_target = new voxel::render::RenderTarget(2048, 2048);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
 //            chunk->preallocate(21512, 137352);
