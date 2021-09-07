@@ -12,9 +12,19 @@ layout(std430) buffer;
 #include "raytrace/blending.inc"
 #include "raytrace/lighting.inc"
 
-
+// Color of the pixel
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
+// Light parameters of the pixel:
+// - r: brightness
+// - g: soft shadow coefficient
+// - b: ??
+// - a: ??
 layout(rgba32f, binding = ${raytrace.light_texture}) writeonly uniform highp image2D output_texture_light;
+// Depth & detail parameters of the pixel
+// - r: distance from camera
+// - g: voxel size
+// - b: ??
+// - a: ??
 layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp image2D output_texture_depth;
 
 void raytraceMainImage(
@@ -23,25 +33,24 @@ void raytraceMainImage(
     out float o_depth,
     Ray ray
 ) {
-    RaycastResult result = raycastVoxelWorld(ray, 50, true);
-    o_color = vec4(0.0);
+    RaycastResult result = raycastVoxelWorld(ray, 10, 6, true);
+    o_color = vec4(1.0);
     for (int i = result.count - 1; i >= 0; i--) {
         RaycastResultSpan span = getRaycastResultSpan(result, i);
         uint voxel = span.mat.x;
         vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
         float alpha = float((voxel >> 25u) & 31u) / 31.0;
 
-        float f = dot(getVoxelNormal(span.mat, span.span), normalize(vec3(3.0, 0.5, 1.0))) * 0.4 + 0.6;
-        if (raycastVoxelWorld(Ray(getRaycastSpanStart(ray, span), normalize(vec3(3.0, 0.5, 1.0)), 100.0), 2, false).count > 0) {
-            f = 0.2;
-        }
+        Ray inv_light_ray = getSkyLightRayForPosition(getRaycastSpanStart(ray, span));
+        inv_light_ray.ray = -inv_light_ray.ray;
+        vec2 light_and_shadow = getLightAndShadowValue(inv_light_ray, span);
 
         /*
          */
 
         o_color = blendVoxelColors(
             o_color,
-            vec4(color * f, alpha),
+            vec4(color * light_and_shadow.x, alpha),
             span.mat,
             ray.ray,
             span.span.y - span.span.x
@@ -72,5 +81,5 @@ void main() {
 
     imageStore(output_texture_color, pixel, vec4(o_color.rgb, 1.0));
     imageStore(output_texture_light, pixel, vec4(1.0));
-    imageStore(output_texture_depth, pixel, vec4(vec3(0.0), 1.0));
+    imageStore(output_texture_depth, pixel, vec4(1.0));
 }

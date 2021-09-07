@@ -58,7 +58,7 @@ It is happening, because such local arrays are stored in local memory instead of
 
 #include "common.inc"
 #include "raytrace/types.inc"
-#include "raytrace/lighting.inc"
+#include "raytrace/material.inc"
 
 
 // contains all voxel data, indexed
@@ -412,7 +412,7 @@ bool raycastVoxelChunk(
     return true;
 }
 
-RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, bool request_cache_updates) {
+RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, bool request_cache_updates) {
     ChunkRaycastData chunk_raycast;
 
     if (abs(ray.ray.x) < 1e-23) ray.ray.x = 1e-23 * sign(ray.ray.x);
@@ -448,7 +448,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, bool request_cache_upda
         uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos);
         if (chunk_pointer != uint(-1)) {
             // If ray end has been reached, break out of loop
-            if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, 6)) {
+            if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, max_spans)) {
                 break;
             }
         // If we advanced out of chunk, and have pending material span, finish it

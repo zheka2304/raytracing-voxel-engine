@@ -8,39 +8,19 @@
 #ifndef VOXEL_ENGINE_LIGHTING_INC
 #define VOXEL_ENGINE_LIGHTING_INC
 
+#include "raytrace/material.inc"
+#include "raytrace/raycast.inc"
+
+
 #define NORMAL_FADEOUT_DISTANCE float(${lighting.normal_fadeout_distance})
 #define NORMAL_FADEOUT_RATE float(${lighting.normal_fadeout_rate})
 
-
-//
-vec3 getVoxelNormalFromMaterial(uint material_z) {
-    uint normal_bits = (material_z & 7u);
-    vec3 normal = (normal_bits & 1u) == 0u ? vec3(-1.0) : vec3(1.0);
-    normal_bits &= 6u;
-    if (normal_bits == 2u) normal *= vec3(1.0, 0.0, 0.0);
-    else if (normal_bits == 4u) normal *= vec3(0.0, 1.0, 0.0);
-    else if (normal_bits == 6u) normal *= vec3(0.0, 0.0, 1.0);
-    return normal;
+Ray getSkyLightRayForPosition(vec3 position) {
+    return Ray(position, normalize(vec3(-2.0, -0.5, -1.0)), 100.0);
 }
 
 //
-vec3 getMatNormalFromMaterial(uint material_y) {
-    uint normal_bits_yaw = (material_y >> 8u) & 0x3Fu;
-    uint normal_bits_pitch = (material_y >> 14u) & 0x1Fu;
-    uint normal_bits_length = (material_y >> 19u) & 0xFu;
-    float yaw = float(normal_bits_yaw) * (2.0 * 3.14159 / 63.0);
-    float pitch = (float(normal_bits_pitch) / 31.0 - .5) * 3.14159;
-    float len = float(normal_bits_length) / 16.0;
-
-    float cos_pitch = cos(pitch);
-    return vec3(sin(yaw) * cos_pitch, sin(pitch), cos(yaw) * cos_pitch) * len;
-}
-
-//
-vec3 getVoxelNormal(
-    uvec3 material,
-    vec2 span
-) {
+vec3 getVoxelNormal(uvec3 material, vec2 span) {
     // voxel side normal
     vec3 voxel_normal = getVoxelNormalFromMaterial(material.z);
 
@@ -49,7 +29,7 @@ vec3 getVoxelNormal(
 
     // normal length from 0 to 1 represents factor of blending material normal with voxel normal
     // - far voxels always use material normal, except it is zero length (bits 0x777)
-    // - nearby voxels will use more material normal, if it length is higher
+    // - nearby voxels will use more material normal, if it length is higher, when it is 1, it will always use material normal
     float mat_normal_len = length(mat_normal);
 
     if (mat_normal_len > 0.0) {
@@ -63,6 +43,26 @@ vec3 getVoxelNormal(
     } else {
         return voxel_normal;
     }
+}
+
+//
+vec2 getLightAndShadowValue(Ray inv_light_ray, RaycastResultSpan span) {
+    // check, if voxel is opaque and light is blocked by voxel itself
+    if ((span.mat.xy & uvec2(0x3E000000u, 0x000000Fu)) == uvec2(31u << 25u, 0u)) {
+        vec3 voxel_normal = getVoxelNormalFromMaterial(span.mat.z);
+        if (dot(voxel_normal, inv_light_ray.ray) < 0.0) {
+            return vec2(/* light value */ 0.0, /* distance */ 0.0);
+        }
+    }
+
+    // check for shadow
+    RaycastResult shadow_result = raycastVoxelWorld(inv_light_ray, 10, 1, true);
+    if (shadow_result.count > 0) {
+        return vec2(/* light value */ 0.0, /* distance */ shadow_result.distance);
+    }
+
+    vec3 normal = getVoxelNormal(span.mat, span.span);
+    return vec2(dot(inv_light_ray.ray, normal) * .5 + .5, 1.0e127);
 }
 
 
