@@ -21,6 +21,7 @@ class ShaderManager;
 
 class Shader {
 private:
+    ShaderManager* m_shader_manager = nullptr;
     std::string m_shader_name;
 
 public:
@@ -31,7 +32,12 @@ public:
     virtual ~Shader();
 
     std::string getName();
+    ShaderManager& getShaderManager();
     virtual bool isValid();
+
+private:
+    void setShaderManager(ShaderManager* shader_manager);
+    friend ShaderManager;
 };
 
 class ComputeShader : public Shader {
@@ -48,6 +54,8 @@ public:
     bool isValid() override;
     void dispatch(int size_x = 1, int size_y = 1, int size_z = 1);
     void dispatch(math::Vec3i size);
+    void dispatchForTexture(math::Vec3i texture_size, math::Vec3i compute_group_size);
+    void dispatchForTexture(math::Vec3i texture_size);
 };
 
 class GraphicsShader : public Shader {
@@ -131,6 +139,7 @@ public:
         }
 
         // add shader and its type to map and report it
+        shader_ptr->setShaderManager(this);
         m_shader_map.emplace(shader_name, std::pair<std::type_index, std::unique_ptr<Shader>>(std::type_index(typeid(T)), std::move(shader_ptr)));
         m_logger.message(Logger::flag_info, "ShaderManager", "successfully added shader %s", shader_name.data());
         return true;

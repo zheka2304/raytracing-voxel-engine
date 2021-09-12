@@ -1,0 +1,95 @@
+#version 310 es
+
+#define WORK_GROUP_SIZE ${common.texture_work_group_size}
+
+layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
+layout(std430) buffer;
+
+layout(rgba32f, binding = ${lightmap.current_frame}) uniform highp image2D lightmap_texture;
+layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D blur_pass_texture;
+
+
+#include "common.inc"
+
+#ifdef D_PASS_PARITY_1
+#define READ(X) (X).r
+#define WRITE(X) (X).a
+#else
+#define READ(X) (X).a
+#define WRITE(X) (X).r
+#endif
+
+
+float get3x3Blur(ivec2 pos, int step) {
+    vec4 origin = imageLoad(blur_pass_texture, pos);
+
+    float sum = READ(origin);
+    float weight = 1.0;
+
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            if (x == 0 && y == 0) continue;
+            vec4 pixel = imageLoad(blur_pass_texture, pos + ivec2(x, y) * step);
+            float v = READ(pixel);
+            float w = 1.0;
+            w -= abs(pixel.g - origin.g) / origin.g / 0.05;
+            w -= length(unpackHalf2x16(floatBitsToUint(origin.b)) - unpackHalf2x16(floatBitsToUint(pixel.b)));
+            w = max(0.0, w);
+            sum += v * w;
+            weight += w;
+        }
+    }
+    return sum / weight;
+}
+
+float getMultiSample3x3Blur(ivec2 pos, int sample_count) {
+    float value = 0.0;
+    for (int i = 0; i < sample_count; i++) {
+        value += get3x3Blur(pos, i * 2 + 1) / float(sample_count);
+    }
+    return value;
+}
+
+/*
+float fixBlurResult(highp float x) {
+    x = clamp(x, 0.0, 1.0);
+    return x * 0.8 + 0.1;
+}
+
+float getSlowPostBlur(ivec2 pos, int size) {
+    if (size <= 0) {
+        return imageLoad(blur_pass_texture, pos).b;
+    }
+
+    float sum = 0.0;
+    float weight = 0.0;
+
+    for (int x = -size; x <= size; x++) {
+        for (int y = -size; y <= size; y++) {
+            float p = imageLoad(blur_pass_texture, pos + ivec2(x, y)).b;
+            float w = 1.0;//(1.0 - length(vec2(x, y) / float(size + 1)));
+            sum += p * w;
+            weight += w;
+        }
+    }
+
+    return fixBlurResult(sum / weight);
+} */
+
+void main() {
+    // get pixel and discard excess ones
+    ivec2 image_size = imageSize(lightmap_texture);
+    ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel_pos.x >= image_size.x || pixel_pos.y >= image_size.y) {
+        return;
+    }
+    image_size--;
+
+
+    vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
+#ifdef D_3X3_FILTER_PASS
+    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, 5);
+    imageStore(blur_pass_texture, pixel_pos, pixel);
+#endif
+
+}

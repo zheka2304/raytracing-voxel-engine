@@ -6,6 +6,7 @@ namespace utils {
 
 unsigned long long getTimestampMillis();
 unsigned long long getTimestampNanos();
+float getTimeSinceStart();
 
 class Stopwatch {
     unsigned long long m_start;

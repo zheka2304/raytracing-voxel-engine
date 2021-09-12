@@ -49,6 +49,9 @@ class Camera {
     // holds all data about camera position and projection parameters
     opengl::ShaderUniformBuffer<CameraProjection> m_projection_uniform;
 
+    // holds time in seconds from the start of the game
+    opengl::ShaderUniformBuffer<float> m_time_uniform;
+
 public:
     Camera();
 
@@ -61,6 +64,9 @@ public:
     // 3) calls glFinish() to wait all passes to complete
     // 4) requests cache updates from render context
     void render(RenderContext& context, RenderTarget& target);
+
+private:
+    void _updateTimeUniform();
 };
 
 } // render

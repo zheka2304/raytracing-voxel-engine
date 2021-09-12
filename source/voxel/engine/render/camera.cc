@@ -1,6 +1,7 @@
 #include "camera.h"
 
 #include <math.h>
+#include "voxel/common/utils/time.h"
 
 
 namespace voxel {
@@ -28,7 +29,8 @@ void CameraProjection::setNearAndFar(float near, float far) {
 
 
 Camera::Camera() :
-        m_projection_uniform("raytrace.camera_projection") {
+        m_projection_uniform("raytrace.camera_projection"),
+        m_time_uniform("common.time_uniform") {
 }
 
 CameraProjection& Camera::getProjection() {
@@ -42,20 +44,32 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
     opengl::ShaderManager& shader_manager = context.getShaderManager();
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, raytrace_screen_pass_shader, shader_manager, "raytrace_screen_pass");
     VOXEL_ENGINE_SHADER_REF(opengl::GraphicsShader, raytrace_combine_pass_shader, shader_manager, "raytrace_combine_pass");
-    VOXEL_ENGINE_SHADER_CONSTANT(int, screen_pass_work_group_size, shader_manager, "raytrace.screen_pass_work_group_size");
 
     // bind camera uniforms
+    _updateTimeUniform();
+    m_time_uniform.bindUniform(shader_manager);
     m_projection_uniform.bindUniform(shader_manager);
 
     // run compute shader pass
     target.bindForCompute(context);
-    raytrace_screen_pass_shader->dispatch(target.getComputeDispatchSize(screen_pass_work_group_size.get()));
+    raytrace_screen_pass_shader->dispatchForTexture(math::Vec3i(target.getWidth(), target.getHeight(), 1));
 
-    // run post processing pass
+    // swap spatial buffer
+    target.getSpatialBuffer().runSwap(context);
+
+    // post process lightmap
+    target.getLightmap().runInterpolationPass(context);
+    target.getLightmap().runBlurPass(context);
+
+    // run final post processing pass
     raytrace_combine_pass_shader->bind();
     target.bindForPostProcessing(*raytrace_combine_pass_shader);
     target.getRenderToTexture().render();
     raytrace_combine_pass_shader->unbind();
+}
+
+void Camera::_updateTimeUniform() {
+    *m_time_uniform = utils::getTimeSinceStart();
 }
 
 } // render

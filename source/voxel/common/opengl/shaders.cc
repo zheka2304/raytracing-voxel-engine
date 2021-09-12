@@ -24,6 +24,14 @@ std::string Shader::getName() {
     return m_shader_name;
 }
 
+ShaderManager & Shader::getShaderManager() {
+    return *m_shader_manager;
+}
+
+void Shader::setShaderManager(ShaderManager* shader_manager) {
+    m_shader_manager = shader_manager;
+}
+
 bool Shader::isValid() {
     return true;
 }
@@ -49,7 +57,7 @@ ComputeShader::ComputeShader(ShaderManager& shader_manager, const std::string& s
     if (!is_compilation_successful) {
         glGetShaderInfoLog(shader, compilation_info_log_size, nullptr, compilation_info_log);
         shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to compile compute shader %s:\n%s", shader_name.data(), compilation_info_log);
-        shader_manager.getLogger().message(Logger::flag_debug, "ShaderManager", "compute shader source:\n" + shader_source + "\n------------");
+        shader_manager.getLogger().message(Logger::flag_debug | Logger::flag_error, "ShaderManager", "compute shader source:\n" + shader_source + "\n------------");
     }
 
     // link shader
@@ -92,6 +100,15 @@ void ComputeShader::dispatch(math::Vec3i size) {
     dispatch(size.x, size.y, size.z);
 }
 
+void ComputeShader::dispatchForTexture(math::Vec3i texture_size, math::Vec3i compute_group_size) {
+    dispatch((texture_size + compute_group_size - math::Vec3i(1)) / compute_group_size);
+}
+
+void ComputeShader::dispatchForTexture(math::Vec3i texture_size) {
+    VOXEL_ENGINE_SHADER_CONSTANT(int, work_group_size, getShaderManager(), "common.texture_work_group_size");
+    dispatchForTexture(texture_size, math::Vec3i(work_group_size.get()));
+}
+
 
 
 GraphicsShader::GraphicsShader(const std::string& shader_name) : Shader(shader_name) {
@@ -113,7 +130,7 @@ GraphicsShader::GraphicsShader(ShaderManager& shader_manager, const std::string&
     if (!is_compilation_successful) {
         glGetShaderInfoLog(vertex_shader_handle, compilation_info_log_size, nullptr, compilation_info_log);
         shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to compile vertex shader %s:\n%s", shader_name.data(), compilation_info_log);
-        shader_manager.getLogger().message(Logger::flag_debug, "ShaderManager", "vertex shader source:\n" + vertex_shader_source + "\n------------");
+        shader_manager.getLogger().message(Logger::flag_debug | Logger::flag_error, "ShaderManager", "vertex shader source:\n" + vertex_shader_source + "\n------------");
     }
 
     // fragment shader
@@ -126,7 +143,7 @@ GraphicsShader::GraphicsShader(ShaderManager& shader_manager, const std::string&
     if (!is_compilation_successful) {
         glGetShaderInfoLog(fragment_shader_handle, compilation_info_log_size, nullptr, compilation_info_log);
         shader_manager.getLogger().message(Logger::flag_error, "ShaderManager", "failed to compile fragment shader %s:\n%s", shader_name.data(), compilation_info_log);
-        shader_manager.getLogger().message(Logger::flag_debug, "ShaderManager", "fragment shader source:\n" + fragment_shader_source + "\n------------");
+        shader_manager.getLogger().message(Logger::flag_debug | Logger::flag_error, "ShaderManager", "fragment shader source:\n" + fragment_shader_source + "\n------------");
     }
 
     // link shaders

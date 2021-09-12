@@ -1,0 +1,44 @@
+#version 310 es
+
+#define WORK_GROUP_SIZE ${common.texture_work_group_size}
+
+layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
+layout(std430) buffer;
+
+layout(rgba32f, binding = ${spatial_buffer.last_frame}) uniform highp image2D last_frame_texture;
+layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
+
+
+#include "common.inc"
+#include "raytrace/camera.inc"
+
+
+void main() {
+    // get pixel and discard excess ones
+    ivec2 image_size = imageSize(spatial_buffer_texture);
+    ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel_pos.x >= image_size.x || pixel_pos.y >= image_size.y) {
+        return;
+    }
+
+    // world space position, that was in this pixel on last frame
+    vec3 last_position = imageLoad(last_frame_texture, pixel_pos).xyz;
+
+    // screen space position, that was here on the last frame
+    dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position));
+
+    // convert screen space position to pixel position
+    ivec2 last_pixel_position = ivec2((last_screen_position.xy * .5 + .5) * dvec2(image_size));
+
+    // position is moved out of screen
+    if (last_pixel_position.x < 0 || last_pixel_position.y < 0 || last_pixel_position.x >= image_size.x || last_pixel_position.y >= image_size.y) {
+        return;
+    }
+
+    // check for distance change
+
+    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, last_pixel_position);
+    if (spatial_buffer_data.x < 0.0) spatial_buffer_data.w++;         // increase temporal stability by 1
+    spatial_buffer_data.xy = vec2(pixel_pos);                         // store position of current pixel (it is position, where data from this place must be moved to)
+    imageStore(spatial_buffer_texture, last_pixel_position, spatial_buffer_data);
+}

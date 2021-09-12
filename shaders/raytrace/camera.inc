@@ -41,4 +41,23 @@ Ray getCameraRay(vec2 screen_pos) {
     return Ray(start, ray, max_distance);
 }
 
+dvec3 worldPositionToScreen(dvec3 world_pos) {
+    vec3 forward, right, up;
+    getAllCameraVectors(forward, right, up);
+    dmat3 basis;
+    basis[0] = dvec3(right);
+    basis[1] = dvec3(up);
+    basis[2] = dvec3(forward);
+
+    dvec2 ortho_range = u_camera_projection.ortho_range;
+    dvec2 perspective = u_camera_projection.perspective;
+    dvec2 distance_range = u_camera_projection.distance_range;
+
+    dvec3 pos_to_camera = world_pos - dvec3(u_camera_projection.position);
+    dvec3 ray = normalize(pos_to_camera);
+    dvec3 projected = ray * basis;
+
+    return dvec3(projected.xy / projected.z / perspective.xy, length(pos_to_camera));
+}
+
 #endif  // VOXEL_ENGINE_CAMERA_INC

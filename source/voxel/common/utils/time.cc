@@ -6,6 +6,13 @@
 namespace voxel {
 namespace utils {
 
+struct LaunchTimeHolder {
+    unsigned long long m_launch_time = getTimestampMillis();
+};
+
+static LaunchTimeHolder launch_time_holder;
+
+
 unsigned long long getTimestampMillis() {
     using namespace std::chrono;
     milliseconds ms = duration_cast< milliseconds >(
@@ -20,6 +27,10 @@ unsigned long long getTimestampNanos() {
             high_resolution_clock::now().time_since_epoch()
     );
     return ns.count();
+}
+
+float getTimeSinceStart() {
+    return (getTimestampMillis() - launch_time_holder.m_launch_time) / 1000.0;
 }
 
 Stopwatch::Stopwatch() {

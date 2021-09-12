@@ -20,6 +20,8 @@ public:
     Texture(Texture&& other);
     ~Texture();
 
+    void setFiltering(GLenum min_filter, GLenum mag_filter);
+
     GLuint getHandle();
     bool isValid();
     void bind(GLuint index = 0, GLuint uniform = -1);

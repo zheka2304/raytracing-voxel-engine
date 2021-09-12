@@ -89,7 +89,7 @@ COMPUTE_SHADER_BUFFER(${raytrace.voxel_chunk_map}, readonly, u_voxel_chunk_map_t
 
 uint lookupVoxelChunk(ivec3 position) {
     uvec3 u_pos = uvec3(position);
-    return position.x < 0 && position.y == 0 && position.z < 0 ? 1u : uint(-1);
+    return position.x < 100 && position.y == 0 && position.z < 100 ? 1u : uint(-1);
 
     uint map_index = ((u_pos.x * 93911u) ^ (u_pos.y * 263167u) ^ (u_pos.z * 32993u)) & (VOXEL_CHUNK_LOOKUP_MAP_SIZE - 1u);
     map_index *= VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY;
@@ -438,6 +438,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, bool req
     RaycastResult result;
     result.count = 0;
     result.steps = 0u;
+    result.distance = POSITIVE_INF;
 
     MaterialRaycastData material_data;
     material_data.last_mat = uvec3(0u);

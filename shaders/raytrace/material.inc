@@ -7,6 +7,9 @@
 #ifndef VOXEL_ENGINE_MATERIAL_INC
 #define VOXEL_ENGINE_MATERIAL_INC
 
+##include "common.inc"
+
+
 vec4 getVoxelColorFromMaterial(uint material_x) {
     return vec4(
         vec3(material_x & 0xFFu, (material_x >> 8u) & 0xFFu, (material_x >> 16u) & 0xFFu) / 255.0,
@@ -30,8 +33,8 @@ vec3 getMatNormalFromMaterial(uint material_y) {
     uint normal_bits_yaw = (material_y >> 8u) & 0x3Fu;
     uint normal_bits_pitch = (material_y >> 14u) & 0x1Fu;
     uint normal_bits_length = (material_y >> 19u) & 0xFu;
-    float yaw = float(normal_bits_yaw) * (2.0 * 3.14159 / 63.0) - 3.14159;
-    float pitch = (float(normal_bits_pitch) / 31.0 - .5) * 3.14159;
+    float yaw = float(normal_bits_yaw) * (M_2_PI / 63.0) - M_PI;
+    float pitch = (float(normal_bits_pitch) / 31.0 - .5) * M_PI;
     float len = float(normal_bits_length) / 16.0;
 
     float cos_pitch = cos(pitch);

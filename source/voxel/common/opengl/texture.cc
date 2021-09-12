@@ -36,6 +36,13 @@ Texture::~Texture() {
     }
 }
 
+void Texture::setFiltering(GLenum min_filter, GLenum mag_filter) {
+    glBindTexture(GL_TEXTURE_2D, m_handle);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 GLuint Texture::getHandle() {
     return m_handle;
 }

@@ -4,6 +4,8 @@
 #include "voxel/common/math/vec.h"
 #include "voxel/common/opengl.h"
 #include "voxel/engine/render/render_context.h"
+#include "voxel/engine/render/lightmap.h"
+#include "voxel/engine/render/spatial_buffer.h"
 
 
 namespace voxel {
@@ -13,15 +15,16 @@ class RenderTarget {
     int m_width, m_height;
 
     opengl::Texture m_color_texture;
-    opengl::Texture m_light_texture;
     opengl::Texture m_depth_texture;
+    LightMapTexture m_lightmap;
+    SpatialRenderBuffer m_spatial_buffer;
 
     opengl::RenderToTexture m_result_render_to_texture;
 
 public:
     RenderTarget(int width, int height);
     RenderTarget(const RenderTarget& other) = delete;
-    RenderTarget(RenderTarget&& other) = default;
+    RenderTarget(RenderTarget&& other) = delete;
 
     // bind render target as a compute shader output
     // shader constant bindings:
@@ -39,11 +42,11 @@ public:
 
     int getWidth();
     int getHeight();
-    math::Vec3i getComputeDispatchSize(int compute_group_size);
 
     opengl::Texture& getColorTexture();
-    opengl::Texture& getLightTexture();
     opengl::Texture& getDepthTexture();
+    LightMapTexture& getLightmap();
+    SpatialRenderBuffer& getSpatialBuffer();
 
     opengl::RenderToTexture& getRenderToTexture();
     opengl::Texture& getResultTexture();

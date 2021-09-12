@@ -1,61 +1,109 @@
 #version 310 es
 
-#define WORK_GROUP_SIZE ${raytrace.screen_pass_work_group_size}
+#define WORK_GROUP_SIZE ${common.texture_work_group_size}
 
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
 layout(std430) buffer;
 
-
+#include "util.inc"
+#include "time-compute.inc"
 #include "raytrace/camera.inc"
 #include "raytrace/debug.inc"
 #include "raytrace/raycast.inc"
 #include "raytrace/blending.inc"
 #include "raytrace/lighting.inc"
 
-// Color of the pixel
+// Color parameters of the pixel:
+// - r, g, b - each component stores a color pair (using packColorPairF): without hard shadows and with hard shadows
+// - a: ??
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
 // Light parameters of the pixel:
-// - r: brightness
-// - g: soft shadow coefficient
-// - b: ??
-// - a: ??
+// - r: average distance to occluding object, POSITIVE_INF in case of no shadow
+// - g: average distance to light source
+// - b: average size of the light source
+// - a: distance from camera for faster calculation
 layout(rgba32f, binding = ${raytrace.light_texture}) writeonly uniform highp image2D output_texture_light;
 // Depth & detail parameters of the pixel
 // - r: distance from camera
-// - g: voxel size
-// - b: ??
+// - g: distance to shadowing object ??
+// - b: voxel size
 // - a: ??
 layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp image2D output_texture_depth;
+
+//
+layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D spatial_buffer_current_frame;
+layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
+
 
 void raytraceMainImage(
     out vec4 o_color,
     out vec4 o_light,
-    out float o_depth,
-    Ray ray
+    out vec4 o_depth,
+    out vec4 o_spatial_buffer,
+    Ray ray,
+    bool calculate_light
 ) {
-    RaycastResult result = raycastVoxelWorld(ray, 10, 6, true);
-    o_color = vec4(1.0);
+    vec4 pure_color = vec4(1.0);
+    vec4 shaded_color = pure_color;
+
+    // initialize occluding object distance as POSITIVE_INF, because we didnt hit anything yet
+    o_light.r = 1.0;
+
+    o_light.g = uintBitsToFloat(packHalf2x16(vec2(0.0)));
+
+    RaycastResult result = raycastVoxelWorld(ray, 50, 6, true);
     for (int i = result.count - 1; i >= 0; i--) {
         RaycastResultSpan span = getRaycastResultSpan(result, i);
         uint voxel = span.mat.x;
         vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
         float alpha = float((voxel >> 25u) & 31u) / 31.0;
 
-        Ray inv_light_ray = getSkyLightRayForPosition(getRaycastSpanStart(ray, span));
-        inv_light_ray.ray = -inv_light_ray.ray;
-        vec2 light_and_shadow = getLightAndShadowValue(inv_light_ray, span);
+        // skylight
+        Ray inv_skylight_ray = getSkyLightRayForPosition(getRaycastSpanStart(ray, span));
+        inv_skylight_ray.ray = -inv_skylight_ray.ray;
+        inv_skylight_ray.ray.x += fast_random(vec4(inv_skylight_ray.start, getTime()));
+        inv_skylight_ray.ray.y += fast_random(vec4(inv_skylight_ray.start + 1.0, getTime()));
+        inv_skylight_ray.ray.z += fast_random(vec4(inv_skylight_ray.start + 2.0, getTime()));
+        vec3 skylight_shading_data = getShadingDataForLightSource(inv_skylight_ray, span);
 
-        /*
-         */
+        // get normal and pack it for soft shadow post processor
+        vec3 normal = getVoxelNormalForSoftShadows(span.mat, span.span);
+        uint packed_normal = packHalf2x16(vec2(dot(normal, vec3(1.0, 0.0, 0.0)), dot(normal, vec3(0.0, 1.0, 0.0))));
 
-        o_color = blendVoxelColors(
-            o_color,
-            vec4(color * light_and_shadow.x, alpha),
+        // do blending
+        pure_color = blendVoxelColors(
+            pure_color,
+            vec4(color * skylight_shading_data.g /* only normal shading */, alpha),
             span.mat,
             ray.ray,
             span.span.y - span.span.x
-        ); //mix(vec4(mixed_color.rgb, 1.0), vec4(color * f, alpha), alpha);
+        );
+        shaded_color = blendVoxelColors(
+            shaded_color,
+            vec4(color * skylight_shading_data.r /* full shading */, alpha),
+            span.mat,
+            ray.ray,
+            span.span.y - span.span.x
+        );
+
+        // occluding object distance
+        o_light.r = skylight_shading_data.b < POSITIVE_INF ? 0.0 : 1.0;
+
+        // packed normal
+        o_light.g = uintBitsToFloat(packed_normal);
     }
+
+
+    // distance from camera value
+    o_light.a = o_depth.r = result.distance;
+
+    if (result.distance < POSITIVE_INF) {
+        o_spatial_buffer.xyz = ray.start + ray.ray * result.distance;
+    } else {
+        o_spatial_buffer.xyz = ray.start + ray.ray * 100.0;
+    }
+
+    o_color.rgb = packColorPairF(pure_color.rgb, shaded_color.rgb);
 }
 
 void main() {
@@ -66,20 +114,29 @@ void main() {
         return;
     }
 
+    bool calculate_light = ((pixel - LIGHTMAP_DOWNSAMPLE_HALF) % LIGHTMAP_DOWNSAMPLE) == ivec2(0);
+
     // screen position in range of [-1, 1)
-    vec2 screen_position = vec2(pixel) / vec2(image_size) * 2.0 - 1.0;
+    vec2 screen_position = (vec2(pixel) + .5) / vec2(image_size) * 2.0 - 1.0;
 
     //
     Ray ray = getCameraRay(screen_position);
 
     vec4 o_color;
     vec4 o_light;
-    float o_depth;
-    raytraceMainImage(o_color, o_light, o_depth, ray);
+    vec4 o_depth;
+    vec4 o_spatial_buffer;
+    raytraceMainImage(o_color, o_light, o_depth, o_spatial_buffer, ray, calculate_light);
 
+    dvec3 screen_pos_rev = worldPositionToScreen(dvec3(o_spatial_buffer.xyz));
     // return vec3(1.0, 0.0, 1.0) * float(result.steps) / 256.0;
 
+    // o_color.r = length(vec2(ivec2((screen_pos_rev.xy * 0.5 + 0.5) * dvec2(image_size.xy)) - pixel)) * 1.0;
+    o_color.rg = abs(vec2(ivec2(imageLoad(spatial_buffer_texture, pixel).xy) - pixel) / 100.0);
+
+    imageStore(spatial_buffer_current_frame, pixel, o_spatial_buffer);
+
     imageStore(output_texture_color, pixel, vec4(o_color.rgb, 1.0));
-    imageStore(output_texture_light, pixel, vec4(1.0));
-    imageStore(output_texture_depth, pixel, vec4(1.0));
+    if (calculate_light) imageStore(output_texture_light, pixel, o_light);
+    imageStore(output_texture_depth, pixel, o_depth);
 }

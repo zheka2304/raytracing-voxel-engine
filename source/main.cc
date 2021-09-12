@@ -23,7 +23,7 @@ int main() {
     auto engine = std::make_shared<voxel::Engine>();
     engine->initialize();
     auto context = engine->newContext("ctx1");
-    context->initWindow({640, 640, "test", {}});
+    context->initWindow({900, 900, "test", {}});
 
     static voxel::render::Camera* camera = nullptr;
     static voxel::input::SimpleInput* simple_input = nullptr;
@@ -34,7 +34,8 @@ int main() {
 
         simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
         simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
-        simple_input->setMovementSpeed(0.05f);
+        simple_input->setSensitivity(0.0025, 0.0025);
+        simple_input->setMovementSpeed(0.025f);
     });
 
     context->setWindowResizeCallback([] (voxel::Context& ctx, int w, int h) -> void {
@@ -59,7 +60,7 @@ int main() {
 
         static voxel::render::RenderTarget* render_target = nullptr;
         if (!render_target) {
-            render_target = new voxel::render::RenderTarget(2048, 2048);
+            render_target = new voxel::render::RenderTarget(900, 900);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
 //            chunk->preallocate(21512, 137352);
@@ -106,6 +107,8 @@ int main() {
         }
 
         frame_counter++;
+
+        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
     });
 
     context->runEventLoop();

@@ -1,7 +1,7 @@
 {
   "constants": {
-    // size of the screen pass compute shader work group
-    "raytrace.screen_pass_work_group_size": 24,
+    // default size of compute work group used in textures
+    "common.texture_work_group_size": 24,
 
     // voxel chunk lookup map size, NOTE: must be power of 2
     "raytrace.voxel_chunk_map_size": 16384,
@@ -16,13 +16,24 @@
     // removing unnecessary details from translucent material edges
     "raytrace.material_span_merge_coef": 1.05,
 
-    // lighting
+    // -- lighting --
     "lighting.normal_fadeout_distance": 192,
     "lighting.normal_fadeout_rate": 2.5,
+
+    "lighting.lightmap_downsample": 1,
 
     // --- image units ---
     "raytrace.color_texture": 0,
     "raytrace.light_texture": 1,
-    "raytrace.depth_texture": 2
+    "raytrace.depth_texture": 2,
+
+    "lightmap.last_frame": 0,
+    "lightmap.current_frame": 1,
+    "lightmap.blur_pass_texture": 2,
+
+    "spatial_buffer.last_frame": 0,
+
+    "common.spatial_buffer_current_frame": 6,
+    "common.spatial_buffer": 7,
   }
 }
