@@ -17,8 +17,31 @@
 #define NORMAL_FADEOUT_DISTANCE float(${lighting.normal_fadeout_distance})
 #define NORMAL_FADEOUT_RATE float(${lighting.normal_fadeout_rate})
 
-Ray getSkyLightRayForPosition(vec3 position) {
-    return Ray(position, normalize(vec3(-2.0, -0.5, -1.0)), 100.0);
+struct LightSource {
+    vec3 light_direction;
+    float radius;
+    float brightness;
+};
+
+Ray getLightRayForPosition(LightSource light_source, vec3 position, bool randomize, float rand_seed) {
+    if (randomize) {
+        Ray ray = Ray(position, -normalize(light_source.light_direction), 100.0);
+        vec3 right, up;
+        right = normalize(cross(ray.ray, vec3(ray.ray.x, 0, ray.ray.z)));
+        up = normalize(cross(ray.ray, right));
+
+        float rand_x = fast_random(vec4(position + 1.0, getTime() + rand_seed)) * 2.0 - 1.0;
+        float rand_y = fast_random(vec4(position - 1.0, getTime() + rand_seed)) * 2.0 - 1.0;
+        ray.ray = normalize(ray.ray + right * rand_x * light_source.radius + up * rand_y * light_source.radius);
+        return ray;
+    } else {
+        return Ray(position, -normalize(light_source.light_direction), 100.0);
+    }
+}
+
+
+LightSource getSkyLightSource() {
+    return LightSource(vec3(-2.0, -.5, -1.0), 0.15, 1.0);
 }
 
 //
@@ -72,30 +95,25 @@ vec3 getVoxelNormalForSoftShadows(uvec3 material, vec2 span) {
     }
 }
 
-//
-// r - combined light value (from shadow
-// g - light from normal only
-// b - shadow distance, if shadow is not present, it contains POSITIVE_INF
-vec3 getShadingDataForLightSource(Ray inv_light_ray, RaycastResultSpan span) {
-    // calculate light value from normal
-    vec3 normal = getVoxelNormal(span.mat, span.span);
-    float normal_shade = dot(inv_light_ray.ray, normal) * .5 + .5;
-
+float getShadowValueFromRay(Ray light_ray, RaycastResultSpan span) {
     // check, if voxel is opaque and light is blocked by voxel itself
     if ((span.mat.xy & uvec2(0x3E000000u, 0x000000Fu)) == uvec2(31u << 25u, 0u)) {
         vec3 voxel_normal = getVoxelNormalFromMaterial(span.mat.z);
-        if (dot(voxel_normal, inv_light_ray.ray) < 0.0) {
-            return vec3(/* combined value */ 0.0, /* light from normal */ normal_shade,  /* distance */ 0.0);
+        if (dot(voxel_normal, light_ray.ray) < 0.0) {
+            return 0.0;
         }
     }
 
-    // check for shadow
-    RaycastResult shadow_result = raycastVoxelWorld(inv_light_ray, 10, 1, true);
-    if (shadow_result.count > 0) {
-        return vec3(/* combined value */ 0.0, /* light from normal */ normal_shade,  /* distance */ shadow_result.distance);
-    }
+    RaycastResult shadow_result = raycastVoxelWorld(light_ray, 10, 1, true);
+    return shadow_result.count > 0 ? 0.0 : 1.0;
+}
 
-    return vec3(/* combined value */ normal_shade, /* light from normal */ normal_shade,  /* distance */ POSITIVE_INF);
+float getShadowValueFromLightSource(LightSource light_source, vec3 position, RaycastResultSpan span, int ray_count) {
+    float value = 0.0;
+    for (int i = 0; i < ray_count; i++) {
+        value += getShadowValueFromRay(getLightRayForPosition(light_source, position, true, float(i)), span);
+    }
+    return value / float(ray_count);
 }
 
 

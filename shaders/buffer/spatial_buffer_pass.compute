@@ -49,7 +49,7 @@ void main() {
 
     // get absolute and relative z-value difference
     float absolute_z_delta = getDistanceToCamera(current_position) - float(last_screen_position.z);
-    float relative_z_delta = abs(absolute_z_delta) / float(last_screen_position.z);
+    float relative_z_delta = absolute_z_delta / float(last_screen_position.z);
 
     // calculate stability decrease, based on z difference and movement on screen
     float maximum_stability_value;
