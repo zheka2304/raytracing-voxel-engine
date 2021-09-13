@@ -28,11 +28,12 @@ void main() {
     //
     vec4 last_value = imageLoad(lightmap_last_frame, ivec2(spatial_buffer.xy));
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
-    current_value.r = mix(last_value.r, current_value.r, max(0.05, 1.0 - spatial_buffer.w / 10.0));
+    current_value.r = mix(last_value.r, current_value.r, max(0.05, 1.0 - spatial_buffer.w));
     imageStore(lightmap_current_frame, pixel, current_value);
 
+    //
     imageStore(blur_pass_texture, pixel, vec4(
-        current_value.r,
+        current_value.r,                                               // light value
         current_value.a,                                               // distance from camera
         current_value.g,                                               // packed normal dot values
         0.0                                                            // reserved for passes

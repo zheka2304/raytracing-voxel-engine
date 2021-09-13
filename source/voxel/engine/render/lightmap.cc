@@ -49,20 +49,10 @@ void LightMapTexture::runBlurPass(RenderContext& context) {
     _bindTexturesForLightmapPass(shader_manager);
 
     // run shader
-//    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, lightmap_blur_v_pass1, shader_manager, "lightmap_blur_v_pass1");
-//    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, lightmap_blur_h_pass1, shader_manager, "lightmap_blur_h_pass1");
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, soft_shadow_3x3_pass1, shader_manager, "soft_shadow_3x3_pass1");
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, soft_shadow_3x3_pass2, shader_manager, "soft_shadow_3x3_pass2");
-//    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, lightmap_blur_v_pass3, shader_manager, "lightmap_blur_v_pass3");
-//    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, lightmap_blur_h_pass3, shader_manager, "lightmap_blur_h_pass3");
-//    lightmap_blur_v_pass1->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
-//    lightmap_blur_h_pass1->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
-    for (int i = 0; i < 1; i++) {
-        soft_shadow_3x3_pass1->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
-        soft_shadow_3x3_pass2->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
-    }
-//    lightmap_blur_v_pass3->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
-//    lightmap_blur_h_pass3->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    soft_shadow_3x3_pass1->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    soft_shadow_3x3_pass2->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
 }
 
 } // render

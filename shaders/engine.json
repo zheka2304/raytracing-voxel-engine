@@ -53,49 +53,6 @@
       "source": "postprocess/lightmap_interpolate_pass.compute"
     },
 
-/*
-    "lightmap_blur_v_pass1": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_VERTICAL", "D_PASS0", "BLUR_SIZE 100", "BLUR_STEP 2", "BLUR_EDGE_COEF 0.1"]
-    },
-
-    "lightmap_blur_h_pass1": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_HORIZONTAL", "D_PASS0", "BLUR_SIZE 100", "BLUR_STEP 2", "BLUR_EDGE_COEF 0.1"]
-    },
-
-    "lightmap_blur_v_pass2": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_VERTICAL", "D_PASS1","BLUR_SIZE 13", "BLUR_STEP 1", "BLUR_EDGE_COEF 0.1"]
-    },
-
-    "lightmap_blur_h_pass2": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_HORIZONTAL", "D_PASS1", "BLUR_SIZE 13", "BLUR_STEP 1", "BLUR_EDGE_COEF 0.1"]
-    },
-
-    "lightmap_blur_e_pass2": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_POST_BLUR", "D_PASS1", "BLUR_SIZE 13", "BLUR_STEP 1", "BLUR_EDGE_COEF 0.1"]
-    },
-
-    "lightmap_blur_v_pass3": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_VERTICAL", "D_PASS3","BLUR_SIZE 10", "BLUR_STEP 25", "BLUR_EDGE_COEF 0.3"]
-    },
-
-    "lightmap_blur_h_pass3": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_HORIZONTAL", "D_PASS3", "BLUR_SIZE 10", "BLUR_STEP 25", "BLUR_EDGE_COEF 0.3"]
-    } */
-
     "soft_shadow_3x3_pass1": {
       "type": "compute",
       "source": "postprocess/lightmap_blur_pass.compute",

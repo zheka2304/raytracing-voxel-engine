@@ -50,31 +50,6 @@ float getMultiSample3x3Blur(ivec2 pos, int sample_count) {
     return value;
 }
 
-/*
-float fixBlurResult(highp float x) {
-    x = clamp(x, 0.0, 1.0);
-    return x * 0.8 + 0.1;
-}
-
-float getSlowPostBlur(ivec2 pos, int size) {
-    if (size <= 0) {
-        return imageLoad(blur_pass_texture, pos).b;
-    }
-
-    float sum = 0.0;
-    float weight = 0.0;
-
-    for (int x = -size; x <= size; x++) {
-        for (int y = -size; y <= size; y++) {
-            float p = imageLoad(blur_pass_texture, pos + ivec2(x, y)).b;
-            float w = 1.0;//(1.0 - length(vec2(x, y) / float(size + 1)));
-            sum += p * w;
-            weight += w;
-        }
-    }
-
-    return fixBlurResult(sum / weight);
-} */
 
 void main() {
     // get pixel and discard excess ones
