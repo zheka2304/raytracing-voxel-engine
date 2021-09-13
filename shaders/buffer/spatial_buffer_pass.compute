@@ -12,6 +12,7 @@ layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatia
 
 #define STABILITY_PER_FRAME float(${spatial_buffer.stability_per_frame})
 #define Z_DELTA_THRESHOLD float(${spatial_buffer.z_delta_threshold})
+#define DECREASE_WEIGHT float(${spatial_buffer.decrease_weight})
 #define MINOR_MOVE_FILTER_FACTOR float(${spatial_buffer.minor_move_filter_factor})
 #define MINOR_MOVE_FILTER_MIN float(${spatial_buffer.minor_move_filter_min})
 #define MINOR_MOVE_FILTER_MAX float(${spatial_buffer.minor_move_filter_max})
@@ -77,7 +78,7 @@ void main() {
 
     vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, last_pixel_position);
     if (spatial_buffer_data.x < 0.0) {
-        spatial_buffer_data.w = min(maximum_stability_value, spatial_buffer_data.w + STABILITY_PER_FRAME);
+        spatial_buffer_data.w = min(mix(1.0, maximum_stability_value, DECREASE_WEIGHT), spatial_buffer_data.w + STABILITY_PER_FRAME);
     }
     spatial_buffer_data.z = 1.0 - maximum_stability_value;
     spatial_buffer_data.xy = vec2(pixel_pos) + 0.999 - fract(last_pixel_position_f) * 0.998;

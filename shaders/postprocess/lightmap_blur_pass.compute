@@ -20,9 +20,7 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 #endif
 
 
-float get3x3Blur(ivec2 pos, int step) {
-    vec4 origin = imageLoad(blur_pass_texture, pos);
-
+float get3x3Blur(ivec2 pos, vec4 origin, int step) {
     float sum = READ(origin);
     float weight = 1.0;
 
@@ -34,7 +32,8 @@ float get3x3Blur(ivec2 pos, int step) {
             float w = 1.0;
             w -= abs(pixel.g - origin.g) / origin.g / 0.05;
             w -= length(unpackHalf2x16(floatBitsToUint(origin.b)) - unpackHalf2x16(floatBitsToUint(pixel.b)));
-            w = max(0.0, w);
+            w += max(0.0, 1.0 - abs(v - READ(origin)) * 2.0);
+            w = clamp(w, 0.0, 1.0);
             sum += v * w;
             weight += w;
         }
@@ -44,8 +43,9 @@ float get3x3Blur(ivec2 pos, int step) {
 
 float getMultiSample3x3Blur(ivec2 pos, int sample_count) {
     float value = 0.0;
+    vec4 origin = imageLoad(blur_pass_texture, pos);
     for (int i = 0; i < sample_count; i++) {
-        value += get3x3Blur(pos, i * 2 + 1) / float(sample_count);
+        value += get3x3Blur(pos, origin, i * 2 + 1) / float(sample_count);
     }
     return value;
 }

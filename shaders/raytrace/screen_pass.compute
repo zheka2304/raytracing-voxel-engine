@@ -113,7 +113,7 @@ void main() {
     vec4 spatial_buffer_value = imageLoad(spatial_buffer_texture, pixel);
     
     // calculate light ray count
-    float light_rays_count_f = (1.0 - spatial_buffer_value.w) + 1.0;
+    float light_rays_count_f = pow(1.0 - spatial_buffer_value.w, 2.0) * 3.0 + 1.0;
     int light_rays_count = int(light_rays_count_f);
 
     // screen position in range of [-1, 1)

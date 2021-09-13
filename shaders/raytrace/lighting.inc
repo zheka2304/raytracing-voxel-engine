@@ -15,7 +15,9 @@
 #define LIGHTMAP_DOWNSAMPLE int(${lighting.lightmap_downsample})
 #define LIGHTMAP_DOWNSAMPLE_HALF (int(${lighting.lightmap_downsample}) / 2)
 #define NORMAL_FADEOUT_DISTANCE float(${lighting.normal_fadeout_distance})
+#define SHADOW_NORMAL_FADEOUT_DISTANCE float(${lighting.shadow_normal_fadeout_distance})
 #define NORMAL_FADEOUT_RATE float(${lighting.normal_fadeout_rate})
+#define SHADOW_NORMAL_FADEOUT_RATE float(${lighting.shadow_normal_fadeout_rate})
 
 struct LightSource {
     vec3 light_direction;
@@ -87,8 +89,8 @@ vec3 getVoxelNormalForSoftShadows(uvec3 material, vec2 span) {
         uint scale_i = (material.z >> 3u) & 31u;
         float voxel_size = uintBitsToFloat((scale_i + 127u - 23u) << 23u);
 
-        float distance_factor = max(0.0, 1.0 - (span.x / (NORMAL_FADEOUT_DISTANCE * voxel_size)) * 0.5);
-        float blend = pow(distance_factor, NORMAL_FADEOUT_RATE);
+        float distance_factor = max(0.0, 1.0 - (span.x / (SHADOW_NORMAL_FADEOUT_DISTANCE * voxel_size)) * 0.5);
+        float blend = pow(distance_factor, SHADOW_NORMAL_FADEOUT_RATE);
         return mix(normalize(mat_normal), voxel_normal, blend);
     } else {
         return voxel_normal;

@@ -28,7 +28,8 @@ void main() {
     //
     vec4 last_value = imageLoad(lightmap_last_frame, ivec2(spatial_buffer.xy));
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
-    current_value.r = mix(last_value.r, current_value.r, max(0.05, 1.0 - spatial_buffer.w));
+    float blend_value = max(0.05, 1.0 - spatial_buffer.w);
+    current_value.r = mix(last_value.r, current_value.r, blend_value);
     imageStore(lightmap_current_frame, pixel, current_value);
 
     //

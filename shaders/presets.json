@@ -18,7 +18,10 @@
 
     // -- spatial buffer --
     // Per frame gain of stability, when pixel is tracked.
-    "spatial_buffer.stability_per_frame": 0.1,
+    "spatial_buffer.stability_per_frame": 0.05,
+
+    // global factor for stability decreasing filters
+    "spatial_buffer.decrease_weight": 0.5,
 
     // When pixel z value change relative to camera distance is greater than this threshold, pixel stability is set to 0
     "spatial_buffer.z_delta_threshold": 0.05,
@@ -27,7 +30,7 @@
     // caused by pixel coordinates being integers. This filter decreases stability values for edges of such regions.
 
     // Factor of stability decrease, 0.0 disables filter, 1.0 makes it decrease stability to zero at maximum detection value.
-    "spatial_buffer.minor_move_filter_factor": 0.8,
+    "spatial_buffer.minor_move_filter_factor": 1.0,
     // Minimum pixel move amount for filter to trigger
     "spatial_buffer.minor_move_filter_min": 0.1,
     // Maximum pixel move amount for filter to trigger
@@ -38,7 +41,9 @@
 
     // -- lighting --
     "lighting.normal_fadeout_distance": 192,
+    "lighting.shadow_normal_fadeout_distance": 512,
     "lighting.normal_fadeout_rate": 2.5,
+    "lighting.shadow_normal_fadeout_rate": 2.5,
     "lighting.lightmap_downsample": 1,
 
     // --- image units ---
