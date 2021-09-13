@@ -16,6 +16,12 @@
     // removing unnecessary details from translucent material edges
     "raytrace.material_span_merge_coef": 1.05,
 
+    // -- spatial buffer --
+    "spatial_buffer.z_delta_threshold": 0.05,
+    "spatial_buffer.minor_move_filter_factor": 0.8,
+    "spatial_buffer.minor_move_filter_min": 0.1,
+    "spatial_buffer.minor_move_filter_max": 5.0,
+
     // -- lighting --
     "lighting.normal_fadeout_distance": 192,
     "lighting.normal_fadeout_rate": 2.5,

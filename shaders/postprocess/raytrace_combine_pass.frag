@@ -69,7 +69,7 @@ void main() {
     float shadow_value = light_data.g / 6.0 > 0.25 ? 1.0 : 0.0;
 
     vec4 result = color_data;
-    result.rgb = mix(colors.color1.rgb, vec3(0.0), 1.0 - shadow_value);
+    result.rgb = mix(colors.color1.rgb, vec3(0.0), (1.0 - light_data.r) * 0.8);
     gl_FragColor = result;
-    gl_FragColor.rgb = vec3(light_data.r);
+    gl_FragColor.rgb = vec3(vec2(light_data.r * 0.5 + 0.5), color_data.b);
 }

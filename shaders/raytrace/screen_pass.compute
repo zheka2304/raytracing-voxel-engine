@@ -73,7 +73,7 @@ void raytraceMainImage(
         // do blending
         pure_color = blendVoxelColors(
             pure_color,
-            vec4(color * skylight_shading_data.g /* only normal shading */, alpha),
+            vec4(color /* only normal shading */, alpha),
             span.mat,
             ray.ray,
             span.span.y - span.span.x
@@ -128,11 +128,12 @@ void main() {
     vec4 o_spatial_buffer;
     raytraceMainImage(o_color, o_light, o_depth, o_spatial_buffer, ray, calculate_light);
 
-    dvec3 screen_pos_rev = worldPositionToScreen(dvec3(o_spatial_buffer.xyz));
+    // dvec3 screen_pos_rev = worldPositionToScreen(dvec3(o_spatial_buffer.xyz));
     // return vec3(1.0, 0.0, 1.0) * float(result.steps) / 256.0;
 
     // o_color.r = length(vec2(ivec2((screen_pos_rev.xy * 0.5 + 0.5) * dvec2(image_size.xy)) - pixel)) * 1.0;
-    o_color.rg = abs(vec2(ivec2(imageLoad(spatial_buffer_texture, pixel).xy) - pixel) / 100.0);
+    // o_color.rg = abs(imageLoad(spatial_buffer_texture, pixel).xy - vec2(pixel)) / 4.0;
+    o_color.b = 1.0 - imageLoad(spatial_buffer_texture, pixel).w / 10.0;
 
     imageStore(spatial_buffer_current_frame, pixel, o_spatial_buffer);
 

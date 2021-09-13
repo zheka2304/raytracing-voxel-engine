@@ -21,5 +21,6 @@ void main() {
 
     vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
     spatial_buffer_data.xy = vec2(-1);
+    spatial_buffer_data.z = 0.0;
     imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
 }

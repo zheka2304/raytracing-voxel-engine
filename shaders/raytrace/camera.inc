@@ -41,6 +41,14 @@ Ray getCameraRay(vec2 screen_pos) {
     return Ray(start, ray, max_distance);
 }
 
+vec3 getCameraPosition() {
+    return u_camera_projection.position;
+}
+
+float getDistanceToCamera(vec3 world_pos) {
+    return length(world_pos - u_camera_projection.position);
+}
+
 dvec3 worldPositionToScreen(dvec3 world_pos) {
     vec3 forward, right, up;
     getAllCameraVectors(forward, right, up);
