@@ -20,17 +20,16 @@
     // Per frame gain of stability, when pixel is tracked.
     "spatial_buffer.stability_per_frame": 0.05,
 
-    // global factor for stability decreasing filters
-    "spatial_buffer.decrease_weight": 0.5,
 
     // When pixel z value change relative to camera distance is greater than this threshold, pixel stability is set to 0
     "spatial_buffer.z_delta_threshold": 0.05,
+    "spatial_buffer.z_delta_weight": 0.5,
 
     // Minor move filter is used to filter out edges of large regions, moved by the same amount in slightly-moving regions,
     // caused by pixel coordinates being integers. This filter decreases stability values for edges of such regions.
 
     // Factor of stability decrease, 0.0 disables filter, 1.0 makes it decrease stability to zero at maximum detection value.
-    "spatial_buffer.minor_move_filter_factor": 1.0,
+    "spatial_buffer.minor_move_filter_factor": 0.7,
     // Minimum pixel move amount for filter to trigger
     "spatial_buffer.minor_move_filter_min": 0.1,
     // Maximum pixel move amount for filter to trigger
