@@ -11,6 +11,15 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
 
 
+#define BLEND_RATE_MIN float(${lighting.interpolate_blend_rate_min})
+#define BLEND_RATE_FACTOR float(${lighting.interpolate_blend_rate_factor})
+
+#define BLUR_SAMPLE_COUNT int(${lighting.interpolate_blur_sample_count})
+#define BLUR_RATE_FACTOR float(${lighting.interpolate_blur_rate_factor})
+#define BLUR_DEPTH_FACTOR float(${lighting.blur_depth_factor})
+#define BLUR_VALUE_FACTOR float(${lighting.blur_value_factor})
+
+
 #include "common.inc"
 
 float getLastFrameBlurredValue(ivec2 pixel, vec4 origin, float factor, int step) {
@@ -22,9 +31,9 @@ float getLastFrameBlurredValue(ivec2 pixel, vec4 origin, float factor, int step)
             vec4 pixel = imageLoad(lightmap_last_frame, pixel + ivec2(x, y) * step);
             float v = pixel.r;
             float w = factor;
-            w -= abs(pixel.a - origin.a) / origin.a / 0.05 * (1.0 - factor);
+            w -= abs(pixel.a - origin.a) / origin.a / BLUR_DEPTH_FACTOR * (1.0 - factor);
             w -= length(UNPACK_H2F(origin.g) - UNPACK_H2F(pixel.g));
-            w += max(0.0, 1.0 - abs(v - origin.r) * 2.0) * factor;
+            w += max(0.0, 1.0 - abs(v - origin.r) / BLUR_VALUE_FACTOR) * factor;
             w = clamp(w, 0.0, 1.0);
             weight += w;
             value += w * v;
@@ -35,7 +44,7 @@ float getLastFrameBlurredValue(ivec2 pixel, vec4 origin, float factor, int step)
 
 float getLastFrameBlurredValueMultiSample(ivec2 pixel, float factor, int sample_count) {
     vec4 origin = imageLoad(lightmap_last_frame, pixel);
-    if (factor < .1) {
+    if (factor < .1 || sample_count <= 0) {
         return origin.r;
     }
     float value = 0.0;
@@ -59,12 +68,11 @@ void main() {
     vec4 spatial_buffer = imageLoad(spatial_buffer_texture, pixel);
 
     //
-    float blur_factor = 1.0 - spatial_buffer.w;
-    float last_value = getLastFrameBlurredValueMultiSample(UNPACK_I2F(spatial_buffer.x), blur_factor, 3);
+    float blur_factor = clamp(1.0 - spatial_buffer.w * BLUR_RATE_FACTOR, 0.0, 1.0);
+    float last_value = getLastFrameBlurredValueMultiSample(UNPACK_I2F(spatial_buffer.x), blur_factor, BLUR_SAMPLE_COUNT);
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
 
-    float min_blend_value = 0.05;
-    float blend_value = clamp(1.0 - spatial_buffer.w * 5.0, min_blend_value, 1.0);
+    float blend_value = clamp(1.0 - spatial_buffer.w * BLEND_RATE_FACTOR, BLEND_RATE_MIN, 1.0);
     current_value.r = mix(last_value, current_value.r, blend_value);
     imageStore(lightmap_current_frame, pixel, current_value);
 

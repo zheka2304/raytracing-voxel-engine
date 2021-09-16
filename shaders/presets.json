@@ -29,7 +29,15 @@
     "lighting.shadow_normal_fadeout_distance": 5120,
     "lighting.normal_fadeout_rate": 2.5,
     "lighting.shadow_normal_fadeout_rate": 2.5,
-    "lighting.lightmap_downsample": 1,
+
+    "lighting.interpolate_blend_rate_min": 0.05,
+    "lighting.interpolate_blend_rate_factor": 5,
+    "lighting.interpolate_blur_sample_count": 3,
+    "lighting.interpolate_blur_rate_factor": 3,
+    "lighting.denoise_blur_sample_count": 3,
+    "lighting.denoise_blur_sample_count_add": 4,
+    "lighting.blur_depth_factor": 0.05,
+    "lighting.blur_value_factor": 0.5,
 
     // --- image units ---
     "raytrace.color_texture": 0,

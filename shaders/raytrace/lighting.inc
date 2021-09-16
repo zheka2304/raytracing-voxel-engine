@@ -12,8 +12,6 @@
 #include "raytrace/material.inc"
 #include "raytrace/raycast.inc"
 
-#define LIGHTMAP_DOWNSAMPLE int(${lighting.lightmap_downsample})
-#define LIGHTMAP_DOWNSAMPLE_HALF (int(${lighting.lightmap_downsample}) / 2)
 #define NORMAL_FADEOUT_DISTANCE float(${lighting.normal_fadeout_distance})
 #define SHADOW_NORMAL_FADEOUT_DISTANCE float(${lighting.shadow_normal_fadeout_distance})
 #define NORMAL_FADEOUT_RATE float(${lighting.normal_fadeout_rate})

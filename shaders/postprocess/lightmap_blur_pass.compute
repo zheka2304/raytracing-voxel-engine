@@ -20,6 +20,11 @@ layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatia
 #define WRITE(X) (X).r
 #endif
 
+#define BLUR_DEPTH_FACTOR float(${lighting.blur_depth_factor})
+#define BLUR_VALUE_FACTOR float(${lighting.blur_value_factor})
+#define BLUR_SAMPLE_COUNT int(${lighting.denoise_blur_sample_count})
+#define BLUR_SAMPLE_COUNT_ADD float(${lighting.denoise_blur_sample_count_add})
+
 
 float get3x3Blur(ivec2 pos, vec4 origin, int step) {
     float sum = READ(origin);
@@ -31,9 +36,9 @@ float get3x3Blur(ivec2 pos, vec4 origin, int step) {
             vec4 pixel = imageLoad(blur_pass_texture, pos + ivec2(x, y) * step);
             float v = READ(pixel);
             float w = 1.0;
-            w -= abs(pixel.g - origin.g) / origin.g / 0.05;
+            w -= abs(pixel.g - origin.g) / origin.g / BLUR_DEPTH_FACTOR;
             w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
-            w += max(0.0, 1.0 - abs(v - READ(origin)) * 2.0);
+            w += max(0.0, 1.0 - abs(v - READ(origin)) / BLUR_VALUE_FACTOR);
             w = clamp(w, 0.0, 1.0);
             sum += v * w;
             weight += w;
@@ -45,6 +50,9 @@ float get3x3Blur(ivec2 pos, vec4 origin, int step) {
 float getMultiSample3x3Blur(ivec2 pos, int sample_count) {
     float value = 0.0;
     vec4 origin = imageLoad(blur_pass_texture, pos);
+    if (sample_count <= 0) {
+        return READ(origin);
+    }
     for (int i = 0; i < sample_count; i++) {
         value += get3x3Blur(pos, origin, i * 2 + 1) / float(sample_count);
     }
@@ -61,11 +69,10 @@ void main() {
     }
     image_size--;
 
-
     vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
     float spatial_stability = imageLoad(spatial_buffer_texture, pixel_pos).w;
 #ifdef D_3X3_FILTER_PASS
-    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, 3 + int((1.0 - spatial_stability) * 4.0));
+    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, BLUR_SAMPLE_COUNT + int((1.0 - spatial_stability) * BLUR_SAMPLE_COUNT_ADD));
     imageStore(blur_pass_texture, pixel_pos, pixel);
 #endif
 
