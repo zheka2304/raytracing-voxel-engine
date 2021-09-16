@@ -22,9 +22,9 @@ float getLastFrameBlurredValue(ivec2 pixel, vec4 origin, float factor, int step)
             vec4 pixel = imageLoad(lightmap_last_frame, pixel + ivec2(x, y) * step);
             float v = pixel.r;
             float w = factor;
-            w -= abs(pixel.a - origin.a) / origin.a / 0.05;
+            w -= abs(pixel.a - origin.a) / origin.a / 0.05 * (1.0 - factor);
             w -= length(UNPACK_H2F(origin.g) - UNPACK_H2F(pixel.g));
-            w += max(0.0, 1.0 - abs(v - origin.r) * 2.0);
+            w += max(0.0, 1.0 - abs(v - origin.r) * 2.0) * factor;
             w = clamp(w, 0.0, 1.0);
             weight += w;
             value += w * v;
@@ -40,7 +40,9 @@ float getLastFrameBlurredValueMultiSample(ivec2 pixel, float factor, int sample_
     }
     float value = 0.0;
     for (int i = 0; i < sample_count; i++) {
-        value += getLastFrameBlurredValue(pixel, origin, factor, i * 2 + 1) / float(sample_count);
+        float s = getLastFrameBlurredValue(pixel, origin, factor, i * 2 + 1);
+        value += s / float(sample_count);
+        origin.r = s;
     }
     return value;
 }
@@ -57,9 +59,12 @@ void main() {
     vec4 spatial_buffer = imageLoad(spatial_buffer_texture, pixel);
 
     //
-    float last_value = getLastFrameBlurredValueMultiSample(UNPACK_I2F(spatial_buffer.x), sqrt(1.0 - spatial_buffer.w), 3);// imageLoad(lightmap_last_frame, UNPACK_I2F(spatial_buffer.x));
+    float blur_factor = 1.0 - spatial_buffer.w;
+    float last_value = getLastFrameBlurredValueMultiSample(UNPACK_I2F(spatial_buffer.x), blur_factor, 3);
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
-    float blend_value = max(0.05, 1.0 - spatial_buffer.w * 3.0);
+
+    float min_blend_value = 0.05;
+    float blend_value = clamp(1.0 - spatial_buffer.w * 5.0, min_blend_value, 1.0);
     current_value.r = mix(last_value, current_value.r, blend_value);
     imageStore(lightmap_current_frame, pixel, current_value);
 
