@@ -18,10 +18,10 @@ layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatia
 #include "raytrace/camera.inc"
 
 
-void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float maximum_stability_value, uint flag) {
+void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float new_stability_value, uint flag) {
     vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
     if (flag > floatBitsToUint(spatial_buffer_data.y)) {
-        spatial_buffer_data.w = min(maximum_stability_value, spatial_buffer_data.w + STABILITY_PER_FRAME);
+        spatial_buffer_data.w = new_stability_value;
         spatial_buffer_data.x = PACK_I2F(last_pixel_pos);
         spatial_buffer_data.y = uintBitsToFloat(flag);
         spatial_buffer_data.z = PACK_H2F(pixel_error);
@@ -29,23 +29,23 @@ void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float
     }
 }
 
-void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float maximum_stability_value) {
+void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float new_stability_value) {
     ivec2 pixel_pos_i = ivec2(pixel_pos);
     vec2 pixel_error = pixel_pos - (vec2(pixel_pos_i) + 0.5);
     vec2 new_pixel_error = pixel_error + last_pixel_error;
 
-    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, maximum_stability_value, 2u);
+    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, 2u);
 
     const float eps = 0.1;
     if (pixel_error.x > 0.5 - eps) {
-        writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), maximum_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), new_stability_value, 1u);
     } else if (pixel_error.x < -0.5 + eps) {
-        writeToPixel(pixel_pos_i + ivec2(-1, 0), last_pixel_pos, new_pixel_error + vec2(-1, 0), maximum_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(-1, 0), last_pixel_pos, new_pixel_error + vec2(-1, 0), new_stability_value, 1u);
     }
     if (pixel_error.y > 0.5 - eps) {
-        writeToPixel(pixel_pos_i + ivec2(0, 1), last_pixel_pos, new_pixel_error + vec2(0, 1), maximum_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(0, 1), last_pixel_pos, new_pixel_error + vec2(0, 1), new_stability_value, 1u);
     } else if (pixel_error.y < -0.5 + eps) {
-        writeToPixel(pixel_pos_i + ivec2(0, -1), last_pixel_pos, new_pixel_error + vec2(0, -1), maximum_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(0, -1), last_pixel_pos, new_pixel_error + vec2(0, -1), new_stability_value, 1u);
     }
 }
 
@@ -71,5 +71,6 @@ void main() {
 
     //
     float maximum_stability_value = 1.0;
-    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, maximum_stability_value);
+    float new_stability_value = min(maximum_stability_value, imageLoad(spatial_buffer_texture, pixel_pos).w + STABILITY_PER_FRAME);
+    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value);
 }
