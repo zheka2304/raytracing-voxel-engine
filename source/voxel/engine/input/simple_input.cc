@@ -45,12 +45,12 @@ void SimpleInput::update(render::Camera& camera) {
             camera_position.z -= cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
         }
         if (glfwGetKey(window, GLFW_KEY_D)) {
-            camera_position.x += cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
-            camera_position.z -= cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
+            camera_position.x += cos(camera_rotation.y) * m_movement_speed;
+            camera_position.z -= sin(camera_rotation.y) * m_movement_speed;
         }
         if (glfwGetKey(window, GLFW_KEY_A)) {
-            camera_position.x -= cos(camera_rotation.x) * cos(camera_rotation.y) * m_movement_speed;
-            camera_position.z += cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
+            camera_position.x -= cos(camera_rotation.y) * m_movement_speed;
+            camera_position.z += sin(camera_rotation.y) * m_movement_speed;
         }
     }
 }

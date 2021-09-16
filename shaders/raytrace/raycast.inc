@@ -199,6 +199,29 @@ vec3 getRaycastSpanStart(Ray ray, RaycastResultSpan span) {
     return ray.start + span.span.x * ray.ray + getVoxelNormalFromMaterial(span.mat.z) * span.span.x * 1e-3;
 }
 
+uvec3 __hash3to3(uvec3 x) {
+    const uint k = 1103515245u;
+    x *= k;
+    x = ((x >> 2u) ^ (x.yzx >> 1u) ^ x.zxy) * k;
+    x = ((x >> 2u) ^ (x.yzx >> 1u) ^ x.zxy) * k;
+    return x;
+}
+
+uint __hash3to1(uvec3 x) {
+    const uint k = 1103515245u;
+    x = __hash3to3(x);
+    return (x.x >> 2u) ^ (x.y >> 1u) ^ x.z;
+}
+
+uint getVoxelPositionHash(vec3 position, uint material_z) {
+    uint scale_i = (material_z >> 3u) & 31u;
+    position += getVoxelNormalFromMaterial(material_z) * 0.0000001;
+
+    uint chunk_pos_hash = __hash3to1(uvec3(ivec3(floor(position))));
+    uint voxel_pos_hash = __hash3to1((floatBitsToUint(fract(position) + 1.0) & 0x7FFFFFu) >> (scale_i + 1u));
+    return __hash3to1(uvec3(chunk_pos_hash, voxel_pos_hash, 0));
+}
+
 // Raycast over one voxel chunk, main logic is placed here
 // returns true, if ray has ended
 

@@ -76,7 +76,11 @@ int main() {
                     }
                 }
             }
-            chunk->setVoxel({1, 0, 0, 0}, (16 << 25) | 0xFFFF00, 0);
+
+            chunk->setVoxel({1, 0, 0, 0}, (31 << 25) | 0xFFFF00, 0);
+            chunk->setVoxel({1, 0, 0, 1}, (31 << 25) | 0xFFFF00, 0);
+            chunk->setVoxel({1, 1, 0, 0}, (31 << 25) | 0xFFFF00, 0);
+            chunk->setVoxel({1, 1, 0, 1}, (31 << 25) | 0xFFFF00, 0);
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
             buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
@@ -108,7 +112,7 @@ int main() {
 
         frame_counter++;
 
-        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     });
 
     context->runEventLoop();

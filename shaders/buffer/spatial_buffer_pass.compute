@@ -13,14 +13,41 @@ layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatia
 #define STABILITY_PER_FRAME float(${spatial_buffer.stability_per_frame})
 #define Z_DELTA_THRESHOLD float(${spatial_buffer.z_delta_threshold})
 #define Z_DELTA_WEIGHT float(${spatial_buffer.z_delta_weight})
-#define MINOR_MOVE_FILTER_FACTOR float(${spatial_buffer.minor_move_filter_factor})
-#define MINOR_MOVE_FILTER_MIN float(${spatial_buffer.minor_move_filter_min})
-#define MINOR_MOVE_FILTER_MAX float(${spatial_buffer.minor_move_filter_max})
-#define MINOR_MOVE_FILTER_EDGE_WEIGHT float(${spatial_buffer.minor_move_filter_edge_weight})
 
 #include "common.inc"
 #include "raytrace/camera.inc"
 
+
+void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float maximum_stability_value, uint flag) {
+    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
+    if (flag > floatBitsToUint(spatial_buffer_data.y)) {
+        spatial_buffer_data.w = min(maximum_stability_value, spatial_buffer_data.w + STABILITY_PER_FRAME);
+        spatial_buffer_data.x = PACK_I2F(last_pixel_pos);
+        spatial_buffer_data.y = uintBitsToFloat(flag);
+        spatial_buffer_data.z = PACK_H2F(pixel_error);
+        imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
+    }
+}
+
+void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float maximum_stability_value) {
+    ivec2 pixel_pos_i = ivec2(pixel_pos);
+    vec2 pixel_error = pixel_pos - (vec2(pixel_pos_i) + 0.5);
+    vec2 new_pixel_error = pixel_error + last_pixel_error;
+
+    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, maximum_stability_value, 2u);
+
+    const float eps = 0.1;
+    if (pixel_error.x > 0.5 - eps) {
+        writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), maximum_stability_value, 1u);
+    } else if (pixel_error.x < -0.5 + eps) {
+        writeToPixel(pixel_pos_i + ivec2(-1, 0), last_pixel_pos, new_pixel_error + vec2(-1, 0), maximum_stability_value, 1u);
+    }
+    if (pixel_error.y > 0.5 - eps) {
+        writeToPixel(pixel_pos_i + ivec2(0, 1), last_pixel_pos, new_pixel_error + vec2(0, 1), maximum_stability_value, 1u);
+    } else if (pixel_error.y < -0.5 + eps) {
+        writeToPixel(pixel_pos_i + ivec2(0, -1), last_pixel_pos, new_pixel_error + vec2(0, -1), maximum_stability_value, 1u);
+    }
+}
 
 void main() {
     // get pixel and discard excess ones
@@ -31,56 +58,18 @@ void main() {
     }
 
     // world space position, that was in this pixel on last frame
-    vec3 last_position = imageLoad(last_frame_texture, pixel_pos).xyz;
+    vec4 last_position = imageLoad(last_frame_texture, pixel_pos);
 
     // screen space position, that was here on the last frame
-    dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position));
+    dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position.xyz));
 
     // convert screen space position to pixel position
     vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * dvec2(image_size));
-    ivec2 last_pixel_position = ivec2(last_pixel_position_f);
 
-    // position is moved out of screen
-    if (last_pixel_position.x < 0 || last_pixel_position.y < 0 || last_pixel_position.x >= image_size.x || last_pixel_position.y >= image_size.y) {
-        return;
-    }
+    // get pixel error
+    vec2 last_pixel_error = UNPACK_H2F(imageLoad(spatial_buffer_texture, pixel_pos).z);
 
-    // get current world position of the same pixel
-    vec3 current_position = imageLoad(current_frame_texture, pixel_pos).xyz;
-
-    // get absolute and relative z-value difference
-    float absolute_z_delta = getDistanceToCamera(current_position) - float(last_screen_position.z);
-    float relative_z_delta = absolute_z_delta / float(last_screen_position.z);
-
-    // calculate stability decrease, based on z difference and movement on screen
-    float maximum_stability_value;
-    if (relative_z_delta > Z_DELTA_THRESHOLD) {
-        // if distance delta is more than threshold, set temporal stability to zero
-        maximum_stability_value = 1.0 - Z_DELTA_WEIGHT;
-    } else {
-        // -- MINOR MOVE FILTER --
-        // Decrease stability of slightly moved pixels to remove artifacts,
-        // caused by edge of large region moved by, for example by 1 pixel, colliding with another region,
-        // moved for 2 pixels. For larger move values such regions are small and edges are not visible.
-        vec2 move = (vec2(pixel_pos) + .5 - last_pixel_position_f.xy);
-        float move_factor = max(abs(move.x), abs(move.y));
-        if (move_factor < MINOR_MOVE_FILTER_MIN) {
-            maximum_stability_value = 1.0;
-        } else {
-            vec2 edge_factor_v = abs(0.5 - fract(last_pixel_position_f)) * 2.0;
-            float edge_factor = mix(1.0, max(edge_factor_v.x, edge_factor_v.y), MINOR_MOVE_FILTER_EDGE_WEIGHT);
-            move_factor += 1.0;
-            move_factor /= MINOR_MOVE_FILTER_MAX;
-            move_factor -= .5;
-            maximum_stability_value = 1.0 - clamp(1.0 - 4.0 * move_factor * move_factor, 0.0, 1.0) * MINOR_MOVE_FILTER_FACTOR * edge_factor;
-        }
-    }
-
-    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, last_pixel_position);
-    if (spatial_buffer_data.x < 0.0) {
-        spatial_buffer_data.w = min(maximum_stability_value, spatial_buffer_data.w + STABILITY_PER_FRAME);
-    }
-    spatial_buffer_data.z = 1.0 - maximum_stability_value;
-    spatial_buffer_data.xy = vec2(pixel_pos) + 0.999 - fract(last_pixel_position_f) * 0.998;
-    imageStore(spatial_buffer_texture, last_pixel_position, spatial_buffer_data);
+    //
+    float maximum_stability_value = 1.0;
+    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, maximum_stability_value);
 }

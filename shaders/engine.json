@@ -33,6 +33,11 @@
       "defines": ["D_TEXTURE"]
     },
 
+    "spatial_buffer_prepare": {
+      "type": "compute",
+      "source": "buffer/spatial_buffer_prepare.compute"
+    },
+
     "spatial_buffer_reset": {
       "type": "compute",
       "source": "buffer/spatial_buffer_reset.compute"

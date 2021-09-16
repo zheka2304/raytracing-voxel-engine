@@ -19,11 +19,12 @@ void main() {
     // extract colors
     ColorPair colors = unpackColorPairF(color_data.rgb);
 
-    vec2 pair = unpackHalf2x16(floatBitsToUint(light_data.b));
-    float shadow_value = light_data.g / 6.0 > 0.25 ? 1.0 : 0.0;
-
     vec4 result = color_data;
     result.rgb = mix(colors.color1.rgb, colors.color2.rgb, 1.0 - light_data.r);
     gl_FragColor = result;
-    // gl_FragColor.rgb = vec3(light_data.r);
+//    gl_FragColor.rgb = vec3(color_data.rg, color_data.b);
+    gl_FragColor.rgb = vec3(light_data.r, light_data.r, color_data.b);
+//    gl_FragColor.rgb = vec3(abs(color_data.rg), 0.0);
+//    gl_FragColor.rgb = vec3(light_data.r);
+//    gl_FragColor.rgb = vec3(depth_data.r);
 }

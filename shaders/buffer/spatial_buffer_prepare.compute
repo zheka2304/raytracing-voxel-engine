@@ -19,8 +19,5 @@ void main() {
         return;
     }
 
-    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
-    spatial_buffer_data.x = PACK_I2F(ivec2(-1));
-    spatial_buffer_data.y = uintBitsToFloat(0u);
-    imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
+    imageStore(spatial_buffer_texture, pixel_pos, vec4(-1, -1, PACK_H2F(vec2(0.0)), 0.0));
 }

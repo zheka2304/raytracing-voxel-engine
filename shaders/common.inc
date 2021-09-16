@@ -24,4 +24,27 @@
 #define COMPUTE_SHADER_BUFFER(BINDING, ACCESS_PERMISSIONS, TYPE_NAME, NAME, STRUCT) \
     layout(binding = BINDING) ACCESS_PERMISSIONS buffer TYPE_NAME STRUCT NAME;
 
+
+uint i32_to_i16(uint x) {
+    return (x & 0x7FFFu) | ((x >> 31u) << 15u);
+}
+
+uint i16_to_i32(uint x) {
+    return (x & 0x7FFFu) | ((x >> 15u) << 31u);
+}
+
+ivec2 unpackInt2x16(uint x) {
+    return ivec2(i16_to_i32(x & 0xFFFFu), i16_to_i32(x >> 16u));
+}
+
+uint packInt2x16(ivec2 x) {
+    return i32_to_i16(uint(x.x)) | (i32_to_i16(uint(x.y)) << 16u);
+}
+
+// short macros for packing 2 of 16 bit ints or floats into 1 and unpacking
+#define PACK_H2F(X) uintBitsToFloat(packHalf2x16(X))
+#define UNPACK_H2F(X) unpackHalf2x16(floatBitsToUint(X))
+#define PACK_I2F(X) uintBitsToFloat(packInt2x16(X))
+#define UNPACK_I2F(X) unpackInt2x16(floatBitsToUint(X))
+
 #endif  // VOXEL_ENGINE_COMMON_INC

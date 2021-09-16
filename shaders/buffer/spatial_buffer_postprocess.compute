@@ -20,27 +20,21 @@ void main() {
     }
 
     vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
-    if (spatial_buffer_data.x < 0.0) {
-        ivec2 positions_to_check[5] = ivec2[5](
-            ivec2(-1, 0),
-            ivec2(0, 1),
-            ivec2(0, -1),
-            ivec2(1, 0),
-            ivec2(1, 1)
-        );
-
-        for (int i = 0; i < 5; i++) {
-            ivec2 pos = positions_to_check[i];
-            vec4 data = imageLoad(spatial_buffer_texture, pos + pixel_pos);
-            if (data.x >= 0.0) {
-                spatial_buffer_data = data;// - vec4(pos, 0.0, 0.0);
-                break;
+    uint flag = floatBitsToUint(spatial_buffer_data.y);
+    if (flag == 0u) {
+        spatial_buffer_data.z = PACK_H2F(vec2(0.0));
+        spatial_buffer_data.w = 0.0;
+        imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
+    } else {
+        vec2 new_pixel_pos_f = vec2(pixel_pos) + 0.5;
+        new_pixel_pos_f += UNPACK_H2F(spatial_buffer_data.z);
+        ivec2 new_pixel_pos = ivec2(new_pixel_pos_f);
+        if (new_pixel_pos != pixel_pos) {
+            vec2 new_pixel_error = new_pixel_pos_f - (vec2(new_pixel_pos) + .5);
+            if (floatBitsToUint(imageLoad(spatial_buffer_texture, new_pixel_pos).y) > 0u) {
+                spatial_buffer_data.z = PACK_H2F(new_pixel_error);
+                imageStore(spatial_buffer_texture, new_pixel_pos, spatial_buffer_data);
             }
         }
-
-        if (spatial_buffer_data.x < 0.0) {
-            spatial_buffer_data.w = 0.0;
-        }
-        imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
     }
 }

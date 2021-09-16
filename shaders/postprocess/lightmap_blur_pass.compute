@@ -7,6 +7,7 @@ layout(std430) buffer;
 
 layout(rgba32f, binding = ${lightmap.current_frame}) uniform highp image2D lightmap_texture;
 layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D blur_pass_texture;
+layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
 
 
 #include "common.inc"
@@ -31,7 +32,7 @@ float get3x3Blur(ivec2 pos, vec4 origin, int step) {
             float v = READ(pixel);
             float w = 1.0;
             w -= abs(pixel.g - origin.g) / origin.g / 0.05;
-            w -= length(unpackHalf2x16(floatBitsToUint(origin.b)) - unpackHalf2x16(floatBitsToUint(pixel.b)));
+            w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
             w += max(0.0, 1.0 - abs(v - READ(origin)) * 2.0);
             w = clamp(w, 0.0, 1.0);
             sum += v * w;
@@ -62,8 +63,9 @@ void main() {
 
 
     vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
+    float spatial_stability = imageLoad(spatial_buffer_texture, pixel_pos).w;
 #ifdef D_3X3_FILTER_PASS
-    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, 5);
+    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, 3 + int((1.0 - spatial_stability) * 8.0));
     imageStore(blur_pass_texture, pixel_pos, pixel);
 #endif
 

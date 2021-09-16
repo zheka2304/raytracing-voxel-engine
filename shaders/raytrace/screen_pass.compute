@@ -46,14 +46,22 @@ void raytraceMainImage(
     o_light.r = 1.0;
 
     // setup default packed normal value
-    o_light.g = uintBitsToFloat(packHalf2x16(vec2(0.0)));
+    o_light.g = PACK_H2F(vec2(0.0));
 
     RaycastResult result = raycastVoxelWorld(ray, 50, 6, true);
     for (int i = result.count - 1; i >= 0; i--) {
         RaycastResultSpan span = getRaycastResultSpan(result, i);
+        vec3 span_start_position = getRaycastSpanStart(ray, span);
+
+        // unpack voxel data
         uint voxel = span.mat.x;
         vec3 color = vec3(voxel & 0xFFu, (voxel >> 8u) & 0xFFu, (voxel >> 16u) & 0xFFu) / 255.0;
         float alpha = float((voxel >> 25u) & 31u) / 31.0;
+
+        // voxel side hash
+        uint voxel_side_hash = getVoxelPositionHash(span_start_position, span.mat.z);
+        o_spatial_buffer.w = uintBitsToFloat(voxel_side_hash);
+        o_depth.r = float(voxel_side_hash) * (1.0 / float(0xffffffffu));
 
         // skylight normal shading
         LightSource sky_light_source = getSkyLightSource();
@@ -61,11 +69,11 @@ void raytraceMainImage(
         normal_shading = normal_shading * .4 + .6;
 
         // skylight shadow
-        float skylight_shadow_value = getShadowValueFromLightSource(sky_light_source, getRaycastSpanStart(ray, span), span, light_rays_count);
+        float skylight_shadow_value = getShadowValueFromLightSource(sky_light_source, span_start_position, span, light_rays_count);
 
         // get normal and pack it for soft shadow post processor
         vec3 normal = getVoxelNormalForSoftShadows(span.mat, span.span);
-        uint packed_normal = packHalf2x16(vec2(dot(normal, vec3(1.0, 0.0, 0.0)), dot(normal, vec3(0.0, 1.0, 0.0))));
+        float packed_normal = PACK_H2F(vec2(dot(normal, vec3(1.0, 0.0, 0.0)), dot(normal, vec3(0.0, 1.0, 0.0))));
 
         // do blending
         pure_color = blendVoxelColors(
@@ -78,7 +86,7 @@ void raytraceMainImage(
 
         shaded_color = blendVoxelColors(
             shaded_color,
-            vec4(color * 0.2, alpha),
+            vec4(color * 0.3 * (normal_shading * 0.5 + 0.5), alpha),
             span.mat,
             ray.ray,
             span.span.y - span.span.x
@@ -88,11 +96,11 @@ void raytraceMainImage(
         o_light.r = skylight_shadow_value;
 
         // packed normal
-        o_light.g = uintBitsToFloat(packed_normal);
+        o_light.g = packed_normal;
     }
 
     // distance from camera value
-    o_light.a = o_depth.r = result.distance;
+    o_light.a = result.distance;
 
     if (result.distance < POSITIVE_INF) {
         o_spatial_buffer.xyz = ray.start + ray.ray * result.distance;
@@ -115,7 +123,7 @@ void main() {
     vec4 spatial_buffer_value = imageLoad(spatial_buffer_texture, pixel);
     
     // calculate light ray count
-    float light_rays_count_f = pow(1.0 - spatial_buffer_value.w, 2.0) * 3.0 + 1.0;
+    float light_rays_count_f = pow(1.0 - spatial_buffer_value.w, 2.0) * 2.0 + 1.0;
     int light_rays_count = int(light_rays_count_f);
 
     // screen position in range of [-1, 1)
@@ -134,7 +142,8 @@ void main() {
     o_light.b = light_rays_count_f;
 
     // -- DEBUG --
-    // o_color.b = 1.0 - spatial_buffer_value.w;
+    o_color.b = 1.0 - spatial_buffer_value.w;//spatial_buffer_value.w > 0.0 ? 0.0 : 1.0;
+    o_color.rg = abs(UNPACK_H2F(spatial_buffer_value.z));
     // -- DEBUG END --
 
 
