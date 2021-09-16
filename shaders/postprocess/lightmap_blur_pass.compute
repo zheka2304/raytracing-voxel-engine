@@ -65,7 +65,7 @@ void main() {
     vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
     float spatial_stability = imageLoad(spatial_buffer_texture, pixel_pos).w;
 #ifdef D_3X3_FILTER_PASS
-    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, 3 + int((1.0 - spatial_stability) * 8.0));
+    WRITE(pixel) = getMultiSample3x3Blur(pixel_pos, 3 + int((1.0 - spatial_stability) * 4.0));
     imageStore(blur_pass_texture, pixel_pos, pixel);
 #endif
 
