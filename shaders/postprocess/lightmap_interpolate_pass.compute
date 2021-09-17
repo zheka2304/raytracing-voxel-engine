@@ -69,6 +69,7 @@ void main() {
 
     //
     float blur_factor = clamp(1.0 - spatial_buffer.w * BLUR_RATE_FACTOR, 0.0, 1.0);
+    if (floatBitsToUint(spatial_buffer.y) < 2u) blur_factor = 1.0;
     float last_value = getLastFrameBlurredValueMultiSample(UNPACK_I2F(spatial_buffer.x), blur_factor, BLUR_SAMPLE_COUNT);
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
 

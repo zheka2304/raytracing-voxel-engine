@@ -22,9 +22,12 @@ void main() {
     vec4 result = color_data;
     result.rgb = mix(colors.color1.rgb, colors.color2.rgb, 1.0 - light_data.r);
     gl_FragColor = result;
+
+    // -- DEBUG START --
 //    gl_FragColor.rgb = vec3(color_data.rg, color_data.b);
-    gl_FragColor.rgb = vec3(light_data.r, light_data.r, color_data.b);
+//    gl_FragColor.rgb = vec3(light_data.r, light_data.r, color_data.b);
 //    gl_FragColor.rgb = vec3(abs(color_data.rg), 0.0);
 //    gl_FragColor.rgb = vec3(light_data.r);
 //    gl_FragColor.rgb = vec3(depth_data.r);
+    // -- DEBUG END --
 }

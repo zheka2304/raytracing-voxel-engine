@@ -36,7 +36,7 @@ void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last
 
     writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, 2u);
 
-    const float eps = 0.1;
+    const float eps = 0.02;
     if (pixel_error.x > 0.5 - eps) {
         writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), new_stability_value, 1u);
     } else if (pixel_error.x < -0.5 + eps) {

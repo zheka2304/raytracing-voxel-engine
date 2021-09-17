@@ -123,7 +123,7 @@ void main() {
     vec4 spatial_buffer_value = imageLoad(spatial_buffer_texture, pixel);
     
     // calculate light ray count
-    float light_rays_count_f = 1.0; //pow(1.0 - spatial_buffer_value.w, 2.0) * 2.0 + 1.0;
+    float light_rays_count_f = 1.0;
     int light_rays_count = int(light_rays_count_f);
 
     // screen position in range of [-1, 1)
@@ -142,8 +142,8 @@ void main() {
     o_light.b = light_rays_count_f;
 
     // -- DEBUG --
-    o_color.b = 1.0 - spatial_buffer_value.w;
-    o_color.rg = abs(UNPACK_H2F(spatial_buffer_value.z));
+//    o_color.b = 1.0 - spatial_buffer_value.w;
+//    o_color.rg = abs(UNPACK_H2F(spatial_buffer_value.z));
     // -- DEBUG END --
 
 
