@@ -62,8 +62,7 @@ It is happening, because such local arrays are stored in local memory instead of
 
 // Raycast stack optimization settings, search LOCAL ARRAY OPTIMIZATION
 #define OPTIMIZE_RAYTRACE_STACK
-#define OPTIMIZE_RAYTRACE_STACK_SPAN_1 20
-#define OPTIMIZE_RAYTRACE_STACK_SPAN_2 12
+#define OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
 
 // contains all voxel data, indexed
 COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
@@ -334,26 +333,98 @@ bool raycastVoxelChunk(
                     if (child != 0u) {
                         // Put current voxel_pointer and t_max on stack at the current scale
                         #ifdef OPTIMIZE_RAYTRACE_STACK
-                            if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_1) {
-                                for (int i = 23; i > OPTIMIZE_RAYTRACE_STACK_SPAN_1; i--) {
-                                    if (i == scale_i) {
-                                        stack[i] = current;
-                                        break;
+                            // We use binary search to reduce search time of required index, search LOCAL ARRAY OPTIMIZATION
+                            if (scale_i > 12) {
+                                if (scale_i > 18) {
+                                    if (scale_i > 21) {
+                                        if (scale_i > 22) {
+                                            stack[23] = current;
+                                        } else {
+                                            stack[22] = current;
+                                        }
+                                    } else {
+                                        if (scale_i > 20) {
+                                            stack[21] = current;
+                                        } else {
+                                            if (scale_i > 19) {
+                                                stack[20] = current;
+                                            } else {
+                                                stack[19] = current;
+                                            }
+                                        }
                                     }
-                                }
-                            } else if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_2) {
-                                for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_1; i > OPTIMIZE_RAYTRACE_STACK_SPAN_2; i--) {
-                                    if (i == scale_i) {
-                                        stack[i] = current;
-                                        break;
+                                } else {
+                                    if (scale_i > 16) {
+                                        if (scale_i > 17) {
+                                            stack[18] = current;
+                                        } else {
+                                            stack[17] = current;
+                                        }
+                                    } else {
+                                        if (scale_i > 14) {
+                                            if (scale_i > 15) {
+                                                stack[16] = current;
+                                            } else {
+                                                stack[15] = current;
+                                            }
+                                        } else {
+                                            if (scale_i > 13) {
+                                                stack[14] = current;
+                                            } else {
+                                                stack[13] = current;
+                                            }
+                                        }
                                     }
                                 }
                             } else {
-                                for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_2; i >= 0; i--) {
-                                    if (i == scale_i) {
-                                        stack[i] = current;
-                                        break;
+                                if (scale_i > 6) {
+                                    if (scale_i > 10) {
+                                        if (scale_i > 11) {
+                                            stack[12] = current;
+                                        } else {
+                                            stack[11] = current;
+                                        }
+                                    } else {
+                                        if (scale_i > 8) {
+                                            if (scale_i > 9) {
+                                                stack[10] = current;
+                                            } else {
+                                                stack[9] = current;
+                                            }
+                                        } else {
+                                            if (scale_i > 7) {
+                                                stack[8] = current;
+                                            } else {
+                                                stack[7] = current;
+                                            }
+                                        }
                                     }
+                                } else {
+                                    #ifndef OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
+                                    if (scale_i > 4) {
+                                        if (scale_i > 5) {
+                                            stack[6] = current;
+                                        } else {
+                                            stack[5] = current;
+                                        }
+                                    } else {
+                                        if (scale_i > 2) {
+                                            if (scale_i > 3) {
+                                                stack[4] = current;
+                                            } else {
+                                                stack[3] = current;
+                                            }
+                                        } else {
+                                            if (scale_i > 1) {
+                                                stack[2] = current;
+                                            } else if (scale_i > 0) {
+                                                stack[1] = current;
+                                            } else {
+                                                stack[0] = current;
+                                            }
+                                        }
+                                    }
+                                    #endif
                                 }
                             }
                         #else
@@ -439,28 +510,101 @@ bool raycastVoxelChunk(
 
             // Now, using scale, extract voxel_pointer and t_max from stack at this scale
             #ifdef OPTIMIZE_RAYTRACE_STACK
-                if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_1) {
-                    for (int i = 23; i > OPTIMIZE_RAYTRACE_STACK_SPAN_1; i--) {
-                        if (i == scale_i) {
-                            current = stack[i];
-                            break;
+                // We use binary search to reduce search time of required index, search LOCAL ARRAY OPTIMIZATION
+                if (scale_i > 12) {
+                    if (scale_i > 18) {
+                        if (scale_i > 21) {
+                            if (scale_i > 22) {
+                                current = stack[23];
+                            } else {
+                                current = stack[22];
+                            }
+                        } else {
+                            if (scale_i > 20) {
+                                current = stack[21];
+                            } else {
+                                if (scale_i > 19) {
+                                    current = stack[20];
+                                } else {
+                                    current = stack[19];
+                                }
+                            }
                         }
-                    }
-                } else if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_2) {
-                    for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_1; i > OPTIMIZE_RAYTRACE_STACK_SPAN_2; i--) {
-                        if (i == scale_i) {
-                            current = stack[i];
-                            break;
+                    } else {
+                        if (scale_i > 16) {
+                            if (scale_i > 17) {
+                                current = stack[18];
+                            } else {
+                                current = stack[17];
+                            }
+                        } else {
+                            if (scale_i > 14) {
+                                if (scale_i > 15) {
+                                    current = stack[16];
+                                } else {
+                                    current = stack[15];
+                                }
+                            } else {
+                                if (scale_i > 13) {
+                                    current = stack[14];
+                                } else {
+                                    current = stack[13];
+                                }
+                            }
                         }
                     }
                 } else {
-                    for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_2; i >= 0; i--) {
-                        if (i == scale_i) {
-                            current = stack[i];
-                            break;
-                        }
-                    }
-                }
+                     if (scale_i > 6) {
+                         if (scale_i > 10) {
+                             if (scale_i > 11) {
+                                 current = stack[12];
+                             } else {
+                                 current = stack[11];
+                             }
+                         } else {
+                             if (scale_i > 8) {
+                                 if (scale_i > 9) {
+                                     current = stack[10];
+                                 } else {
+                                     current = stack[9];
+                                 }
+                             } else {
+                                 if (scale_i > 7) {
+                                     current = stack[8];
+                                 } else {
+                                     current = stack[7];
+                                 }
+                             }
+                         }
+                     } else {
+                         #ifndef OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
+                         if (scale_i > 4) {
+                             if (scale_i > 5) {
+                                 current = stack[6];
+                             } else {
+                                 current = stack[5];
+                             }
+                         } else {
+                             if (scale_i > 2) {
+                                 if (scale_i > 3) {
+                                     current = stack[4];
+                                 } else {
+                                     current = stack[3];
+                                 }
+                             } else {
+                                 if (scale_i > 1) {
+                                     current = stack[2];
+                                 } else if (scale_i > 0) {
+                                     current = stack[1];
+                                 } else {
+                                     current = stack[0];
+                                 }
+                             }
+                         }
+                         #endif
+                     }
+                 }
+
             #else
                 current = stack[scale_i];
             #endif
