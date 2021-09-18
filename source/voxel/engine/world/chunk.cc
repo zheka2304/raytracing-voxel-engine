@@ -135,7 +135,7 @@ u32 Chunk::_allocateNewVoxel(u32 color, u32 material) {
     return ptr;
 }
 
-void Chunk::setVoxel(VoxelPosition position, u32 color, u32 material) {
+void Chunk::setVoxel(VoxelPosition position, Voxel voxel) {
     u32 tree_ptr = 3;
 
     // in case of scale = 0, override chunk root as voxel
@@ -186,11 +186,11 @@ void Chunk::setVoxel(VoxelPosition position, u32 color, u32 material) {
     if (child != 0) {
         // proceed and override it
         tree_ptr += child;
-        m_buffer[tree_ptr] = (color & 0x3FFFFFFFu) | 0x40000000u;
-        m_buffer[tree_ptr + 1] = material;
+        m_buffer[tree_ptr] = (voxel.color & 0x3FFFFFFFu) | 0x40000000u;
+        m_buffer[tree_ptr + 1] = voxel.material;
     } else {
         // otherwise allocate new one
-        u32 next = _allocateNewVoxel(color, material);
+        u32 next = _allocateNewVoxel(voxel.color, voxel.material);
         m_buffer[tree_ptr + 2 + idx] = next - tree_ptr;
     }
 }

@@ -2,6 +2,7 @@
 #define VOXEL_ENGINE_CHUNK_H
 
 #include "voxel/common/types.h"
+#include "voxel/engine/shared/voxel.h"
 
 
 namespace voxel {
@@ -48,7 +49,7 @@ private:
     u32 _allocateNewVoxel(u32 color, u32 material);
 
 public:
-    void setVoxel(VoxelPosition position, u32 color, u32 material);
+    void setVoxel(VoxelPosition position, Voxel voxel);
     void preallocate(i32 tree_nodes, i32 voxels);
     void preallocate(i32 voxels);
 };
