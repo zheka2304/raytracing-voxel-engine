@@ -60,6 +60,10 @@ It is happening, because such local arrays are stored in local memory instead of
 #include "raytrace/types.inc"
 #include "raytrace/material.inc"
 
+// Raycast stack optimization settings, search LOCAL ARRAY OPTIMIZATION
+#define OPTIMIZE_RAYTRACE_STACK
+#define OPTIMIZE_RAYTRACE_STACK_SPAN_1 20
+#define OPTIMIZE_RAYTRACE_STACK_SPAN_2 12
 
 // contains all voxel data, indexed
 COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
@@ -329,7 +333,32 @@ bool raycastVoxelChunk(
                     uint child = u_voxel_buffer.data[current.voxel_pointer + 2u + uint(idx ^ octant_mask)];
                     if (child != 0u) {
                         // Put current voxel_pointer and t_max on stack at the current scale
-                        stack[scale_i] = current;
+                        #ifdef OPTIMIZE_RAYTRACE_STACK
+                            if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_1) {
+                                for (int i = 23; i > OPTIMIZE_RAYTRACE_STACK_SPAN_1; i--) {
+                                    if (i == scale_i) {
+                                        stack[i] = current;
+                                        break;
+                                    }
+                                }
+                            } else if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_2) {
+                                for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_1; i > OPTIMIZE_RAYTRACE_STACK_SPAN_2; i--) {
+                                    if (i == scale_i) {
+                                        stack[i] = current;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_2; i >= 0; i--) {
+                                    if (i == scale_i) {
+                                        stack[i] = current;
+                                        break;
+                                    }
+                                }
+                            }
+                        #else
+                            stack[scale_i] = current;
+                        #endif
                         current.voxel_pointer += child;
 
                         // Go down 1 scale and reset idx.
@@ -404,11 +433,37 @@ bool raycastVoxelChunk(
             // when converted to float, its exponent will be equal to highest_bit + 127, so we extract it.
             scale_i = (floatBitsToInt(float(differing_bits)) >> 23) - 127;
 
+
             // This is just float(2^(scale_i - 23)) using some float magic
             scale_exp = intBitsToFloat((scale_i + 127 - s_max) << 23);
 
             // Now, using scale, extract voxel_pointer and t_max from stack at this scale
-            current = stack[scale_i];
+            #ifdef OPTIMIZE_RAYTRACE_STACK
+                if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_1) {
+                    for (int i = 23; i > OPTIMIZE_RAYTRACE_STACK_SPAN_1; i--) {
+                        if (i == scale_i) {
+                            current = stack[i];
+                            break;
+                        }
+                    }
+                } else if (scale_i > OPTIMIZE_RAYTRACE_STACK_SPAN_2) {
+                    for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_1; i > OPTIMIZE_RAYTRACE_STACK_SPAN_2; i--) {
+                        if (i == scale_i) {
+                            current = stack[i];
+                            break;
+                        }
+                    }
+                } else {
+                    for (int i = OPTIMIZE_RAYTRACE_STACK_SPAN_2; i >= 0; i--) {
+                        if (i == scale_i) {
+                            current = stack[i];
+                            break;
+                        }
+                    }
+                }
+            #else
+                current = stack[scale_i];
+            #endif
 
             // This will floor position to current scale, so it will be pointing to the lowest corner of the cube (see image above)
             int shx = floatBitsToInt(pos.x) >> scale_i;
