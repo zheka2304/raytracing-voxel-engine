@@ -36,13 +36,13 @@ struct RawVoxelModel {
 
 std::vector<std::unique_ptr<VoxelModel>> VoxFileFormat::readRiff(RiffFile& riff_file) {
     if (riff_file.chunks.empty() || riff_file.type != std::string("VOX ") || riff_file.version != 150) {
-        std::cout << "invalid VOX file\n";
+        std::cerr << "invalid VOX file\n";
         return std::vector<std::unique_ptr<VoxelModel>>();
     }
 
     RiffChunk main_chunk = riff_file.chunks[0];
     if (main_chunk.id != std::string("MAIN")) {
-        std::cout << "no MAIN chunk\n";
+        std::cerr << "VOX: no MAIN chunk\n";
         return std::vector<std::unique_ptr<VoxelModel>>();
     }
 

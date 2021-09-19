@@ -30,7 +30,8 @@ void CameraProjection::setNearAndFar(float near, float far) {
 
 Camera::Camera() :
         m_projection_uniform("raytrace.camera_projection"),
-        m_time_uniform("common.time_uniform") {
+        m_time_uniform("common.time_uniform"),
+        m_screen_size_uniform("common.screen_size") {
 }
 
 CameraProjection& Camera::getProjection() {
@@ -45,10 +46,14 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, raytrace_screen_pass_shader, shader_manager, "raytrace_screen_pass");
     VOXEL_ENGINE_SHADER_REF(opengl::GraphicsShader, raytrace_combine_pass_shader, shader_manager, "raytrace_combine_pass");
 
+    // update camera uniforms
+    *m_time_uniform = utils::getTimeSinceStart();
+    *m_screen_size_uniform = math::Vec2i(target.getWidth(), target.getHeight());
+
     // bind camera uniforms
-    _updateTimeUniform();
     m_time_uniform.bindUniform(shader_manager);
     m_projection_uniform.bindUniform(shader_manager);
+    m_screen_size_uniform.bindUniform(shader_manager);
 
     // run compute shader pass
     target.bindForCompute(context);
@@ -66,10 +71,6 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
     target.bindForPostProcessing(*raytrace_combine_pass_shader);
     target.getRenderToTexture().render();
     raytrace_combine_pass_shader->unbind();
-}
-
-void Camera::_updateTimeUniform() {
-    *m_time_uniform = utils::getTimeSinceStart();
 }
 
 } // render

@@ -5,55 +5,53 @@
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
 layout(std430) buffer;
 
+#include "common.inc"
+#include "raytrace/camera.inc"
+#include "buffer/spatial_buffer.inc"
+
 layout(rgba32f, binding = ${spatial_buffer.last_frame}) uniform highp image2D last_frame_texture;
 layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D current_frame_texture;
-layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
-
 
 #define STABILITY_PER_FRAME float(${spatial_buffer.stability_per_frame})
 #define Z_DELTA_THRESHOLD float(${spatial_buffer.z_delta_threshold})
 #define Z_DELTA_WEIGHT float(${spatial_buffer.z_delta_weight})
 
-#include "common.inc"
-#include "raytrace/camera.inc"
 
+void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float new_stability_value, int new_distance, int priority) {
+    if (pixel_pos.x < 0 || pixel_pos.y < 0 || pixel_pos.x >= U_SCREEN_SIZE.x || pixel_pos.y >= U_SCREEN_SIZE.y) return;
 
-void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float new_stability_value, uint flag) {
-    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
-    if (flag > floatBitsToUint(spatial_buffer_data.y)) {
-        spatial_buffer_data.w = new_stability_value;
-        spatial_buffer_data.x = PACK_I2F(last_pixel_pos);
-        spatial_buffer_data.y = uintBitsToFloat(flag);
-        spatial_buffer_data.z = PACK_H2F(pixel_error);
-        imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
+    int index = getSpatialBufferIndex(pixel_pos);
+    if (atomicMax(SPATIAL_BUFFER[index].pixel.w, priority) <= priority && atomicMin(SPATIAL_BUFFER[index].pixel.z, new_distance) > new_distance) {
+        SPATIAL_BUFFER[index] = SpatialBufferData(
+            ivec4(last_pixel_pos, new_distance, priority),
+            vec4(pixel_error, 0.0, new_stability_value)
+        );
     }
 }
 
-void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float new_stability_value) {
+void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float new_stability_value, int new_distance) {
     ivec2 pixel_pos_i = ivec2(pixel_pos);
     vec2 pixel_error = pixel_pos - (vec2(pixel_pos_i) + 0.5);
     vec2 new_pixel_error = pixel_error + last_pixel_error;
-
-    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, 2u);
+    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, new_distance, 2);
 
     const float eps = 0.02;
     if (pixel_error.x > 0.5 - eps) {
-        writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), new_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), new_stability_value, new_distance, 1);
     } else if (pixel_error.x < -0.5 + eps) {
-        writeToPixel(pixel_pos_i + ivec2(-1, 0), last_pixel_pos, new_pixel_error + vec2(-1, 0), new_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(-1, 0), last_pixel_pos, new_pixel_error + vec2(-1, 0), new_stability_value, new_distance, 1);
     }
     if (pixel_error.y > 0.5 - eps) {
-        writeToPixel(pixel_pos_i + ivec2(0, 1), last_pixel_pos, new_pixel_error + vec2(0, 1), new_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(0, 1), last_pixel_pos, new_pixel_error + vec2(0, 1), new_stability_value, new_distance, 1);
     } else if (pixel_error.y < -0.5 + eps) {
-        writeToPixel(pixel_pos_i + ivec2(0, -1), last_pixel_pos, new_pixel_error + vec2(0, -1), new_stability_value, 1u);
+        writeToPixel(pixel_pos_i + ivec2(0, -1), last_pixel_pos, new_pixel_error + vec2(0, -1), new_stability_value, new_distance, 1);
     }
 }
 
 void main() {
     // get pixel and discard excess ones
-    ivec2 image_size = imageSize(spatial_buffer_texture);
     ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
-    if (pixel_pos.x >= image_size.x || pixel_pos.y >= image_size.y) {
+    if (pixel_pos.x >= U_SCREEN_SIZE.x || pixel_pos.y >= U_SCREEN_SIZE.y) {
         return;
     }
 
@@ -64,13 +62,17 @@ void main() {
     dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position.xyz));
 
     // convert screen space position to pixel position
-    vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * dvec2(image_size));
+    vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * dvec2(U_SCREEN_SIZE));
+
 
     // get pixel error
-    vec2 last_pixel_error = UNPACK_H2F(imageLoad(spatial_buffer_texture, pixel_pos).z);
+    SpatialBufferData last_spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel_pos);
+    vec2 last_pixel_error = last_spatial_buffer_data.value.xy;
 
-    //
+    int new_distance = int(getDistanceToCamera(last_position.xyz) * 1000000.0);
     float maximum_stability_value = 1.0;
-    float new_stability_value = min(maximum_stability_value, imageLoad(spatial_buffer_texture, pixel_pos).w + STABILITY_PER_FRAME);
-    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value);
+
+    float new_stability_value = min(maximum_stability_value, last_spatial_buffer_data.value.w + STABILITY_PER_FRAME);
+    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value, new_distance);
+
 }

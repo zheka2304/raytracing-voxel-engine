@@ -5,22 +5,16 @@
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
 layout(std430) buffer;
 
-layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
-
-
 #include "common.inc"
+#include "buffer/spatial_buffer.inc";
 
 
 void main() {
     // get pixel and discard excess ones
-    ivec2 image_size = imageSize(spatial_buffer_texture);
     ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
-    if (pixel_pos.x >= image_size.x || pixel_pos.y >= image_size.y) {
+    if (pixel_pos.x >= U_SCREEN_SIZE.x || pixel_pos.y >= U_SCREEN_SIZE.y) {
         return;
     }
 
-    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
-    spatial_buffer_data.x = PACK_I2F(ivec2(-1));
-    spatial_buffer_data.y = uintBitsToFloat(0u);
-    imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
+    ACCESS_SPATIAL_BUFFER(pixel_pos).pixel = ivec4(-1, -1, 0x7fffffff, 0);
 }

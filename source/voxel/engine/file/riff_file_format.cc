@@ -1,7 +1,7 @@
 #include <iostream>
 #include "riff_file_format.h"
 
-// #define DEBUG_VERBOSE_RIFF
+#define DEBUG_VERBOSE_RIFF
 
 #ifdef DEBUG_VERBOSE_RIFF
 #define VERBOSE(X) X

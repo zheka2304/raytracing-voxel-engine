@@ -22,7 +22,7 @@ class SpatialRenderBuffer {
     // of data integrity for this pixel. This value is starting at 0, increased each frame, when pixel is remaining visible,
     // and decreased by various filters, to prevent visual artifacts.
     //   Pixels with lower stability should be re-calculated more rapidly
-    opengl::Texture m_spatial_buffer;
+    opengl::ShaderStorageBuffer m_spatial_buffer;
 
 public:
     SpatialRenderBuffer(int width, int height);

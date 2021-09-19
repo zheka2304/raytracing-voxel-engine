@@ -5,35 +5,32 @@
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
 layout(std430) buffer;
 
-layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
-
 
 #include "common.inc"
+#include "buffer/spatial_buffer.inc"
 
 
 void main() {
     // get pixel and discard excess ones
-    ivec2 image_size = imageSize(spatial_buffer_texture);
     ivec2 pixel_pos = ivec2(gl_GlobalInvocationID.xy);
-    if (pixel_pos.x >= image_size.x || pixel_pos.y >= image_size.y) {
+    if (pixel_pos.x >= U_SCREEN_SIZE.x || pixel_pos.y >= U_SCREEN_SIZE.y) {
         return;
     }
 
-    vec4 spatial_buffer_data = imageLoad(spatial_buffer_texture, pixel_pos);
-    uint flag = floatBitsToUint(spatial_buffer_data.y);
-    if (flag == 0u) {
-        spatial_buffer_data.z = PACK_H2F(vec2(0.0));
-        spatial_buffer_data.w = 0.0;
-        imageStore(spatial_buffer_texture, pixel_pos, spatial_buffer_data);
+    SpatialBufferData spatial_buffer_data = spatial_buffer.data[getSpatialBufferIndex(pixel_pos)];
+    int priority = spatial_buffer_data.pixel.w;
+    if (priority == 0) {
+        spatial_buffer_data.value = vec4(0.0);
+        ACCESS_SPATIAL_BUFFER(pixel_pos) = spatial_buffer_data;
     } else {
         vec2 new_pixel_pos_f = vec2(pixel_pos) + 0.5;
-        new_pixel_pos_f += UNPACK_H2F(spatial_buffer_data.z);
+        new_pixel_pos_f += spatial_buffer_data.value.xy;
         ivec2 new_pixel_pos = ivec2(new_pixel_pos_f);
         if (new_pixel_pos != pixel_pos) {
             vec2 new_pixel_error = new_pixel_pos_f - (vec2(new_pixel_pos) + .5);
-            if (floatBitsToUint(imageLoad(spatial_buffer_texture, new_pixel_pos).y) > 0u) {
-                spatial_buffer_data.z = PACK_H2F(new_pixel_error);
-                imageStore(spatial_buffer_texture, new_pixel_pos, spatial_buffer_data);
+            if (ACCESS_SPATIAL_BUFFER(new_pixel_pos).pixel.w > 0) {
+                spatial_buffer_data.value.xy = new_pixel_error;
+                ACCESS_SPATIAL_BUFFER(new_pixel_pos) = spatial_buffer_data;
             }
         }
     }

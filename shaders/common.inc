@@ -24,6 +24,12 @@
 #define COMPUTE_SHADER_BUFFER(BINDING, ACCESS_PERMISSIONS, TYPE_NAME, NAME, STRUCT) \
     layout(binding = BINDING) ACCESS_PERMISSIONS buffer TYPE_NAME STRUCT NAME;
 
+COMPUTE_SHADER_BUFFER(${common.screen_size}, , u_screen_size_t, u_screen_size, {
+    ivec2 size;
+})
+
+#define U_SCREEN_SIZE u_screen_size.size
+
 
 uint i32_to_i16(uint x) {
     return (x & 0x7FFFu) | ((x >> 31u) << 15u);

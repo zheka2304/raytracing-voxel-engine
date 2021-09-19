@@ -33,6 +33,7 @@ public:
 
     void setData(size_t size, void* data, GLuint access_type, bool unbind = true);
     void preallocate(size_t size, GLuint access_type);
+    void clear(GLuint internal_format, GLuint format, GLuint type, void* data = nullptr);
 
     void bindBuffer();
     void unbindBuffer();

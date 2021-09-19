@@ -52,6 +52,9 @@ class Camera {
     // holds time in seconds from the start of the game
     opengl::ShaderUniformBuffer<float> m_time_uniform;
 
+    // holds screen size
+    opengl::ShaderUniformBuffer<math::Vec2i> m_screen_size_uniform;
+
 public:
     Camera();
 
@@ -64,9 +67,6 @@ public:
     // 3) calls glFinish() to wait all passes to complete
     // 4) requests cache updates from render context
     void render(RenderContext& context, RenderTarget& target);
-
-private:
-    void _updateTimeUniform();
 };
 
 } // render

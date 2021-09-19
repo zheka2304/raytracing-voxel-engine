@@ -12,23 +12,25 @@ layout(std430) buffer;
 #include "raytrace/raycast.inc"
 #include "raytrace/blending.inc"
 #include "raytrace/lighting.inc"
+#include "buffer/spatial_buffer.inc"
 
 // Color parameters of the pixel:
 // - r, g, b - each component stores a color pair (using packColorPairF): without shadow and with shadow (normal shading is applied)
 // - a: ??
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
+
 // Light parameters of the pixel:
 // - r: light value (only shadows)
 // - g: packed normal
 // - b: ray count
 // - a: distance to camera
 layout(rgba32f, binding = ${raytrace.light_texture}) writeonly uniform highp image2D output_texture_light;
+
 // Depth & detail parameters of the pixel
 layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp image2D output_texture_depth;
 
 //
 layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D spatial_buffer_current_frame;
-layout(rgba32f, binding = ${common.spatial_buffer}) uniform highp image2D spatial_buffer_texture;
 
 
 void raytraceMainImage(
@@ -120,7 +122,7 @@ void main() {
     }
 
     // load stability value from spatial buffer
-    vec4 spatial_buffer_value = imageLoad(spatial_buffer_texture, pixel);
+    SpatialBufferData spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel);
     
     // calculate light ray count
     float light_rays_count_f = 1.0;
@@ -142,8 +144,8 @@ void main() {
     o_light.b = light_rays_count_f;
 
     // -- DEBUG --
-//    o_color.b = 1.0 - spatial_buffer_value.w;
-//    o_color.rg = abs(UNPACK_H2F(spatial_buffer_value.z));
+//    o_color.b = 1.0 - spatial_buffer_data.value.w;
+//    o_color.rg = spatial_buffer_data.value.xy;
     // -- DEBUG END --
 
 

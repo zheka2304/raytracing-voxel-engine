@@ -53,6 +53,16 @@ void Buffer::preallocate(size_t size, GLuint access_type) {
     setData(size, nullptr, access_type);
 }
 
+void Buffer::clear(GLuint internal_format, GLuint format, GLuint type, void* data) {
+    if (m_allocated_size > 0) {
+        GLuint zero = 0;
+        if (data == nullptr) data = &zero;
+        glBindBuffer(m_buffer_type, m_handle);
+        glClearBufferData(m_buffer_type, internal_format, format, type, data);
+        glBindBuffer(m_buffer_type, 0);
+    }
+}
+
 void Buffer::bindBuffer() {
     if (m_handle != 0) {
         glBindBuffer(m_buffer_type, m_handle);

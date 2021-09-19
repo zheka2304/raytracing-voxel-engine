@@ -33,11 +33,6 @@
       "defines": ["D_TEXTURE"]
     },
 
-    "spatial_buffer_prepare": {
-      "type": "compute",
-      "source": "buffer/spatial_buffer_prepare.compute"
-    },
-
     "spatial_buffer_reset": {
       "type": "compute",
       "source": "buffer/spatial_buffer_reset.compute"
@@ -68,6 +63,18 @@
       "type": "compute",
       "source": "postprocess/lightmap_blur_pass.compute",
       "defines": ["D_3X3_FILTER_PASS", "D_PASS_PARITY_2"]
+    },
+
+    "soft_shadow_blur_pass1": {
+      "type": "compute",
+      "source": "postprocess/lightmap_blur_pass.compute",
+      "defines": ["D_BLUR_PASS", "D_PASS_PARITY_1"]
+    },
+
+    "soft_shadow_blur_pass2": {
+      "type": "compute",
+      "source": "postprocess/lightmap_blur_pass.compute",
+      "defines": ["D_BLUR_PASS", "D_PASS_PARITY_2"]
     }
   }
 }
