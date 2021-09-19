@@ -25,13 +25,15 @@ void main() {
 
     // extract light value
     vec2 light_value_v2 = UNPACK_H2F(light_data.r);
-    float light_value = mix(light_value_v2.x, light_value_v2.y, 1.0 - clamp(1.0 / (abs(light_value_v2.x - light_value_v2.y) * 100.0), 0.0, 1.0));
+    float light_value = mix(light_value_v2.x, light_value_v2.y, 1.0 - clamp(1.0 / (abs(light_value_v2.x - light_value_v2.y) / ${lighting.linear_blur_blend_factor} + 1.0), 0.0, 1.0));
+//    light_value = light_value_v2.x;
 
-    vec4 result = color_data;
+    vec4 result = vec4(1.0);
     result.rgb = mix(colors.color1.rgb, colors.color2.rgb, 1.0 - light_value);
     gl_FragColor = result;
 
     // -- DEBUG START --
+//    gl_FragColor.rgb = colors.color1.rgb * light_value;
 //    gl_FragColor.rgb = vec3(color_data.rg, color_data.b);
 //    gl_FragColor.rgb = vec3(light_value, light_value, color_data.b);
 //    gl_FragColor.rgb = vec3(light_value, light_value, 0.0);

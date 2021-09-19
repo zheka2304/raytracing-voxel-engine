@@ -79,13 +79,14 @@ void main() {
     float value = pixel_value.x;
     float weight = 1.0;
 
-    int sample_size = 15;
+    image_size--;
+    int sample_size = int(${lighting.linear_blur_sample_count});
     for (int i = -sample_size; i <= sample_size; i++) {
         if (i == 0) continue;
-        ivec2 pos1 = pixel_pos + SHIFT(i);
+        ivec2 pos1 = clamp(pixel_pos + SHIFT(i) * int(${lighting.linear_blur_sample_step}), ivec2(0.0), image_size);
         vec4 pixel1 = imageLoad(blur_pass_texture, pos1);
         float v = UNPACK_H2F(READ(pixel1)).x;
-        float w = 1.0;// - abs(READ(pixel) - v) * 0.5;
+        float w = max(0.0, 1.0 - abs(pixel1.g - pixel.g) / pixel.g / float(${lighting.linear_blur_distance_factor}));
         value += v * w;
         weight += w;
     }

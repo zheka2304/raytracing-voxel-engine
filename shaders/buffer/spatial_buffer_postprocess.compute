@@ -3,10 +3,12 @@
 #define WORK_GROUP_SIZE ${common.texture_work_group_size}
 
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
+layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D current_frame_texture;
 layout(std430) buffer;
 
 
 #include "common.inc"
+#include "raytrace/camera.inc"
 #include "buffer/spatial_buffer.inc"
 
 
@@ -17,10 +19,51 @@ void main() {
         return;
     }
 
-    SpatialBufferData spatial_buffer_data = spatial_buffer.data[getSpatialBufferIndex(pixel_pos)];
+    SpatialBufferData spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel_pos);
     int priority = spatial_buffer_data.pixel.w;
     if (priority == 0) {
         spatial_buffer_data.value = vec4(0.0);
+        spatial_buffer_data.pixel.xy = ivec2(-1);
+
+        if (pixel_pos.x > 0 && pixel_pos.y > 0 && pixel_pos.x < U_SCREEN_SIZE.x - 1 && pixel_pos.y < U_SCREEN_SIZE.y - 1) {
+            ivec2 positions[8] = ivec2[8] (
+                ivec2(-1, -1),
+                ivec2(1, 1),
+                ivec2(-1, 1),
+                ivec2(1, -1),
+                ivec2(1, 0),
+                ivec2(-1, 0),
+                ivec2(0, 1),
+                ivec2(0, -1)
+            );
+
+            ivec2 avg_pos = ivec2(0);
+            float min_distance = POSITIVE_INF;
+            float max_distance = 0.0;
+            int mask = 0;
+            int count = 0;
+
+            for (int i = 0; i < 8; i++) {
+                ivec2 adjacent_pixel_pos = pixel_pos + positions[i];
+                SpatialBufferData adjacent_buffer_data = ACCESS_SPATIAL_BUFFER(adjacent_pixel_pos);
+
+                float distance = getDistanceToCamera(imageLoad(current_frame_texture, adjacent_pixel_pos).xyz);
+                max_distance = max(max_distance, distance);
+                min_distance = min(min_distance, distance);
+                if (adjacent_buffer_data.pixel.w > 0) {
+                    mask |= (1 << i);
+                    count++;
+                    avg_pos += adjacent_buffer_data.pixel.xy;
+                    // spatial_buffer_data.pixel.xy = adjacent_buffer_data.pixel.xy;
+                    // break;
+                }
+            }
+
+            if ((max_distance - min_distance) / min_distance < 0.01 && count > 2) {
+                spatial_buffer_data.pixel.xy = avg_pos / count;
+            }
+        }
+
         ACCESS_SPATIAL_BUFFER(pixel_pos) = spatial_buffer_data;
     } else {
         vec2 new_pixel_pos_f = vec2(pixel_pos) + 0.5;

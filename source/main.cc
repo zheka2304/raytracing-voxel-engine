@@ -24,7 +24,7 @@ voxel::u32 getNormalBits(voxel::f32 x, voxel::f32 y, voxel::f32 z, voxel::f32 we
 
 int main() {
     voxel::format::VoxFileFormat file_format;
-    std::ifstream istream("models/vox/tree.vox", std::ifstream::binary);
+    std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
     auto models = file_format.read(istream);
     istream.close();
     auto model = models[0].get();
@@ -98,14 +98,14 @@ int main() {
                         voxel.material = 0;
                         if (voxel.color != 0) {
                             voxel.color |= (31 << 25);
-                            chunk->setVoxel({8, x, y, z}, voxel);
+                            chunk->setVoxel({7, x, y, z}, voxel);
                         }
                     }
                 }
             }
 
-            for (unsigned int x = 0; x < 256; x++) {
-                for (unsigned int z = 0; z < 256; z++) {
+            for (unsigned int x = 0; x < 128; x++) {
+                for (unsigned int z = 0; z < 128; z++) {
                     chunk->setVoxel({7, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
                 }
             }

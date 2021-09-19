@@ -36,8 +36,13 @@
     "lighting.interpolate_blur_rate_factor": 2,
     "lighting.denoise_blur_sample_count": 3,
     "lighting.denoise_blur_sample_count_add": 4,
+
     "lighting.blur_depth_factor": 0.05,
     "lighting.blur_value_factor": 0.5,
+    "lighting.linear_blur_sample_count": 8,
+    "lighting.linear_blur_sample_step": 2,
+    "lighting.linear_blur_blend_factor": 0.02,
+    "lighting.linear_blur_distance_factor": 0.1,
 
     // --- image units ---
     "raytrace.color_texture": 0,

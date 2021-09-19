@@ -35,6 +35,7 @@ void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last
     vec2 new_pixel_error = pixel_error + last_pixel_error;
     writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, new_distance, 2);
 
+    /*
     const float eps = 0.02;
     if (pixel_error.x > 0.5 - eps) {
         writeToPixel(pixel_pos_i + ivec2(1, 0), last_pixel_pos, new_pixel_error + vec2(1, 0), new_stability_value, new_distance, 1);
@@ -45,7 +46,7 @@ void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last
         writeToPixel(pixel_pos_i + ivec2(0, 1), last_pixel_pos, new_pixel_error + vec2(0, 1), new_stability_value, new_distance, 1);
     } else if (pixel_error.y < -0.5 + eps) {
         writeToPixel(pixel_pos_i + ivec2(0, -1), last_pixel_pos, new_pixel_error + vec2(0, -1), new_stability_value, new_distance, 1);
-    }
+    } */
 }
 
 void main() {
@@ -74,5 +75,4 @@ void main() {
 
     float new_stability_value = min(maximum_stability_value, last_spatial_buffer_data.value.w + STABILITY_PER_FRAME);
     writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value, new_distance);
-
 }

@@ -13,7 +13,7 @@ struct SpatialBufferData {
     vec4 value;
 };
 
-COMPUTE_SHADER_BUFFER(${common.spatial_buffer}, coherent, spatial_buffer_t, spatial_buffer, {
+COMPUTE_SHADER_BUFFER(${common.spatial_buffer}, , spatial_buffer_t, spatial_buffer, {
     SpatialBufferData data[];
 })
 
