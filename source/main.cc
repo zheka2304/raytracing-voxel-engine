@@ -24,9 +24,11 @@ voxel::u32 getNormalBits(voxel::f32 x, voxel::f32 y, voxel::f32 z, voxel::f32 we
 
 int main() {
     voxel::format::VoxFileFormat file_format;
-    std::ifstream istream("tree.vox", std::ifstream::binary);
+    std::ifstream istream("models/vox/tree.vox", std::ifstream::binary);
     auto models = file_format.read(istream);
+    istream.close();
     auto model = models[0].get();
+    std::cout << "model loaded\n";
 
     auto engine = std::make_shared<voxel::Engine>();
     engine->initialize();
@@ -71,19 +73,22 @@ int main() {
             render_target = new voxel::render::RenderTarget(900, 900);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
-//            chunk->preallocate(21512, 137352);
-            /* for (voxel::u32 x = 0; x < 64; x++) {
-                for (voxel::u32 z = 0; z < 64; z++) {
-                    for (voxel::u32 y = 0; y < 64; y ++) {
-                        int dx = int(x) - 32;
-                        int dy = int(y) - 32;
-                        int dz = int(z) - 32;
-                        if (dx * dx + dy * dy + dz * dz < 32 * 32) {
-                            chunk->setVoxel({6, x, y, z}, { (31 << 25) | 0x00FFFF, getNormalBits(dx, dy, dz, 0.5) });
-                        }
-                    }
-                }
-            } */
+//            for (voxel::u32 x = 0; x < 64; x++) {
+//                for (voxel::u32 z = 0; z < 64; z++) {
+//                    for (voxel::u32 y = 0; y < 64; y ++) {
+//                        int dx = int(x) - 32;
+//                        int dy = int(y) - 32;
+//                        int dz = int(z) - 32;
+//                        if (dx * dx + dy * dy + dz * dz < 32 * 32) {
+//                            chunk->setVoxel({6, x, y, z}, { (31 << 25) | 0x00FFFF, getNormalBits(dx, dy, dz, 0.5) });
+//                        }
+//                    }
+//                }
+//            }
+//            chunk->setVoxel({1, 0, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
+//            chunk->setVoxel({1, 0, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
+//            chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
+//            chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
 
             auto size = model->getSize();
             for (unsigned int x = 0; x < size.x; x++) {
@@ -101,13 +106,9 @@ int main() {
 
             for (unsigned int x = 0; x < 256; x++) {
                 for (unsigned int z = 0; z < 256; z++) {
-                    chunk->setVoxel({8, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
+                    chunk->setVoxel({7, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
                 }
             }
-//            chunk->setVoxel({1, 0, 1, 0}, { (31 << 25) | 0xFFFF00, 0 });
-//            chunk->setVoxel({1, 0, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
-//            chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
-//            chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
 
             auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
             buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
