@@ -144,8 +144,8 @@ void main() {
     o_light.b = light_rays_count_f;
 
     // -- DEBUG --
-//    o_color.a = 1.0 - spatial_buffer_data.value.w;
 //    o_color.b = 1.0 - spatial_buffer_data.value.w;
+//    o_color.b = (spatial_buffer_data.pixel.x >= 0 && spatial_buffer_data.pixel.w == 0 ? 2.0 : 0.99) - (spatial_buffer_data.value.w < 0.01 ? 0.0 : 0.99);
 //    o_color.rg = vec2(spatial_buffer_data.pixel.xy) / vec2(U_SCREEN_SIZE);
     // -- DEBUG END --
 

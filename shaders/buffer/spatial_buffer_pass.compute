@@ -21,19 +21,30 @@ void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float
     if (pixel_pos.x < 0 || pixel_pos.y < 0 || pixel_pos.x >= U_SCREEN_SIZE.x || pixel_pos.y >= U_SCREEN_SIZE.y) return;
 
     int index = getSpatialBufferIndex(pixel_pos);
-    if (atomicMax(SPATIAL_BUFFER[index].pixel.w, priority) <= priority && atomicMin(SPATIAL_BUFFER[index].pixel.z, new_distance) > new_distance) {
-        SPATIAL_BUFFER[index] = SpatialBufferData(
-            ivec4(last_pixel_pos, new_distance, priority),
-            vec4(pixel_error, 0.0, new_stability_value)
-        );
+#ifdef D_USE_SPINLOCK
+    int spinlock_index = index >> 5;
+    uint mask = 1u << uint(index & 31);
+    while (true) {
+        uint lock = atomicOr(spatial_buffer_spinlock.data[spinlock_index], mask);
+        if ((lock | mask) != lock) {
+#endif
+            if (SPATIAL_BUFFER[index].pixel.w <= priority && intBitsToFloat(SPATIAL_BUFFER[index].pixel.z) > intBitsToFloat(new_distance)) {
+                SPATIAL_BUFFER[index].pixel = ivec4(last_pixel_pos, new_distance, priority);
+                SPATIAL_BUFFER[index].value.xyw = vec3(pixel_error, new_stability_value);
+            }
+#ifdef D_USE_SPINLOCK
+            atomicAnd(spatial_buffer_spinlock.data[spinlock_index], ~mask);
+            return;
+        }
     }
+#endif
 }
 
-void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float new_stability_value, int new_distance) {
+void writeToPixelAndSurroundings(vec2 pixel_pos, ivec2 last_pixel_pos, vec2 last_pixel_error, float new_stability_value, int new_distance, int priority) {
     ivec2 pixel_pos_i = ivec2(pixel_pos);
     vec2 pixel_error = pixel_pos - (vec2(pixel_pos_i) + 0.5);
     vec2 new_pixel_error = pixel_error + last_pixel_error;
-    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, new_distance, 2);
+    writeToPixel(pixel_pos_i, last_pixel_pos, new_pixel_error, new_stability_value, new_distance, priority);
 
     /*
     const float eps = 0.02;
@@ -56,23 +67,28 @@ void main() {
         return;
     }
 
-    // world space position, that was in this pixel on last frame
+    // get world space position, that was in this pixel on last frame,
+    // convert to screen space position, that was here on the last frame and then to pixel position
     vec4 last_position = imageLoad(last_frame_texture, pixel_pos);
-
-    // screen space position, that was here on the last frame
     dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position.xyz));
-
-    // convert screen space position to pixel position
     vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * dvec2(U_SCREEN_SIZE));
 
+    if (last_screen_position.z < 0.0) return;
+
+    // get distances
+    float maximum_stability_value = 1.0;
+    float last_frame_distance = getDistanceToCamera(last_position.xyz);
+    /*
+    float current_frame_distance = getDistanceToCamera(imageLoad(current_frame_texture, ivec2(last_pixel_position_f)).xyz);
+    if (abs(last_frame_distance - current_frame_distance) / min(last_frame_distance, current_frame_distance) > 0.01) {
+        maximum_stability_value = 0.0;
+    } */
 
     // get pixel error
     SpatialBufferData last_spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel_pos);
     vec2 last_pixel_error = last_spatial_buffer_data.value.xy;
 
-    int new_distance = int(getDistanceToCamera(last_position.xyz) * 1000000.0);
-    float maximum_stability_value = 1.0;
-
-    float new_stability_value = min(maximum_stability_value, last_spatial_buffer_data.value.w + STABILITY_PER_FRAME);
-    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value, new_distance);
+    int new_distance = floatBitsToInt(last_frame_distance);
+    float new_stability_value = min(maximum_stability_value, last_spatial_buffer_data.value.z + STABILITY_PER_FRAME);
+    writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value, new_distance, 1);
 }

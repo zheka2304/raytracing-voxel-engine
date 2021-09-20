@@ -23,6 +23,7 @@ class SpatialRenderBuffer {
     // and decreased by various filters, to prevent visual artifacts.
     //   Pixels with lower stability should be re-calculated more rapidly
     opengl::ShaderStorageBuffer m_spatial_buffer;
+    opengl::ShaderStorageBuffer m_spatial_buffer_spinlock;
 
 public:
     SpatialRenderBuffer(int width, int height);

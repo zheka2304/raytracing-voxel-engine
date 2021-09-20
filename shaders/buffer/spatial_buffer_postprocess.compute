@@ -3,8 +3,10 @@
 #define WORK_GROUP_SIZE ${common.texture_work_group_size}
 
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
-layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D current_frame_texture;
 layout(std430) buffer;
+
+layout(rgba32f, binding = ${spatial_buffer.last_frame}) uniform highp image2D last_frame_texture;
+layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D current_frame_texture;
 
 
 #include "common.inc"
@@ -19,13 +21,17 @@ void main() {
         return;
     }
 
-    SpatialBufferData spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel_pos);
+    int spatial_buffer_index = getSpatialBufferIndex(pixel_pos);
+    SpatialBufferData spatial_buffer_data = SPATIAL_BUFFER[spatial_buffer_index];
+
+#ifdef D_POSTPROCESS_INTERPOLATE
+    spatial_buffer_data.value.z = spatial_buffer_data.value.w;
     int priority = spatial_buffer_data.pixel.w;
     if (priority == 0) {
-        spatial_buffer_data.value = vec4(0.0);
+        spatial_buffer_data.value.xyw = vec3(0.0);
         spatial_buffer_data.pixel.xy = ivec2(-1);
 
-        if (pixel_pos.x > 0 && pixel_pos.y > 0 && pixel_pos.x < U_SCREEN_SIZE.x - 1 && pixel_pos.y < U_SCREEN_SIZE.y - 1) {
+        if (pixel_pos.x > 1 && pixel_pos.y > 1 && pixel_pos.x < U_SCREEN_SIZE.x - 2 && pixel_pos.y < U_SCREEN_SIZE.y - 2) {
             ivec2 positions[8] = ivec2[8] (
                 ivec2(-1, -1),
                 ivec2(1, 1),
@@ -54,18 +60,18 @@ void main() {
                     mask |= (1 << i);
                     count++;
                     avg_pos += adjacent_buffer_data.pixel.xy;
-                    // spatial_buffer_data.pixel.xy = adjacent_buffer_data.pixel.xy;
-                    // break;
                 }
             }
 
-            if ((max_distance - min_distance) / min_distance < 0.01 && count > 2) {
+            bool mask_match = ((mask & 3) == 3) || ((mask & 12) == 12) || ((mask & 48) == 48) || ((mask & 192) == 192);
+            if ((max_distance - min_distance) / min_distance < 0.03 && mask_match) {
                 spatial_buffer_data.pixel.xy = avg_pos / count;
             }
         }
 
-        ACCESS_SPATIAL_BUFFER(pixel_pos) = spatial_buffer_data;
+        SPATIAL_BUFFER[spatial_buffer_index] = spatial_buffer_data;
     } else {
+        SPATIAL_BUFFER[spatial_buffer_index] = spatial_buffer_data;
         vec2 new_pixel_pos_f = vec2(pixel_pos) + 0.5;
         new_pixel_pos_f += spatial_buffer_data.value.xy;
         ivec2 new_pixel_pos = ivec2(new_pixel_pos_f);
@@ -77,4 +83,27 @@ void main() {
             }
         }
     }
+
+#endif
+
+#ifdef D_POSTPROCESS_ADD_MARGIN
+    if (spatial_buffer_data.value.w > 0.0) {
+        ivec2 positions[4] = ivec2[4] (
+            ivec2(1, 0),
+            ivec2(-1, 0),
+            ivec2(0, 1),
+            ivec2(0, -1)
+        );
+
+        for (int i = 0; i < 4; i ++) {
+            ivec2 adjacent_pixel_pos = pixel_pos + positions[i];
+            SpatialBufferData adjacent_buffer_data = ACCESS_SPATIAL_BUFFER(adjacent_pixel_pos);
+            if (adjacent_buffer_data.pixel.x < 0) {
+                spatial_buffer_data.value.w = 0.0;
+                SPATIAL_BUFFER[spatial_buffer_index] = spatial_buffer_data;
+                break;
+            }
+        }
+    }
+#endif
 }

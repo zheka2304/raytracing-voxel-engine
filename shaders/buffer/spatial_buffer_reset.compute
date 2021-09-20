@@ -16,5 +16,5 @@ void main() {
         return;
     }
 
-    ACCESS_SPATIAL_BUFFER(pixel_pos).pixel = ivec4(-1, -1, 0x7fffffff, 0);
+    ACCESS_SPATIAL_BUFFER(pixel_pos).pixel = ivec4(-1, -1, floatBitsToInt(POSITIVE_INF), 0);
 }
