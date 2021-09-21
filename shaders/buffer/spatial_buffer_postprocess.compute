@@ -64,7 +64,7 @@ void main() {
             }
 
             bool mask_match = ((mask & 3) == 3) || ((mask & 12) == 12) || ((mask & 48) == 48) || ((mask & 192) == 192);
-            if ((max_distance - min_distance) / min_distance < 0.03 && mask_match) {
+            if ((max_distance - min_distance) / min_distance < ${spatial_buffer.z_delta_interpolate_threshold} && mask_match) {
                 spatial_buffer_data.pixel.xy = avg_pos / count;
             }
         }

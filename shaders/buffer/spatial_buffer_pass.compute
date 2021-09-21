@@ -13,8 +13,6 @@ layout(rgba32f, binding = ${spatial_buffer.last_frame}) uniform highp image2D la
 layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D current_frame_texture;
 
 #define STABILITY_PER_FRAME float(${spatial_buffer.stability_per_frame})
-#define Z_DELTA_THRESHOLD float(${spatial_buffer.z_delta_threshold})
-#define Z_DELTA_WEIGHT float(${spatial_buffer.z_delta_weight})
 
 
 void writeToPixel(ivec2 pixel_pos, ivec2 last_pixel_pos, vec2 pixel_error, float new_stability_value, int new_distance, int priority) {
@@ -79,7 +77,7 @@ void main() {
     // discard pixels, that with major z value change
     float last_frame_distance = getDistanceToCamera(last_position.xyz);
     float current_frame_distance = getDistanceToCamera(imageLoad(current_frame_texture, ivec2(last_pixel_position_f)).xyz);
-    if (abs(last_frame_distance - current_frame_distance) / min(last_frame_distance, current_frame_distance) > 0.05) {
+    if (abs(last_frame_distance - current_frame_distance) / min(last_frame_distance, current_frame_distance) > ${spatial_buffer.z_delta_discard_threshold}) {
         return;
     }
 

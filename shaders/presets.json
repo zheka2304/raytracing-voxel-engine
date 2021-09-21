@@ -20,9 +20,11 @@
     // Per frame gain of stability, when pixel is tracked.
     "spatial_buffer.stability_per_frame": 0.05,
 
-    // When pixel z value change relative to camera distance is greater than this threshold, pixel stability is set to 0
-    "spatial_buffer.z_delta_threshold": 0.1,
-    "spatial_buffer.z_delta_weight": 1.0,
+    // When pixel z value change relative to camera distance is greater than this threshold, pixel is discarded
+    "spatial_buffer.z_delta_discard_threshold": 0.05,
+
+    // When discarded pixel z value change relative to camera distance is less than this threshold, pixel is interpolated between adjacent
+    "spatial_buffer.z_delta_interpolate_threshold": 0.03,
 
     // -- lighting --
     "lighting.normal_fadeout_distance": 1920,
