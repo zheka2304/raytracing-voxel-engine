@@ -44,11 +44,13 @@ void SpatialRenderBuffer::runSwap(RenderContext& context) {
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_pass, shader_manager, "spatial_buffer_pass");
     spatial_buffer_pass->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
 
-    // run postprocess shader
+    // run main postprocess shader (interpolate + discard)
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_postprocess_interpolate, shader_manager, "spatial_buffer_postprocess_interpolate");
     spatial_buffer_postprocess_interpolate->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
-    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_postprocess_margin, shader_manager, "spatial_buffer_postprocess_margin");
-    spatial_buffer_postprocess_margin->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+
+    // optionally, you can run add margin pass, that adds 1 pixel margin to remaining zero-stability regions
+    // VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_postprocess_margin, shader_manager, "spatial_buffer_postprocess_margin");
+    // spatial_buffer_postprocess_margin->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
 
     // swap buffers
     std::swap(m_last_frame, m_current_frame);

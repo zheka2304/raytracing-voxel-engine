@@ -102,6 +102,13 @@ void main() {
     float spatial_stability = ACCESS_SPATIAL_BUFFER(pixel_pos).value.w;
     pixel_value.y = getMultiSample3x3Blur(pixel_pos, BLUR_SAMPLE_COUNT + int((1.0 - spatial_stability) * BLUR_SAMPLE_COUNT_ADD));
     WRITE(pixel) = PACK_H2F(pixel_value);
+
+    // -- DEBUG START --
+//    #ifdef D_PASS_PARITY_2
+//        pixel.b = 1.0 - ACCESS_SPATIAL_BUFFER(pixel_pos).value.w;
+//    #endif
+    // -- DEBUG END --
+
     imageStore(blur_pass_texture, pixel_pos, pixel);
 #endif
 

@@ -73,22 +73,21 @@ void main() {
     dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position.xyz));
     vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * dvec2(U_SCREEN_SIZE));
 
+    // discard pixels, that moved behind camera
     if (last_screen_position.z < 0.0) return;
 
-    // get distances
-    float maximum_stability_value = 1.0;
+    // discard pixels, that with major z value change
     float last_frame_distance = getDistanceToCamera(last_position.xyz);
-    /*
     float current_frame_distance = getDistanceToCamera(imageLoad(current_frame_texture, ivec2(last_pixel_position_f)).xyz);
-    if (abs(last_frame_distance - current_frame_distance) / min(last_frame_distance, current_frame_distance) > 0.01) {
-        maximum_stability_value = 0.0;
-    } */
+    if (abs(last_frame_distance - current_frame_distance) / min(last_frame_distance, current_frame_distance) > 0.05) {
+        return;
+    }
 
     // get pixel error
     SpatialBufferData last_spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel_pos);
     vec2 last_pixel_error = last_spatial_buffer_data.value.xy;
 
     int new_distance = floatBitsToInt(last_frame_distance);
-    float new_stability_value = min(maximum_stability_value, last_spatial_buffer_data.value.z + STABILITY_PER_FRAME);
+    float new_stability_value = min(1.0, last_spatial_buffer_data.value.z + STABILITY_PER_FRAME);
     writeToPixelAndSurroundings(last_pixel_position_f, pixel_pos, last_pixel_error, new_stability_value, new_distance, 1);
 }

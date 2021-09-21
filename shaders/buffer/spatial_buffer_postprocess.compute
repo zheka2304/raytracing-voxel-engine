@@ -28,7 +28,7 @@ void main() {
     spatial_buffer_data.value.z = spatial_buffer_data.value.w;
     int priority = spatial_buffer_data.pixel.w;
     if (priority == 0) {
-        spatial_buffer_data.value.xyw = vec3(0.0);
+        spatial_buffer_data.value = vec4(0.0);
         spatial_buffer_data.pixel.xy = ivec2(-1);
 
         if (pixel_pos.x > 1 && pixel_pos.y > 1 && pixel_pos.x < U_SCREEN_SIZE.x - 2 && pixel_pos.y < U_SCREEN_SIZE.y - 2) {
