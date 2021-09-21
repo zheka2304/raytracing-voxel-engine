@@ -44,7 +44,7 @@ ComputeShader::ComputeShader(const std::string& shader_name) : Shader(shader_nam
 
 ComputeShader::ComputeShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& shader_source) : Shader(shader_name) {
     GLint is_compilation_successful;
-    const int compilation_info_log_size = 1024;
+    const i32 compilation_info_log_size = 1024;
     GLchar compilation_info_log[compilation_info_log_size];
 
     // compile shader
@@ -88,7 +88,7 @@ bool ComputeShader::isValid() {
     return m_handle != 0;
 }
 
-void ComputeShader::dispatch(int size_x, int size_y, int size_z) {
+void ComputeShader::dispatch(i32 size_x, i32 size_y, i32 size_z) {
     if (m_handle != 0) {
         glUseProgram(m_handle);
         glDispatchCompute(size_x, size_y, size_z);
@@ -105,7 +105,7 @@ void ComputeShader::dispatchForTexture(math::Vec3i texture_size, math::Vec3i com
 }
 
 void ComputeShader::dispatchForTexture(math::Vec3i texture_size) {
-    VOXEL_ENGINE_SHADER_CONSTANT(int, work_group_size, getShaderManager(), "common.texture_work_group_size");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, work_group_size, getShaderManager(), "common.texture_work_group_size");
     dispatchForTexture(texture_size, math::Vec3i(work_group_size.get()));
 }
 
@@ -117,7 +117,7 @@ GraphicsShader::GraphicsShader(const std::string& shader_name) : Shader(shader_n
 
 GraphicsShader::GraphicsShader(ShaderManager& shader_manager, const std::string& shader_name, const std::string& vertex_shader_source, const std::string& fragment_shader_source) : Shader(shader_name) {
     GLint is_compilation_successful;
-    const int compilation_info_log_size = 1024;
+    const i32 compilation_info_log_size = 1024;
     GLchar compilation_info_log[compilation_info_log_size];
 
     // vertex shader
@@ -191,7 +191,7 @@ GLuint GraphicsShader::getUniform(const char* name) {
 }
 
 
-ShaderManager::Constant::Constant(const std::string& name, const std::variant<int, float, std::string>& value) :
+ShaderManager::Constant::Constant(const std::string& name, const std::variant<i32, f32, std::string>& value) :
         m_name(name), m_value(value) {
 }
 
@@ -202,9 +202,9 @@ std::string ShaderManager::Constant::getName() {
 std::string ShaderManager::Constant::toString() {
     std::stringstream ss;
     if (m_value.index() == 0) {
-        ss << std::get<int>(m_value);
+        ss << std::get<i32>(m_value);
     } else if (m_value.index() == 1) {
-        ss << std::get<float>(m_value);
+        ss << std::get<f32>(m_value);
     } else if (m_value.index() == 2) {
         ss << std::get<std::string>(m_value);
     }
@@ -236,7 +236,7 @@ std::string ShaderManager::resolveIncludesInShaderSource(const std::string& sour
     std::stringstream result;
     std::regex include_regex("#include\\s+[\"<]([A-Za-z0-9_\\-.\\/]+)[\">]");
 
-    int last_pos = 0;
+    i32 last_pos = 0;
     auto includes_begin = std::sregex_iterator(source.begin(), source.end(), include_regex);
     auto includes_end = std::sregex_iterator();
     for (auto it = includes_begin; it != includes_end; it++) {
@@ -259,7 +259,7 @@ std::string ShaderManager::resolveUniqueConstantsInShaderSource(const std::strin
     std::stringstream result;
     std::regex constant_regex("\\$\\{\\s*([A-Za-z0-9_.\\-]+)\\s*\\}");
 
-    int last_pos = 0;
+    i32 last_pos = 0;
     auto constants_begin = std::sregex_iterator(source.begin(), source.end(), constant_regex);
     auto constants_end = std::sregex_iterator();
     for (auto it = constants_begin; it != constants_end; it++) {
@@ -285,7 +285,7 @@ std::string ShaderManager::addDefinesToShaderSource(const std::string& source, c
     auto versions_begin = std::sregex_iterator(source.begin(), source.end(), version_regex);
     auto versions_end = std::sregex_iterator();
     if (versions_begin != versions_end) {
-        int version_end_index = versions_begin->position() + versions_begin->length();
+        i32 version_end_index = versions_begin->position() + versions_begin->length();
         return source.substr(0, version_end_index) + "\n" + defines_string.str() + source.substr(version_end_index);
     } else {
         return defines_string.str() + source;
@@ -323,9 +323,9 @@ void ShaderManager::loadDeclarationsJson(const std::string& list_name) {
                 std::string constant_name = it.key().asString();
                 Json::Value constant_value = *it;
                 if (constant_value.isInt()) {
-                    setConstant<int>(constant_name, constant_value.asInt());
+                    setConstant<i32>(constant_name, constant_value.asInt());
                 } else if (constant_value.isDouble()) {
-                    setConstant<float>(constant_name, constant_value.asFloat());
+                    setConstant<f32>(constant_name, constant_value.asFloat());
                 } else if (constant_value.isString()) {
                     setConstant<std::string>(constant_name, constant_value.asString());
                 } else {
@@ -357,7 +357,7 @@ void ShaderManager::loadDeclarationsJson(const std::string& list_name) {
                     if (shader_type == "compute") {
                         std::string source = loadAndParseShaderSource(shader_description["source"].asString(), defines);
                         if (!source.empty()) {
-                            addShader<ComputeShader>(std::make_unique<ComputeShader>(*this, shader_name, source));
+                            addShader<ComputeShader>(CreateUnique<ComputeShader>(*this, shader_name, source));
                         }
 
                     // resolve graphics shaders
@@ -366,7 +366,7 @@ void ShaderManager::loadDeclarationsJson(const std::string& list_name) {
                         std::string fragment_source = loadAndParseShaderSource(shader_description["fragment"].asString(), defines);
                         if (!vertex_source.empty() && !fragment_source.empty()) {
                             addShader<GraphicsShader>(
-                                    std::make_unique<GraphicsShader>(*this, shader_name, vertex_source,
+                                    CreateUnique<GraphicsShader>(*this, shader_name, vertex_source,
                                                                      fragment_source));
                         }
 
@@ -400,7 +400,7 @@ ShaderManager::Constant& ShaderManager::getOrCreateConstant(const std::string& n
     if (found != m_constants_map.end()) {
         return found->second;
     }
-    return m_constants_map.emplace(name, ShaderManager::Constant(name, int(m_constants_map.size() + 1))).first->second;
+    return m_constants_map.emplace(name, ShaderManager::Constant(name, i32(m_constants_map.size() + 1))).first->second;
 }
 
 } // opengl

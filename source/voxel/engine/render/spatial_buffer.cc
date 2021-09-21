@@ -4,7 +4,7 @@
 namespace voxel {
 namespace render {
 
-SpatialRenderBuffer::SpatialRenderBuffer(int width, int height) :
+SpatialRenderBuffer::SpatialRenderBuffer(i32 width, i32 height) :
     m_width(width), m_height(height),
     m_spatial_buffer("common.spatial_buffer"),
     m_spatial_buffer_spinlock("common.spatial_buffer_spinlock") {
@@ -22,7 +22,7 @@ SpatialRenderBuffer::~SpatialRenderBuffer() {
 
 void SpatialRenderBuffer::bind(RenderContext& context) {
     opengl::ShaderManager& shader_manager = context.getShaderManager();
-    VOXEL_ENGINE_SHADER_CONSTANT(int, current_frame_texture, shader_manager, "common.spatial_buffer_current_frame");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, current_frame_texture, shader_manager, "common.spatial_buffer_current_frame");
     glBindImageTexture(current_frame_texture.get(), m_current_frame->getHandle(), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
     m_spatial_buffer.bind(context.getShaderManager());
     m_spatial_buffer_spinlock.bind(context.getShaderManager());
@@ -32,7 +32,7 @@ void SpatialRenderBuffer::runSwap(RenderContext& context) {
     opengl::ShaderManager& shader_manager = context.getShaderManager();
 
     // bind all textures
-    VOXEL_ENGINE_SHADER_CONSTANT(int, last_frame_texture, shader_manager, "spatial_buffer.last_frame");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, last_frame_texture, shader_manager, "spatial_buffer.last_frame");
     glBindImageTexture(last_frame_texture.get(), m_last_frame->getHandle(), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
     bind(context);
 

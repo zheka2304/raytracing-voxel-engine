@@ -3,6 +3,7 @@
 
 #include <glad/glad.h>
 
+#include "voxel/common/base.h"
 #include "voxel/common/math/vec.h"
 #include "voxel/common/math/color.h"
 #include "voxel/common/opengl/mesh.h"
@@ -28,7 +29,7 @@ class FullScreenQuad {
     Mesh<VertexFormat> m_mesh;
 
 public:
-    FullScreenQuad(float z = 0);
+    FullScreenQuad(f32 z = 0);
     FullScreenQuad(const FullScreenQuad& other) = default;
     FullScreenQuad(FullScreenQuad&& other) = default;
     void render();
@@ -36,10 +37,10 @@ public:
 
 class RenderToTexture {
     struct Viewport {
-        int x, y, w, h;
+        i32 x, y, w, h;
     };
 
-    int m_width, m_height;
+    i32 m_width, m_height;
     math::Color m_background_color = math::Color(1, 1, 1, 1);
     std::vector<Texture> m_output_textures;
 
@@ -51,7 +52,7 @@ class RenderToTexture {
     FullScreenQuad m_fullscreen_quad;
 
 public:
-    RenderToTexture(int width, int height, int output_texture_count = 1);
+    RenderToTexture(i32 width, i32 height, i32 output_texture_count = 1);
     RenderToTexture(const RenderToTexture&) = delete;
     RenderToTexture(RenderToTexture&&);
     ~RenderToTexture();
@@ -68,7 +69,7 @@ public:
 
 
     // returns output texture ref with index
-    Texture& getOutputTexture(int index = 0);
+    Texture& getOutputTexture(i32 index = 0);
 
     // returns all output textures as vector
     std::vector<Texture>& getOutputTextures();

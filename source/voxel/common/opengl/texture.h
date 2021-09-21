@@ -2,6 +2,7 @@
 #define VOXEL_ENGINE_TEXTURE_H
 
 #include <glad/glad.h>
+#include "voxel/common/base.h"
 
 
 namespace voxel {
@@ -10,12 +11,12 @@ namespace opengl {
 
 class Texture {
     GLuint m_handle;
-    int m_width, m_height;
+    i32 m_width, m_height;
     GLuint m_format;
     GLuint m_internal_format;
     GLuint m_data_type;
 public:
-    Texture(int width, int height, GLuint internal_format, GLuint format, GLuint data_type, void* data = nullptr);
+    Texture(i32 width, i32 height, GLuint internal_format, GLuint format, GLuint data_type, void* data = nullptr);
     Texture(const Texture& other) = delete;
     Texture(Texture&& other);
     ~Texture();

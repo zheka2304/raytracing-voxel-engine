@@ -1,21 +1,15 @@
 #ifndef VOXEL_ENGINE_CHUNK_H
 #define VOXEL_ENGINE_CHUNK_H
 
-#include "voxel/common/types.h"
+#include <functional>
+#include "voxel/common/base.h"
 #include "voxel/engine/shared/voxel.h"
+#include "voxel/engine/shared/chunk_position.h"
+#include "voxel/engine/shared/voxel_position.h"
 
 
 namespace voxel {
 namespace world {
-
-struct VoxelPosition {
-    u8 scale;
-    u32 x, y, z;
-};
-
-struct ChunkPosition {
-    i32 x, y, z;
-};
 
 class Chunk {
 private:
@@ -56,5 +50,7 @@ public:
 
 } // world
 } // voxel
+
+
 
 #endif //VOXEL_ENGINE_CHUNK_H

@@ -12,11 +12,11 @@ MouseControl& SimpleInput::getMouseControl() {
     return m_mouse_control;
 }
 
-void SimpleInput::setMovementSpeed(float movement_speed) {
+void SimpleInput::setMovementSpeed(f32 movement_speed) {
     m_movement_speed = movement_speed;
 }
 
-void SimpleInput::setSensitivity(float x, float y) {
+void SimpleInput::setSensitivity(f32 x, f32 y) {
     m_sensitivity.x = x;
     m_sensitivity.y = y;
 }

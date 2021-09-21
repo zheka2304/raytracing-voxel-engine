@@ -9,6 +9,7 @@
 #include <variant>
 
 #include <glad/glad.h>
+#include "voxel/common/base.h"
 #include "voxel/common/logger.h"
 #include "voxel/common/math/vec.h"
 #include "voxel/common/utils/thread_guard.h"
@@ -52,7 +53,7 @@ public:
     virtual ~ComputeShader();
 
     bool isValid() override;
-    void dispatch(int size_x = 1, int size_y = 1, int size_z = 1);
+    void dispatch(i32 size_x = 1, i32 size_y = 1, i32 size_z = 1);
     void dispatch(math::Vec3i size);
     void dispatchForTexture(math::Vec3i texture_size, math::Vec3i compute_group_size);
     void dispatchForTexture(math::Vec3i texture_size);
@@ -81,10 +82,10 @@ public:
     // represents constant, that is inserted in shader code
     class Constant {
         std::string m_name;
-        std::variant<int, float, std::string> m_value;
+        std::variant<i32, f32, std::string> m_value;
 
     public:
-        explicit Constant(const std::string& name, const std::variant<int, float, std::string>& value);
+        explicit Constant(const std::string& name, const std::variant<i32, f32, std::string>& value);
         Constant(const Constant& other) = default;
         Constant(Constant&& other) = default;
 
@@ -101,8 +102,8 @@ private:
     std::string m_shader_directory;
     Logger m_logger;
 
-    std::unordered_map<std::string, std::pair<std::type_index, std::unique_ptr<Shader>>> m_shader_map;
-    std::unordered_map<std::type_index, std::unique_ptr<Shader>> m_shader_fallback_map;
+    std::unordered_map<std::string, std::pair<std::type_index, Unique<Shader>>> m_shader_map;
+    std::unordered_map<std::type_index, Unique<Shader>> m_shader_fallback_map;
 
     std::unordered_map<std::string, Constant> m_constants_map;
 
@@ -125,7 +126,7 @@ public:
     void loadDeclarationsJson(const std::string& list_name);
 
     template<typename T>
-    bool addShader(std::unique_ptr<Shader> shader_ptr) {
+    bool addShader(Unique<Shader> shader_ptr) {
         // invalid shaders are silently ignored, because all errors must be already reported
         if (!shader_ptr->isValid()) {
             return false;
@@ -140,7 +141,7 @@ public:
 
         // add shader and its type to map and report it
         shader_ptr->setShaderManager(this);
-        m_shader_map.emplace(shader_name, std::pair<std::type_index, std::unique_ptr<Shader>>(std::type_index(typeid(T)), std::move(shader_ptr)));
+        m_shader_map.emplace(shader_name, std::pair<std::type_index, Unique<Shader>>(std::type_index(typeid(T)), std::move(shader_ptr)));
         m_logger.message(Logger::flag_info, "ShaderManager", "successfully added shader %s", shader_name.data());
         return true;
     }
@@ -172,7 +173,7 @@ public:
             // emplace shader_type and unique_ptr of newly created fallback shader into map,
             // from returning pair<iterator, bool> get iterator, get unique_ptr,
             // get pointer, cast it to T* and then return reference, fuck c++
-            return *static_cast<T*>(m_shader_fallback_map.emplace(shader_type, std::make_unique<T>(shader_name)).first->second.get());
+            return *static_cast<T*>(m_shader_fallback_map.emplace(shader_type, CreateUnique<T>(shader_name)).first->second.get());
         }
     }
 

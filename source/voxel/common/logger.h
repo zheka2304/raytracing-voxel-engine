@@ -3,13 +3,15 @@
 
 #include <string>
 #include <stdarg.h>
+#include "voxel/common/base.h"
+
 
 namespace voxel {
 
 class Logger {
 
 public:
-    enum Flag : uint32_t {
+    enum Flag : u32 {
         flag_debug = 1 << 0,
         flag_info = 1 << 1,
         flag_warning = 1 << 2,
@@ -22,7 +24,7 @@ public:
     Logger(Logger&& other);
 
     void begin(const std::string& section);
-    void message(uint32_t flags, std::string tag, std::string message, ...);
+    void message(u32 flags, std::string tag, std::string message, ...);
     void end();
 
 };

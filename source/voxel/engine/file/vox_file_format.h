@@ -8,7 +8,7 @@ namespace format {
 
 class VoxFileFormat : public RiffStyleFileFormat {
 public:
-    std::vector<std::unique_ptr<VoxelModel>> readRiff(RiffFile& riff_file) override;
+    std::vector<Shared<VoxelModel>> readRiff(RiffFile& riff_file) override;
 };
 
 } // format

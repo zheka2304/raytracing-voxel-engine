@@ -1,23 +1,26 @@
 #ifndef VOXEL_ENGINE_TIME_H
 #define VOXEL_ENGINE_TIME_H
 
+#include "voxel/common/base.h"
+
+
 namespace voxel {
 namespace utils {
 
-unsigned long long getTimestampMillis();
-unsigned long long getTimestampNanos();
-float getTimeSinceStart();
+u64 getTimestampMillis();
+u64 getTimestampNanos();
+f32 getTimeSinceStart();
 
 class Stopwatch {
-    unsigned long long m_start;
-    unsigned long long m_end;
+    u64 m_start;
+    u64 m_end;
 public:
     Stopwatch();
     Stopwatch(const Stopwatch&) = default;
     Stopwatch(Stopwatch&&) = default;
 
     void start();
-    unsigned long long stop();
+    u64 stop();
 };
 
 } // utils

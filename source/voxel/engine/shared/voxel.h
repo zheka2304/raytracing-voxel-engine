@@ -1,7 +1,7 @@
 #ifndef VOXEL_ENGINE_VOXEL_H
 #define VOXEL_ENGINE_VOXEL_H
 
-#include "voxel/common/types.h"
+#include "voxel/common/base.h"
 #include "voxel/common/math/color.h"
 #include "voxel/common/math/vec.h"
 

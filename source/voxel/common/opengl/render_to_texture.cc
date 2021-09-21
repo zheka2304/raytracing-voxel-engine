@@ -6,7 +6,7 @@
 namespace voxel {
 namespace opengl {
 
-FullScreenQuad::FullScreenQuad(float z) {
+FullScreenQuad::FullScreenQuad(f32 z) {
     m_mesh.getVertices() = {
             {{-1, -1, z}, {0, 0}},
             {{1, -1, z}, {1, 0}},
@@ -23,7 +23,7 @@ void FullScreenQuad::render() {
 }
 
 
-RenderToTexture::RenderToTexture(int width, int height, int output_texture_count) : m_width(width), m_height(height) {
+RenderToTexture::RenderToTexture(i32 width, i32 height, i32 output_texture_count) : m_width(width), m_height(height) {
     // create and bind framebuffer
     glGenFramebuffers(1, &m_framebuffer_handle);
     glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer_handle);
@@ -35,7 +35,7 @@ RenderToTexture::RenderToTexture(int width, int height, int output_texture_count
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depth_buffer_handle);
 
     // create output textures
-    for (int i = 0; i < output_texture_count; i++) {
+    for (i32 i = 0; i < output_texture_count; i++) {
         m_output_textures.emplace_back(Texture(width, height, GL_RGB, GL_RGB, GL_FLOAT));
     }
 
@@ -113,7 +113,7 @@ void RenderToTexture::render() {
     end();
 }
 
-Texture& RenderToTexture::getOutputTexture(int index) {
+Texture& RenderToTexture::getOutputTexture(i32 index) {
     return m_output_textures[index];
 }
 

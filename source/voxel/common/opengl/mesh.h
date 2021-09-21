@@ -99,7 +99,7 @@ public:
     ~Mesh() {
         if (m_vertex_array_handle != 0) {
             glBindVertexArray(m_vertex_array_handle);
-            int index = 0;
+            i32 index = 0;
             for (const VertexField& vertex_field : V::fields()) {
                 glDisableVertexAttribArray(index++);
             }
@@ -129,7 +129,7 @@ public:
             m_vertex_buffer.setData(m_vertices.size() * sizeof(V), &m_vertices[0], GL_STATIC_DRAW, false);
             m_index_buffer.setData(m_indices.size() * sizeof(GLuint), &m_indices[0], GL_STATIC_DRAW, false);
 
-            int index = 0;
+            i32 index = 0;
             for (const VertexField& vertex_field : V::fields()) {
                 glVertexAttribPointer(index, vertex_field.size, vertex_field.type, GL_FALSE, sizeof(V), reinterpret_cast<void*>(vertex_field.offset * 4));
                 glEnableVertexAttribArray(index);

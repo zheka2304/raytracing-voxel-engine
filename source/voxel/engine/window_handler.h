@@ -3,6 +3,7 @@
 
 #include <set>
 #include <GLFW/glfw3.h>
+#include "voxel/common/base.h"
 
 
 namespace voxel {
@@ -17,7 +18,7 @@ namespace voxel {
     class WindowHandler {
         GLFWwindow* m_window = nullptr;
 
-        int m_window_focus = 1;
+        i32 m_window_focus = 1;
         bool m_focused = true;
         bool m_was_focused = true;
 
@@ -37,7 +38,7 @@ namespace voxel {
         GLFWwindow* getWindow();
         bool isFocused();
         bool wasFocused();
-        int getWindowFocus();
+        i32 getWindowFocus();
     };
 
 

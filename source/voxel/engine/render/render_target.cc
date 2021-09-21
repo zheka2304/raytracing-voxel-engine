@@ -4,7 +4,7 @@
 namespace voxel {
 namespace render {
 
-RenderTarget::RenderTarget(int width, int height) :
+RenderTarget::RenderTarget(i32 width, i32 height) :
         m_width(width), m_height(height),
         m_color_texture(m_width, m_height, GL_RGBA32F, GL_RGBA, GL_FLOAT),
         m_depth_texture(m_width, m_height, GL_RGBA32F, GL_RGBA, GL_FLOAT),
@@ -15,9 +15,9 @@ RenderTarget::RenderTarget(int width, int height) :
 
 void RenderTarget::bindForCompute(RenderContext& render_context) {
     opengl::ShaderManager& shader_manager = render_context.getShaderManager();
-    VOXEL_ENGINE_SHADER_CONSTANT(int, color_texture, shader_manager, "raytrace.color_texture");
-    VOXEL_ENGINE_SHADER_CONSTANT(int, light_texture, shader_manager, "raytrace.light_texture");
-    VOXEL_ENGINE_SHADER_CONSTANT(int, depth_texture, shader_manager, "raytrace.depth_texture");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, color_texture, shader_manager, "raytrace.color_texture");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, light_texture, shader_manager, "raytrace.light_texture");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, depth_texture, shader_manager, "raytrace.depth_texture");
     glBindImageTexture(color_texture.get(), m_color_texture.getHandle(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(depth_texture.get(), m_depth_texture.getHandle(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(light_texture.get(), m_lightmap.getLightmapTexture().getHandle(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
@@ -34,11 +34,11 @@ void RenderTarget::bindForPostProcessing(opengl::GraphicsShader& post_processing
     m_lightmap.getBlurPassTexture().bind(2, light_texture);
 }
 
-int RenderTarget::getWidth() {
+i32 RenderTarget::getWidth() {
     return m_width;
 }
 
-int RenderTarget::getHeight() {
+i32 RenderTarget::getHeight() {
     return m_height;
 }
 

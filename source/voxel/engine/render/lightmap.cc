@@ -4,7 +4,7 @@
 namespace voxel {
 namespace render {
 
-LightMapTexture::LightMapTexture(int width, int height) :
+LightMapTexture::LightMapTexture(i32 width, i32 height) :
     m_width(width), m_height(height),
     m_blur_pass_texture(width, height, GL_RGBA32F, GL_RGBA, GL_FLOAT) {
     m_last_frame = new opengl::Texture(width, height, GL_RGBA32F, GL_RGBA, GL_FLOAT);
@@ -25,9 +25,9 @@ opengl::Texture& LightMapTexture::getBlurPassTexture() {
 }
 
 void LightMapTexture::_bindTexturesForLightmapPass(opengl::ShaderManager& shader_manager) {
-    VOXEL_ENGINE_SHADER_CONSTANT(int, last_frame, shader_manager, "lightmap.last_frame");
-    VOXEL_ENGINE_SHADER_CONSTANT(int, current_frame, shader_manager, "lightmap.current_frame");
-    VOXEL_ENGINE_SHADER_CONSTANT(int, blur_pass_texture, shader_manager, "lightmap.blur_pass_texture");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, last_frame, shader_manager, "lightmap.last_frame");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, current_frame, shader_manager, "lightmap.current_frame");
+    VOXEL_ENGINE_SHADER_CONSTANT(i32, blur_pass_texture, shader_manager, "lightmap.blur_pass_texture");
     glBindImageTexture(last_frame.get(), m_last_frame->getHandle(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(current_frame.get(), m_current_frame->getHandle(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
     glBindImageTexture(blur_pass_texture.get(), m_blur_pass_texture.getHandle(), 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);

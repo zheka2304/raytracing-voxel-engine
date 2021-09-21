@@ -11,8 +11,9 @@
 
 #include <GLFW/glfw3.h>
 
-#include "voxel/common/utils/worker_thread.h"
+#include "voxel/common/base.h"
 #include "voxel/common/logger.h"
+#include "voxel/common/utils/worker_thread.h"
 #include "voxel/engine/window_handler.h"
 #include "voxel/engine/render/render_context.h"
 
@@ -29,13 +30,13 @@ class World;
 class Engine : public std::enable_shared_from_this<Engine> {
     // contains initialization result, if everything is ok, it is 0
     // otherwise if glfw init failed, it will be -1, or, in other case - glad error code
-    int m_initialization_result;
+    i32 m_initialization_result;
 
     // main logger of the engine, it is used by other modules
     Logger m_logger;
 
     // list of all spawned contexts
-    std::vector<std::shared_ptr<Context>> m_contexts;
+    std::vector<Shared<Context>> m_contexts;
 
     // thread for initializing glfw contexts and other glfw-related work
     utils::WorkerThread m_glfw_thread;
@@ -47,8 +48,8 @@ public:
     ~Engine();
 
     // initializes glfw and glad, returns initialization result (0 on success)
-    int initialize();
-    int getInitializationResult();
+    i32 initialize();
+    i32 getInitializationResult();
 
     // get thread to execute all glfw initialization
     utils::WorkerThread& getGlfwThread();
@@ -57,7 +58,7 @@ public:
     Logger& getLogger();
 
     // creates and initializes new context from this engine
-    std::shared_ptr<Context> newContext(const std::string& context_name);
+    Shared<Context> newContext(const std::string& context_name);
 
     // joins all active contexts event loops, consider using this in main after doing all initialization and starting all event loops
     void joinAllEventLoops();
@@ -67,17 +68,17 @@ public:
 class Context {
 public:
     struct WindowParameters {
-        int width;
-        int height;
+        i32 width;
+        i32 height;
         const char* title;
-        std::vector<std::pair<int, int>> hints;
+        std::vector<std::pair<i32, i32>> hints;
     };
 
 private:
     std::string m_context_name;
-    std::weak_ptr<Engine> m_engine;
-    std::shared_ptr<World> m_world;
-    std::shared_ptr<render::RenderContext> m_render_context;
+    Weak<Engine> m_engine;
+    Shared<World> m_world;
+    Shared<render::RenderContext> m_render_context;
 
     Logger m_logger;
 
@@ -104,12 +105,12 @@ private:
     std::function<void(Context&, render::RenderContext&)> m_init_callback;
     std::function<void(Context&, render::RenderContext&)> m_frame_handle_callback;
     std::function<void(Context&, WindowHandler&)> m_event_process_callback;
-    std::function<void(Context&, int, int)> m_window_resize_callback;
-    std::function<void(Context&, int)> m_window_focus_callback;
+    std::function<void(Context&, i32, i32)> m_window_resize_callback;
+    std::function<void(Context&, i32)> m_window_focus_callback;
     std::function<void(Context&)> m_destroy_callback;
 
 public:
-    Context(std::weak_ptr<Engine> engine, const std::string& context_name);
+    Context(Weak<Engine> engine, const std::string& context_name);
     Context(const Context& other) = delete;
     Context(Context&& other) = delete;
     ~Context();
@@ -125,15 +126,15 @@ public:
     void setInitCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
     void setFrameHandleCallback(const std::function<void(Context&, render::RenderContext&)>& callback);
     void setEventProcessingCallback(const std::function<void(Context&, WindowHandler&)>& callback);
-    void setWindowResizeCallback(const std::function<void(Context&, int, int)>& callback);
-    void setWindowFocusCallback(const std::function<void(Context&, int)>& callback);
+    void setWindowResizeCallback(const std::function<void(Context&, i32, i32)>& callback);
+    void setWindowFocusCallback(const std::function<void(Context&, i32)>& callback);
     void setDestroyCallback(const std::function<void(Context&)>& callback);
 
     // creates and initializes window with given parameters
-    void initWindow(WindowParameters parameters, std::shared_ptr<Context> shared_context = nullptr);
+    void initWindow(WindowParameters parameters, Shared<Context> shared_context = nullptr);
 
     // initializes context without window (invisible window is used, because in GLFW window = context)
-    void initNoWindow(std::shared_ptr<Context> shared_context = nullptr);
+    void initNoWindow(Shared<Context> shared_context = nullptr);
 
     // starts window event loop
     void runEventLoop();
@@ -147,14 +148,14 @@ public:
 
 private:
     bool initializeGlad();
-    void initializeRenderContext(std::shared_ptr<Context> shared_context);
+    void initializeRenderContext(Shared<Context> shared_context);
 
     void eventLoop();
     void processEvents();
     void handleFrame();
 
-    static void glfwWindowSizeCallback(GLFWwindow* window, int width, int height);
-    static void glfwWindowFocusCallback(GLFWwindow* window, int focus);
+    static void glfwWindowSizeCallback(GLFWwindow* window, i32 width, i32 height);
+    static void glfwWindowFocusCallback(GLFWwindow* window, i32 focus);
 };
 
 } // voxel

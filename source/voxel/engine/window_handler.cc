@@ -22,7 +22,7 @@ namespace voxel {
     }
 
     void WindowHandler::update() {
-        int focus = glfwGetWindowAttrib(m_window, GLFW_FOCUSED);
+        i32 focus = glfwGetWindowAttrib(m_window, GLFW_FOCUSED);
         if (m_window_focus != focus) {
             m_window_focus = focus;
             if (!m_window_focus) {
@@ -63,7 +63,7 @@ namespace voxel {
         return m_was_focused;
     }
 
-    int WindowHandler::getWindowFocus() {
+    i32 WindowHandler::getWindowFocus() {
         return m_window_focus;
     }
 

@@ -5,7 +5,7 @@ namespace voxel {
 namespace opengl {
 
 
-Texture::Texture(int width, int height, GLuint internal_format, GLuint format, GLuint data_type, void* data) {
+Texture::Texture(i32 width, i32 height, GLuint internal_format, GLuint format, GLuint data_type, void* data) {
     m_width = width;
     m_height = height;
     m_internal_format = internal_format;

@@ -2,6 +2,7 @@
 #define VOXEL_ENGINE_RENDER_CONTEXT_H
 
 #include <glad/glad.h>
+#include "voxel/common/base.h"
 #include "voxel/common/logger.h"
 #include "voxel/common/opengl.h"
 
@@ -17,7 +18,7 @@ class RenderContext {
     opengl::ShaderManager m_shader_manager;
 
 public:
-    RenderContext(std::weak_ptr<Engine> engine);
+    RenderContext(Weak<Engine> engine);
     RenderContext(RenderContext const& other) = delete;
     RenderContext(RenderContext&& other) = delete;
     ~RenderContext();

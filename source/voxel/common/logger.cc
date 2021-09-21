@@ -27,7 +27,7 @@ namespace voxel {
         // TODO: implement log sections
     }
 
-    void Logger::message(uint32_t flags, std::string tag, std::string message, ...) {
+    void Logger::message(u32 flags, std::string tag, std::string message, ...) {
         va_list va;
         va_start(va, message);
         std::string formatted_message = voxel::utils::stringFormatVarargs(message, va);

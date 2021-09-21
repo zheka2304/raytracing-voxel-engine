@@ -8,22 +8,22 @@ namespace voxel {
 namespace render {
 
 
-void CameraProjection::setFov(float fov, float ratio) {
+void CameraProjection::setFov(f32 fov, f32 ratio) {
     if (fov == 0 || ratio == 0) {
         m_perspective = math::Vec2f(0, 0);
         return;
     }
 
-    float tg = tan(fov / 2.0f);
+    f32 tg = tan(fov / 2.0f);
     m_perspective.x = tg;
     m_perspective.y = tg * ratio;
 }
 
-void CameraProjection::setOrtho(float w, float h) {
+void CameraProjection::setOrtho(f32 w, f32 h) {
     m_ortho_range = math::Vec2f(w / 2.0f, h / 2.0f);
 }
 
-void CameraProjection::setNearAndFar(float near, float far) {
+void CameraProjection::setNearAndFar(f32 near, f32 far) {
     m_distance_range = math::Vec2f(near, far);
 }
 

@@ -4,7 +4,7 @@
 #define VOXEL_ENGINE_VEC_H
 
 #include <math.h>
-#include "voxel/common/types.h"
+#include "voxel/common/base.h"
 
 
 namespace voxel {

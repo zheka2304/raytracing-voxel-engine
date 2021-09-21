@@ -21,7 +21,7 @@ void MouseControl::_initMode(Mode mode) {
         case Mode::IN_GAME: {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
-            int w, h;
+            i32 w, h;
             glfwGetWindowSize(window, &w, &h);
             m_last_pos.x = m_current_pos.x = w / 2.0f;
             m_last_pos.y = m_current_pos.y = h / 2.0f;
@@ -30,7 +30,7 @@ void MouseControl::_initMode(Mode mode) {
         }
 
         case Mode::IN_UI: {
-            double x, y;
+            f64 x, y;
             glfwGetCursorPos(window, &x, &y);
             m_last_pos.x = m_current_pos.x = x;
             m_last_pos.y = m_current_pos.y = y;
@@ -87,16 +87,16 @@ void MouseControl::update() {
 
     m_last_pos = m_current_pos;
 
-    double x, y;
+    f64 x, y;
     glfwGetCursorPos(window, &x, &y);
     m_current_pos.x = x;
     m_current_pos.y = y;
 
     switch (m_mode) {
         case Mode::IN_GAME: {
-            int w, h;
+            i32 w, h;
             glfwGetWindowSize(window, &w, &h);
-            glfwSetCursorPos(window, m_last_pos.x = int(w / 2.0f), m_last_pos.y = int(h / 2.0f));
+            glfwSetCursorPos(window, m_last_pos.x = i32(w / 2.0f), m_last_pos.y = i32(h / 2.0f));
             break;
         }
 
@@ -120,7 +120,7 @@ math::Vec2f MouseControl::getMouseMove() {
     return m_current_pos - m_last_pos;
 }
 
-int MouseControl::getMouseButton(int button) {
+i32 MouseControl::getMouseButton(i32 button) {
     if (m_window_handler == nullptr) {
         return 0;
     }

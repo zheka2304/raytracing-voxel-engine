@@ -11,18 +11,19 @@
 #include "voxel/engine/file/riff_file_format.h"
 
 
-voxel::u32 getNormalBits(voxel::f32 x, voxel::f32 y, voxel::f32 z, voxel::f32 weight) {
-    voxel::f32 xz = sqrt(x * x + z * z);
-    voxel::f32 yaw = atan2(z, x);
-    voxel::f32 pitch = atan2(y, xz);
+u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
+    f32 xz = sqrt(x * x + z * z);
+    f32 yaw = atan2(z, x);
+    f32 pitch = atan2(y, xz);
 
-    const voxel::i32 bit_offset = 8;
-    return (voxel::u32((yaw + M_PI) / (M_PI * 2) * 63.0) |
-            (voxel::u32((pitch / M_PI + 0.5) * 31.0) << 6) |
-            (voxel::u32(weight * 15.0) << 11)) << bit_offset;
+    const i32 bit_offset = 8;
+    return (u32((yaw + M_PI) / (M_PI * 2) * 63.0) |
+            (u32((pitch / M_PI + 0.5) * 31.0) << 6) |
+            (u32(weight * 15.0) << 11)) << bit_offset;
 }
 
 int main() {
+
     voxel::format::VoxFileFormat file_format;
     std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
     auto models = file_format.read(istream);
@@ -73,9 +74,9 @@ int main() {
             render_target = new voxel::render::RenderTarget(900, 900);
 
             auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
-//            for (voxel::u32 x = 0; x < 64; x++) {
-//                for (voxel::u32 z = 0; z < 64; z++) {
-//                    for (voxel::u32 y = 0; y < 64; y ++) {
+//            for (u32 x = 0; x < 64; x++) {
+//                for (u32 z = 0; z < 64; z++) {
+//                    for (u32 y = 0; y < 64; y ++) {
 //                        int dx = int(x) - 32;
 //                        int dy = int(y) - 32;
 //                        int dz = int(z) - 32;

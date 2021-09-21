@@ -13,10 +13,10 @@
 namespace voxel {
 namespace format {
 
-RiffStyleFileFormat::RiffChunk RiffStyleFileFormat::_readRiffChunkRecursive(std::istream& istream, int depth) {
+RiffStyleFileFormat::RiffChunk RiffStyleFileFormat::_readRiffChunkRecursive(std::istream& istream, i32 depth) {
     VERBOSE({
         std::cout << "\n";
-        for (int i = 0; i < depth; i++) {
+        for (i32 i = 0; i < depth; i++) {
             std::cout << "    ";
         }
     });
@@ -52,7 +52,7 @@ RiffStyleFileFormat::RiffChunk RiffStyleFileFormat::_readRiffChunkRecursive(std:
         }
         VERBOSE({
             std::cout << "\n";
-            for (int i = 0; i < depth; i++) {
+            for (i32 i = 0; i < depth; i++) {
                 std::cout << "    ";
             }
             std::cout << "}";
@@ -62,7 +62,7 @@ RiffStyleFileFormat::RiffChunk RiffStyleFileFormat::_readRiffChunkRecursive(std:
     return chunk;
 }
 
-std::vector<std::unique_ptr<VoxelModel>> RiffStyleFileFormat::read(std::istream& istream) {
+std::vector<Shared<VoxelModel>> RiffStyleFileFormat::read(std::istream& istream) {
     RiffStyleFileFormat::RiffFile riff_file;
 
     // read type
@@ -88,8 +88,8 @@ std::vector<std::unique_ptr<VoxelModel>> RiffStyleFileFormat::read(std::istream&
     return readRiff(riff_file);
 }
 
-std::vector<std::unique_ptr<VoxelModel>> RiffStyleFileFormat::readRiff(RiffFile& riff_file) {
-    return std::vector<std::unique_ptr<VoxelModel>>();
+std::vector<Shared<VoxelModel>> RiffStyleFileFormat::readRiff(RiffFile& riff_file) {
+    return std::vector<Shared<VoxelModel>>();
 }
 
 } // format

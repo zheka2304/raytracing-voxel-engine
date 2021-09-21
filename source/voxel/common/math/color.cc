@@ -10,10 +10,10 @@ Color::Color(f32 r, f32 g, f32 b, f32 a) : r(r), g(g), b(b), a(a) {
 Color::Color(u32 hex, u32 color_bits, u32 alpha_bits) {
     u32 color_mask = (1u << color_bits) - 1u;
     u32 alpha_mask = (1u << alpha_bits) - 1u;
-    r = (hex & color_mask) / float(color_mask); hex >>= color_bits;
-    g = (hex & color_mask) / float(color_mask); hex >>= color_bits;
-    b = (hex & color_mask) / float(color_mask); hex >>= color_bits;
-    a = (hex & alpha_mask) / float(alpha_mask);
+    r = (hex & color_mask) / f32(color_mask); hex >>= color_bits;
+    g = (hex & color_mask) / f32(color_mask); hex >>= color_bits;
+    b = (hex & color_mask) / f32(color_mask); hex >>= color_bits;
+    a = (hex & alpha_mask) / f32(alpha_mask);
 }
 
 u32 Color::toHex(u32 color_bits, u32 alpha_bits) {

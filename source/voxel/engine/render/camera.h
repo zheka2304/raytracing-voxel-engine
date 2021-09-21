@@ -3,6 +3,7 @@
 
 #include <functional>
 
+#include "voxel/common/base.h"
 #include "voxel/common/define.h"
 #include "voxel/common/math/vec.h"
 #include "voxel/common/opengl.h"
@@ -33,9 +34,9 @@ struct CameraProjection {
     // x is near plane and y is far plane
     GLSL_BUFFER_ALIGN(8) math::Vec2f m_distance_range;
 
-    void setOrtho(float w, float h);
-    void setFov(float fov, float ratio);
-    void setNearAndFar(float near, float far);
+    void setOrtho(f32 w, f32 h);
+    void setFov(f32 fov, f32 ratio);
+    void setNearAndFar(f32 near, f32 far);
 };
 
 /*
@@ -50,7 +51,7 @@ class Camera {
     opengl::ShaderUniformBuffer<CameraProjection> m_projection_uniform;
 
     // holds time in seconds from the start of the game
-    opengl::ShaderUniformBuffer<float> m_time_uniform;
+    opengl::ShaderUniformBuffer<f32> m_time_uniform;
 
     // holds screen size
     opengl::ShaderUniformBuffer<math::Vec2i> m_screen_size_uniform;

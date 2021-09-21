@@ -1,6 +1,7 @@
 #ifndef VOXEL_ENGINE_SPATIAL_BUFFER_H
 #define VOXEL_ENGINE_SPATIAL_BUFFER_H
 
+#include "voxel/common/base.h"
 #include "voxel/common/opengl.h"
 #include "voxel/engine/render/render_context.h"
 
@@ -9,7 +10,7 @@ namespace voxel {
 namespace render {
 
 class SpatialRenderBuffer {
-    int m_width, m_height;
+    i32 m_width, m_height;
 
     // last and current frame buffer textures, stores positions of all pixel in world space, swapped each frame
     opengl::Texture* m_last_frame;
@@ -26,7 +27,7 @@ class SpatialRenderBuffer {
     opengl::ShaderStorageBuffer m_spatial_buffer_spinlock;
 
 public:
-    SpatialRenderBuffer(int width, int height);
+    SpatialRenderBuffer(i32 width, i32 height);
     SpatialRenderBuffer(const SpatialRenderBuffer& other) = delete;
     SpatialRenderBuffer(SpatialRenderBuffer&& other) = delete;
     ~SpatialRenderBuffer();

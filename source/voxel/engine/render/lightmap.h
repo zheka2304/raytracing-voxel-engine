@@ -1,6 +1,7 @@
 #ifndef VOXEL_ENGINE_LIGHTMAP_H
 #define VOXEL_ENGINE_LIGHTMAP_H
 
+#include "voxel/common/base.h"
 #include "voxel/common/opengl.h"
 #include "render_context.h"
 
@@ -10,14 +11,14 @@ namespace render {
 
 
 class LightMapTexture {
-    int m_width, m_height;
+    i32 m_width, m_height;
 
     opengl::Texture* m_last_frame;
     opengl::Texture* m_current_frame;
     opengl::Texture m_blur_pass_texture;
 
 public:
-    LightMapTexture(int width, int height);
+    LightMapTexture(i32 width, i32 height);
     LightMapTexture(const LightMapTexture& other) = delete;
     LightMapTexture(LightMapTexture&& other) = default;
     ~LightMapTexture();

@@ -34,16 +34,16 @@ struct RawVoxelModel {
 };
 
 
-std::vector<std::unique_ptr<VoxelModel>> VoxFileFormat::readRiff(RiffFile& riff_file) {
+std::vector<Shared<VoxelModel>> VoxFileFormat::readRiff(RiffFile& riff_file) {
     if (riff_file.chunks.empty() || riff_file.type != std::string("VOX ") || riff_file.version != 150) {
         std::cerr << "invalid VOX file\n";
-        return std::vector<std::unique_ptr<VoxelModel>>();
+        return std::vector<Shared<VoxelModel>>();
     }
 
     RiffChunk main_chunk = riff_file.chunks[0];
     if (main_chunk.id != std::string("MAIN")) {
         std::cerr << "VOX: no MAIN chunk\n";
-        return std::vector<std::unique_ptr<VoxelModel>>();
+        return std::vector<Shared<VoxelModel>>();
     }
 
     VoxelPalette palette = {
@@ -66,7 +66,7 @@ std::vector<std::unique_ptr<VoxelModel>> VoxFileFormat::readRiff(RiffFile& riff_
     };
 
     std::vector<RawVoxelModel> raw_models;
-    for (int i = 0; i < main_chunk.children.size(); i++) {
+    for (i32 i = 0; i < main_chunk.children.size(); i++) {
         auto& chunk = main_chunk.children[i];
         if (chunk.id == std::string("SIZE")) {
             RawVoxelModel& model = raw_models.emplace_back();
@@ -82,9 +82,9 @@ std::vector<std::unique_ptr<VoxelModel>> VoxFileFormat::readRiff(RiffFile& riff_
         }
     }
 
-    std::vector<std::unique_ptr<VoxelModel>> result;
+    std::vector<Shared<VoxelModel>> result;
     for (auto& raw_model : raw_models) {
-        std::unique_ptr<VoxelModel> model = std::make_unique<VoxelModel>(raw_model.size.x, raw_model.size.z, raw_model.size.y);
+        Shared<VoxelModel> model = CreateShared<VoxelModel>(raw_model.size.x, raw_model.size.z, raw_model.size.y);
         for (i32 i = 0; i < raw_model.voxel_count; i++) {
             VoxelData voxel = raw_model.voxels[i];
             auto color = math::Color(palette.colors[voxel.xyzi[3] - 1], 8, 8);

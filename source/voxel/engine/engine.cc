@@ -25,8 +25,8 @@ namespace voxel {
         });
     }
 
-    int Engine::initialize() {
-        return m_glfw_thread.awaitResult<int>([=] () -> int {
+    i32 Engine::initialize() {
+        return m_glfw_thread.awaitResult<i32>([=] () -> i32 {
             if (!glfwInit()) {
                 m_logger.message(Logger::flag_error | Logger::flag_critical, "Engine", "GLFW init failed");
                 return m_initialization_result = -1;
@@ -41,7 +41,7 @@ namespace voxel {
         return m_glfw_thread;
     }
 
-    int Engine::getInitializationResult() {
+    i32 Engine::getInitializationResult() {
         return m_initialization_result;
     }
 
@@ -49,20 +49,20 @@ namespace voxel {
         return m_logger;
     }
 
-    std::shared_ptr<Context> Engine::newContext(const std::string& context_name) {
-        std::shared_ptr<Context> context = std::make_shared<Context>(weak_from_this(), context_name);
+    Shared<Context> Engine::newContext(const std::string& context_name) {
+        Shared<Context> context = CreateShared<Context>(weak_from_this(), context_name);
         m_contexts.emplace_back(context);
         return context;
     }
 
     void Engine::joinAllEventLoops() {
-        for (std::shared_ptr<Context>& ctx : m_contexts) {
+        for (Shared<Context>& ctx : m_contexts) {
             ctx->joinEventLoop();
         }
     }
 
 
-    Context::Context(std::weak_ptr<Engine> engine, const std::string& context_name) :
+    Context::Context(Weak<Engine> engine, const std::string& context_name) :
             m_context_name(context_name),
             m_engine(engine),
             m_logger(engine.lock()->getLogger()),
@@ -116,11 +116,11 @@ namespace voxel {
         m_event_process_callback = callback;
     }
 
-    void Context::setWindowResizeCallback(const std::function<void(Context&, int, int)>& callback) {
+    void Context::setWindowResizeCallback(const std::function<void(Context&, i32, i32)>& callback) {
         m_window_resize_callback = callback;
     }
 
-    void Context::setWindowFocusCallback(const std::function<void(Context&, int)>& callback) {
+    void Context::setWindowFocusCallback(const std::function<void(Context&, i32)>& callback) {
         m_window_focus_callback = callback;
     }
 
@@ -128,7 +128,7 @@ namespace voxel {
         m_destroy_callback = callback;
     }
 
-    void Context::initWindow(WindowParameters parameters, std::shared_ptr<Context> shared_context) {
+    void Context::initWindow(WindowParameters parameters, Shared<Context> shared_context) {
         std::unique_lock<std::mutex> lock(m_event_loop_mutex);
 
         if (m_termination_pending) {
@@ -161,7 +161,7 @@ namespace voxel {
         };
     }
 
-    void Context::initNoWindow(std::shared_ptr<Context> shared_context) {
+    void Context::initNoWindow(Shared<Context> shared_context) {
         std::unique_lock<std::mutex> lock(m_event_loop_mutex);
 
         if (m_termination_pending) {
@@ -189,7 +189,7 @@ namespace voxel {
         };
     }
 
-    void Context::initializeRenderContext(std::shared_ptr<Context> shared_context) {
+    void Context::initializeRenderContext(Shared<Context> shared_context) {
         if (m_render_context != nullptr) {
             m_logger.message(Logger::flag_error, "Context-" + m_context_name, "render context is already initialized");
             return;
@@ -203,7 +203,7 @@ namespace voxel {
         }
 
         if (m_render_context == nullptr) {
-            m_render_context = std::make_shared<render::RenderContext>(m_engine);
+            m_render_context = CreateShared<render::RenderContext>(m_engine);
         }
     }
 
@@ -289,7 +289,7 @@ namespace voxel {
 
         // then invoke size callback with initial size
         if (m_window_resize_callback) {
-            int width, height;
+            i32 width, height;
             glfwGetWindowSize(m_window, &width, &height);
             m_window_resize_callback(*this, width, height);
         }
@@ -361,14 +361,14 @@ namespace voxel {
         }
     }
 
-    void Context::glfwWindowSizeCallback(GLFWwindow* window, int width, int height) {
+    void Context::glfwWindowSizeCallback(GLFWwindow* window, i32 width, i32 height) {
         Context* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
         if (context->m_window_resize_callback) {
             context->m_window_resize_callback(*context, width, height);
         }
     }
 
-    void Context::glfwWindowFocusCallback(GLFWwindow* window, int focus) {
+    void Context::glfwWindowFocusCallback(GLFWwindow* window, i32 focus) {
         Context* context = static_cast<Context*>(glfwGetWindowUserPointer(window));
         if (context->m_window_focus_callback) {
             context->m_window_focus_callback(*context, focus);

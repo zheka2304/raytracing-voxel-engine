@@ -1,7 +1,7 @@
 #ifndef VOXEL_ENGINE_COLOR_H
 #define VOXEL_ENGINE_COLOR_H
 
-#include "voxel/common/types.h"
+#include "voxel/common/base.h"
 
 
 namespace voxel {

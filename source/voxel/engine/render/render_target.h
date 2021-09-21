@@ -1,6 +1,7 @@
 #ifndef VOXEL_ENGINE_RENDER_TARGET_H
 #define VOXEL_ENGINE_RENDER_TARGET_H
 
+#include "voxel/common/base.h"
 #include "voxel/common/math/vec.h"
 #include "voxel/common/opengl.h"
 #include "voxel/engine/render/render_context.h"
@@ -12,7 +13,7 @@ namespace voxel {
 namespace render {
 
 class RenderTarget {
-    int m_width, m_height;
+    i32 m_width, m_height;
 
     opengl::Texture m_color_texture;
     opengl::Texture m_depth_texture;
@@ -22,7 +23,7 @@ class RenderTarget {
     opengl::RenderToTexture m_result_render_to_texture;
 
 public:
-    RenderTarget(int width, int height);
+    RenderTarget(i32 width, i32 height);
     RenderTarget(const RenderTarget& other) = delete;
     RenderTarget(RenderTarget&& other) = delete;
 
@@ -40,8 +41,8 @@ public:
     // - IN_TEXTURE_DEPTH (3)
     void bindForPostProcessing(opengl::GraphicsShader& post_processing_shader);
 
-    int getWidth();
-    int getHeight();
+    i32 getWidth();
+    i32 getHeight();
 
     opengl::Texture& getColorTexture();
     opengl::Texture& getDepthTexture();

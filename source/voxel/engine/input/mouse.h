@@ -3,6 +3,7 @@
 
 #include <glfw/glfw3.h>
 
+#include "voxel/common/base.h"
 #include "voxel/common/math/vec.h"
 #include "voxel/engine/window_handler.h"
 
@@ -22,7 +23,7 @@ private:
     WindowHandler* m_window_handler;
 
     Mode m_mode = Mode::RELEASED;
-    int m_focus = 1;
+    i32 m_focus = 1;
     bool m_active = true;
 
     math::Vec2f m_last_pos;
@@ -47,7 +48,7 @@ public:
     math::Vec2f getLastPos();
     math::Vec2f getMousePos();
     math::Vec2f getMouseMove();
-    int getMouseButton(int button);
+    i32 getMouseButton(i32 button);
 };
 
 } // input

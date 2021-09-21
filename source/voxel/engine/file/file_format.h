@@ -4,6 +4,7 @@
 #include <memory>
 #include <istream>
 #include <vector>
+#include "voxel/common/base.h"
 #include "voxel/engine/shared/voxel_model.h"
 
 
@@ -12,7 +13,7 @@ namespace format {
 
 class FileFormat {
 public:
-    virtual std::vector<std::unique_ptr<VoxelModel>> read(std::istream& istream) = 0;
+    virtual std::vector<Shared<VoxelModel>> read(std::istream& istream) = 0;
 };
 
 } // format
