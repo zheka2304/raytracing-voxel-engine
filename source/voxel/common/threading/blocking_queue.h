@@ -1,5 +1,5 @@
-#ifndef VOXEL_ENGINE_QUEUE_H
-#define VOXEL_ENGINE_QUEUE_H
+#ifndef VOXEL_ENGINE_BLOCKING_QUEUE_H
+#define VOXEL_ENGINE_BLOCKING_QUEUE_H
 
 #include <deque>
 #include <atomic>
@@ -8,9 +8,9 @@
 
 
 namespace voxel {
-namespace utils {
+namespace threading {
 
-template <typename T>
+template<typename T>
 class BlockingQueue {
 private:
     std::mutex m_mutex;
@@ -28,16 +28,16 @@ public:
 
     T pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_condition.wait(lock, [=]{ return !m_queue.empty(); });
+        m_condition.wait(lock, [=] { return !m_queue.empty(); });
         T rc(std::move(m_queue.back()));
         m_queue.pop_back();
         return rc;
     }
 
-    bool try_pop(T& result, bool block) {
+    bool tryPop(T& result, bool block) {
         std::unique_lock<std::mutex> lock(m_mutex);
         if (block) {
-            m_condition.wait(lock, [=]{ return m_released || !m_queue.empty(); });
+            m_condition.wait(lock, [=] { return m_released || !m_queue.empty(); });
             if (m_released) {
                 return false;
             }
@@ -64,9 +64,17 @@ public:
         std::unique_lock<std::mutex> lock(m_mutex);
         m_queue.clear();
     }
+
+    std::deque<T>& getDeque() {
+        return m_queue;
+    }
+
+    std::mutex& getMutex() {
+        return m_mutex;
+    }
 };
 
+} // threading
 } // voxel
-} // utils
 
-#endif //VOXEL_ENGINE_QUEUE_H
+#endif //VOXEL_ENGINE_BLOCKING_QUEUE_H

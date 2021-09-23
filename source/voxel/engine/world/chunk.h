@@ -1,7 +1,9 @@
 #ifndef VOXEL_ENGINE_CHUNK_H
 #define VOXEL_ENGINE_CHUNK_H
 
-#include <functional>
+#include <mutex>
+#include <atomic>
+
 #include "voxel/common/base.h"
 #include "voxel/engine/shared/voxel.h"
 #include "voxel/engine/shared/chunk_position.h"
@@ -11,6 +13,29 @@
 namespace voxel {
 namespace world {
 
+enum ChunkState {
+    // Chunk is just initialized and must be generated & processed
+    CHUNK_PENDING,
+
+    // Chunk base voxels are generated or loaded
+    CHUNK_BUILT,
+
+    // Chunk has passed its post-processing stage
+    CHUNK_PROCESSED,
+
+    // Chunk is loaded and ready to tick and render
+    CHUNK_LOADED,
+
+    // Chunk is in lazy state, it is not ticking or rendering, yet it is in memory and can quickly change to LOADED state
+    CHUNK_LAZY,
+
+    // Chunk is waiting for unloading task to complete, such chunks cannot change state and can only be removed
+    CHUNK_UNLOADING,
+
+    // Chunk is unloaded, its buffer is deleted, it is detached from chunk source and waiting to be destroyed
+    CHUNK_FINALIZED
+};
+
 class Chunk {
 private:
     static const i8 HEADER_SIZE = 3;
@@ -19,6 +44,9 @@ private:
 
 private:
     ChunkPosition m_position;
+    ChunkState m_state = CHUNK_PENDING;
+    std::mutex m_lock;
+    std::atomic<u64> m_last_fetched;
 
     u32* m_buffer = nullptr;
     i32 m_buffer_tree_offset = 0;
@@ -36,6 +64,15 @@ public:
     const u32* getBuffer() const;
     const i32 getBufferSize() const;
 
+    ChunkState getState() const;
+    void setState(ChunkState state);
+    u64 getLastFetched() const;
+    void fetch();
+
+    std::mutex& getLock();
+    bool tryLock();
+    void unlock();
+
 private:
     u32 _getAllocatedNodeSpanSize();
     u32 _getAllocatedVoxelSpanSize();
@@ -43,9 +80,11 @@ private:
     u32 _allocateNewVoxel(u32 color, u32 material);
 
 public:
+
     void setVoxel(VoxelPosition position, Voxel voxel);
     void preallocate(i32 tree_nodes, i32 voxels);
     void preallocate(i32 voxels);
+    void deleteAllBuffers();
 };
 
 } // world

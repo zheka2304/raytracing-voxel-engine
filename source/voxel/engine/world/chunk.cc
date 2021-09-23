@@ -4,12 +4,14 @@
 #include <iostream>
 
 #include "chunk.h"
+#include "voxel/common/utils/time.h"
 
 
 namespace voxel {
 namespace world {
 
 Chunk::Chunk(ChunkPosition position) : m_position(position) {
+    // initialize buffer size
     m_buffer_voxel_span = HEADER_SIZE + 512 * TREE_NODE_SIZE;
     m_buffer_size = m_buffer_voxel_span + 4096 * VOXEL_SIZE;
 
@@ -23,6 +25,9 @@ Chunk::Chunk(ChunkPosition position) : m_position(position) {
     m_buffer[1] = 0u;          // reserved
     m_buffer[2] = 3u;          // empty child at idx 0 - link to chunk root
     m_buffer[3] = 0x80000000u; // empty chunk root
+
+    //
+    m_last_fetched = utils::getTimestampMillis();
 }
 
 Chunk::~Chunk() {
@@ -40,6 +45,23 @@ const u32* Chunk::getBuffer() const {
 const i32 Chunk::getBufferSize() const {
     return m_buffer_size;
 }
+
+ChunkState Chunk::getState() const {
+    return m_state;
+}
+
+void Chunk::setState(ChunkState state) {
+    m_state = state;
+}
+
+u64 Chunk::getLastFetched() const {
+    return m_last_fetched;
+}
+
+void Chunk::fetch() {
+    m_last_fetched = utils::getTimestampMillis();
+}
+
 
 
 void Chunk::preallocate(i32 tree_nodes, i32 voxels) {
@@ -94,6 +116,11 @@ void Chunk::preallocate(i32 voxels) {
         estimated_nodes += voxels;
     }
     preallocate(estimated_nodes, voxels);
+}
+
+void Chunk::deleteAllBuffers() {
+    delete(m_buffer);
+    m_buffer = nullptr;
 }
 
 u32 Chunk::_getAllocatedNodeSpanSize() {
@@ -195,6 +222,18 @@ void Chunk::setVoxel(VoxelPosition position, Voxel voxel) {
     }
 }
 
+
+std::mutex& Chunk::getLock() {
+    return m_lock;
+}
+
+bool Chunk::tryLock() {
+    return m_lock.try_lock();
+}
+
+void Chunk::unlock() {
+    m_lock.unlock();
+}
 
 } // world
 } // voxel

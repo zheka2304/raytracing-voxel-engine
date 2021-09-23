@@ -13,7 +13,7 @@
 
 #include "voxel/common/base.h"
 #include "voxel/common/logger.h"
-#include "voxel/common/utils/worker_thread.h"
+#include "voxel/common/threading.h"
 #include "voxel/engine/window_handler.h"
 #include "voxel/engine/render/render_context.h"
 
@@ -39,7 +39,7 @@ class Engine : public std::enable_shared_from_this<Engine> {
     std::vector<Shared<Context>> m_contexts;
 
     // thread for initializing glfw contexts and other glfw-related work
-    utils::WorkerThread m_glfw_thread;
+    threading::WorkerThread m_glfw_thread;
 
 public:
     Engine();
@@ -52,7 +52,7 @@ public:
     i32 getInitializationResult();
 
     // get thread to execute all glfw initialization
-    utils::WorkerThread& getGlfwThread();
+    threading::WorkerThread& getGlfwThread();
 
     // getters
     Logger& getLogger();

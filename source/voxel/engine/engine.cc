@@ -37,7 +37,7 @@ namespace voxel {
         });
     }
 
-    utils::WorkerThread & Engine::getGlfwThread() {
+    threading::WorkerThread & Engine::getGlfwThread() {
         return m_glfw_thread;
     }
 

@@ -2,10 +2,9 @@
 
 
 namespace voxel {
-namespace utils {
+namespace threading {
 
 WorkerThread::WorkerThread() : m_thread(std::thread(&WorkerThread::run, this)) {
-
 }
 
 void WorkerThread::run() {
@@ -18,25 +17,12 @@ void WorkerThread::queue(std::function<void()> const& task) {
     m_tasks.push(task);
 }
 
-void WorkerThread::await(const std::function<void()>& task) {
-    std::shared_ptr<std::condition_variable> cv = std::make_shared<std::condition_variable>();
-    queue([=] () -> void {
-        task();
-        cv->notify_all();
-    });
-
-    std::mutex mutex;
-    std::unique_lock<std::mutex> lock(mutex);
-    cv->wait(lock);
-}
-
-
 WorkerThread::~WorkerThread() {
     m_running = false;
     m_tasks.clear();
-    queue([] () -> void {});
+    m_tasks.push([]() -> void {});
     m_thread.join();
 }
 
-} // utils
+} // threading
 } // voxel
