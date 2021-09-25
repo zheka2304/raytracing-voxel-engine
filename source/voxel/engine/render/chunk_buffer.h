@@ -16,6 +16,28 @@ class Chunk;
 
 namespace render {
 
+class ChunkBuffer;
+
+class FetchedChunksList {
+    std::mutex m_mutex;
+
+    math::Vec3i m_map_offset;
+    math::Vec3i m_map_dimensions;
+
+    std::vector<u32> m_raw_data;
+    std::vector<ChunkPosition> m_fetched_chunks;
+
+public:
+    FetchedChunksList() = default;
+    FetchedChunksList(const FetchedChunksList&) = delete;
+    ~FetchedChunksList() = default;
+
+    void runDataUpdate(i32 threshold);
+    std::vector<ChunkPosition>& getChunksToFetch();
+
+    friend ChunkBuffer;
+};
+
 class ChunkBuffer {
 public:
     const u32 PAGE_SIZE = 65536;
@@ -42,7 +64,7 @@ private:
     i32 m_map_buffer_size;
 
     i32* m_map_buffer;
-    math::Vec3i m_map_offset = math::Vec3i(0);
+    math::Vec3i m_map_buffer_offset = math::Vec3i(0);
     math::Vec3i m_map_buffer_dimensions;
 
     opengl::ShaderStorageBuffer m_data_shader_buffer;
@@ -60,6 +82,7 @@ public:
 
     ChunkUploadResult uploadChunk(Shared<Chunk> chunk);
     void removeChunk(Shared<Chunk> chunk);
+    void getFetchedChunks(FetchedChunksList& fetched_chunks_list);
 
 private:
     i32 getMapIndex(ChunkPosition position);

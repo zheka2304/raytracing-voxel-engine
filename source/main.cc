@@ -70,6 +70,7 @@ int main() {
         }
 
         static voxel::render::RenderTarget* render_target = nullptr;
+        static voxel::render::ChunkBuffer* chunk_buffer = nullptr;
         if (!render_target) {
             render_target = new voxel::render::RenderTarget(900, 900);
 
@@ -111,18 +112,22 @@ int main() {
                 }
             }
 
-            static voxel::render::ChunkBuffer* chunk_buffer = nullptr;
             if (!chunk_buffer) {
                 chunk_buffer = new voxel::render::ChunkBuffer(256, voxel::math::Vec3i(50, 50, 50));
             }
 
             chunk_buffer->uploadChunk(chunk);
             chunk_buffer->rebuildChunkMap(voxel::math::Vec3i(0));
-            chunk_buffer->prepareAndBind(render_context);
 //            auto buffer = new voxel::opengl::ShaderStorageBuffer("world.chunk_data_buffer");
 //            buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
 //            buffer->bind(render_context.getShaderManager());
         }
+
+        static voxel::render::FetchedChunksList fetched_chunks_list;
+        chunk_buffer->getFetchedChunks(fetched_chunks_list);
+        fetched_chunks_list.runDataUpdate(1024);
+        std::cout << fetched_chunks_list.getChunksToFetch().size() << "\n";
+        chunk_buffer->prepareAndBind(render_context);
 
         camera->render(render_context, *render_target);
 

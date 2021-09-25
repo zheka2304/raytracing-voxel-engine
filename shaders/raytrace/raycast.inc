@@ -64,6 +64,10 @@ It is happening, because such local arrays are stored in local memory instead of
 #define OPTIMIZE_RAYTRACE_STACK
 #define OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
 
+#define MAX_STEPS_PER_RAY ${raytrace.max_steps_per_ray}u
+#define MATERIAL_SPAN_MERGE_COEF ${raytrace.material_span_merge_coef}
+
+
 // contains all voxel data, indexed
 COMPUTE_SHADER_BUFFER(${world.chunk_data_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
     // each voxel tree node contains following:
@@ -78,22 +82,23 @@ COMPUTE_SHADER_BUFFER(${world.chunk_data_buffer}, readonly, u_voxel_buffer_t, u_
     uint data[];
 })
 
-// hashmap for chunk lookup (size must be power of 2)
-#define VOXEL_CHUNK_LOOKUP_MAP_SIZE ${raytrace.voxel_chunk_map_size}u
-#define VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY ${raytrace.voxel_chunk_map_unit_capacity}u
-
-#define MAX_STEPS_PER_RAY ${raytrace.max_steps_per_ray}u
-#define MATERIAL_SPAN_MERGE_COEF ${raytrace.material_span_merge_coef}
-
 COMPUTE_SHADER_BUFFER(${world.chunk_map_buffer}, readonly, u_voxel_chunk_map_t, u_voxel_chunk_map, {
     int data[];
 })
 
+COMPUTE_SHADER_BUFFER(${world.chunk_fetch_buffer}, , u_voxel_fetch_map_t, u_voxel_fetch_map, {
+    uint data[];
+})
 
-uint lookupVoxelChunk(ivec3 position, ivec3 map_offset, ivec3 map_size) {
+
+uint lookupVoxelChunk(ivec3 position, ivec3 map_offset, ivec3 map_size, bool request_fetch) {
     position -= map_offset;
     if (position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < map_size.x && position.y < map_size.y && position.z < map_size.z) {
-        return uint(u_voxel_chunk_map.data[position.x + map_size.x * (position.y + map_size.y * position.z) + 6]);
+        int index = position.x + map_size.x * (position.y + map_size.y * position.z);
+        if (true) {
+            atomicAdd(u_voxel_fetch_map.data[index], 1u);
+        }
+        return uint(u_voxel_chunk_map.data[index + 6]);
     }
     return uint(-1);
     // return position.x < 100 && position.y == 0 && position.z < 100 ? 1u : uint(-1);
@@ -620,7 +625,7 @@ bool raycastVoxelChunk(
     return true;
 }
 
-RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, bool request_cache_updates) {
+RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, bool request_fetch) {
     ChunkRaycastData chunk_raycast;
 
     if (abs(ray.ray.x) < 1e-23) ray.ray.x = 1e-23 * sign(ray.ray.x);
@@ -656,7 +661,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, bool req
     ivec3 chunk_map_size = ivec3(u_voxel_chunk_map.data[3], u_voxel_chunk_map.data[4], u_voxel_chunk_map.data[5]);
     for (int i = 0; i < max_chunks; i++) {
         // Lookup chunk by position, and if it is found, raycast it
-        uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos, chunk_map_offset, chunk_map_size);
+        uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos, chunk_map_offset, chunk_map_size, request_fetch);
         if (chunk_pointer != uint(-1)) {
             // If ray end has been reached, break out of loop
             if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, max_spans)) {

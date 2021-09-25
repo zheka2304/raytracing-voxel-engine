@@ -9,6 +9,9 @@ namespace voxel {
 struct ChunkPosition {
     i32 x, y, z;
 
+    inline ChunkPosition() = default;
+    inline ChunkPosition(i32 x, i32 y, i32 z) : x(x), y(y), z(z) {};
+
     inline bool operator==(const ChunkPosition& other) const {
         return x == other.x && y == other.y && z == other.z;
     }

@@ -8,6 +8,33 @@
 namespace voxel {
 namespace render {
 
+
+void FetchedChunksList::runDataUpdate(i32 threshold) {
+    m_fetched_chunks.clear();
+    m_fetched_chunks.reserve(1024);
+
+    ThreadLock lock(m_mutex);
+    math::Vec3i offset = m_map_offset;
+    math::Vec3i size = m_map_dimensions;
+
+    i32 i = 0;
+    for (u32 request_count : m_raw_data) {
+        if (request_count > threshold) {
+            i32 index = i;
+            i32 x = index % size.x; index /= size.x;
+            i32 y = index % size.y; index /= size.y;
+            i32 z = index % size.z;
+            m_fetched_chunks.emplace_back(x + offset.x, y + offset.y, z + offset.z);
+        }
+        i++;
+    }
+}
+
+std::vector<ChunkPosition>& FetchedChunksList::getChunksToFetch() {
+    return m_fetched_chunks;
+}
+
+
 ChunkBuffer::ChunkBuffer(i32 page_count, math::Vec3i map_buffer_dimensions) :
         m_chunk_by_page(page_count, 0),
         m_data_shader_buffer("world.chunk_data_buffer"),
@@ -44,13 +71,13 @@ void ChunkBuffer::rebuildChunkMap(math::Vec3i offset) {
     ThreadLock lock(m_page_map_lock);
 
     // calculate offset
-    m_map_offset = offset;// - m_map_buffer_dimensions / 2;
+    m_map_buffer_offset = offset - m_map_buffer_dimensions / 2;
 
     // clear map, write offset and dimensions
     memset(m_map_buffer, 0xFFu, m_map_buffer_size * sizeof(u32));
-    m_map_buffer[0] = m_map_offset.x;
-    m_map_buffer[1] = m_map_offset.y;
-    m_map_buffer[2] = m_map_offset.z;
+    m_map_buffer[0] = m_map_buffer_offset.x;
+    m_map_buffer[1] = m_map_buffer_offset.y;
+    m_map_buffer[2] = m_map_buffer_offset.z;
     m_map_buffer[3] = m_map_buffer_dimensions.x;
     m_map_buffer[4] = m_map_buffer_dimensions.y;
     m_map_buffer[5] = m_map_buffer_dimensions.z;
@@ -81,6 +108,17 @@ void ChunkBuffer::rebuildChunkMap(math::Vec3i offset) {
         m_map_buffer[map_index] = span.first * PAGE_SIZE;
         it++;
     }
+}
+
+void ChunkBuffer::getFetchedChunks(FetchedChunksList& fetched_chunks_list) {
+    if (fetched_chunks_list.m_raw_data.size() != m_fetch_buffer_size) {
+        // only resizing operation requires lock
+        ThreadLock lock(fetched_chunks_list.m_mutex);
+        fetched_chunks_list.m_raw_data.resize(m_fetch_buffer_size);
+    }
+    fetched_chunks_list.m_map_offset = m_map_buffer_offset;
+    fetched_chunks_list.m_map_dimensions = m_map_buffer_dimensions;
+    m_fetch_shader_buffer.getDataSpan(0, m_fetch_buffer_size * sizeof(u32), &fetched_chunks_list.m_raw_data[0]);
 }
 
 ChunkBuffer::ChunkUploadResult ChunkBuffer::uploadChunk(Shared<Chunk> chunk) {
@@ -217,7 +255,7 @@ i32 ChunkBuffer::allocatePageSpan(i32 page_count, u64 chunk) {
 }
 
 i32 ChunkBuffer::getMapIndex(ChunkPosition position) {
-    math::Vec3i pos = math::Vec3i(position.x, position.y, position.z) - m_map_offset;
+    math::Vec3i pos = math::Vec3i(position.x, position.y, position.z) - m_map_buffer_offset;
     if (pos.x >= 0 && pos.y >= 0 && pos.z >= 0 && pos.x < m_map_buffer_dimensions.x && pos.y < m_map_buffer_dimensions.y && pos.z < m_map_buffer_dimensions.z) {
         return 6 + pos.x + (pos.y + pos.z * m_map_buffer_dimensions.y) * m_map_buffer_dimensions.x;
     }
