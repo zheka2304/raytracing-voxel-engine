@@ -5,6 +5,7 @@
 #include "voxel/engine/engine.h"
 #include "voxel/engine/input/simple_input.h"
 #include "voxel/engine/render/camera.h"
+#include "voxel/engine/render/chunk_buffer.h"
 #include "voxel/engine/world/chunk.h"
 #include "voxel/common/utils/time.h"
 #include "voxel/engine/file/vox_file_format.h"
@@ -23,7 +24,6 @@ u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
 }
 
 int main() {
-
     voxel::format::VoxFileFormat file_format;
     std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
     auto models = file_format.read(istream);
@@ -73,7 +73,7 @@ int main() {
         if (!render_target) {
             render_target = new voxel::render::RenderTarget(900, 900);
 
-            auto chunk = new voxel::world::Chunk({ 0, 0, 0 });
+            auto chunk = voxel::CreateShared<voxel::Chunk>(voxel::ChunkPosition({ 0, 0, 0 }));
 //            for (u32 x = 0; x < 64; x++) {
 //                for (u32 z = 0; z < 64; z++) {
 //                    for (u32 y = 0; y < 64; y ++) {
@@ -111,9 +111,17 @@ int main() {
                 }
             }
 
-            auto buffer = new voxel::opengl::ShaderStorageBuffer("raytrace.voxel_buffer");
-            buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
-            buffer->bind(render_context.getShaderManager());
+            static voxel::render::ChunkBuffer* chunk_buffer = nullptr;
+            if (!chunk_buffer) {
+                chunk_buffer = new voxel::render::ChunkBuffer(256, voxel::math::Vec3i(50, 50, 50));
+            }
+
+            chunk_buffer->uploadChunk(chunk);
+            chunk_buffer->rebuildChunkMap(voxel::math::Vec3i(0));
+            chunk_buffer->prepareAndBind(render_context);
+//            auto buffer = new voxel::opengl::ShaderStorageBuffer("world.chunk_data_buffer");
+//            buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
+//            buffer->bind(render_context.getShaderManager());
         }
 
         camera->render(render_context, *render_target);

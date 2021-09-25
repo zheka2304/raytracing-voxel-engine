@@ -65,7 +65,7 @@ It is happening, because such local arrays are stored in local memory instead of
 #define OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
 
 // contains all voxel data, indexed
-COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
+COMPUTE_SHADER_BUFFER(${world.chunk_data_buffer}, readonly, u_voxel_buffer_t, u_voxel_buffer, {
     // each voxel tree node contains following:
     // 0) 0-29 bits are voxel color (10 bits per component), then 2 flags: is voxel empty, does voxel have children
     // 1) some additional data
@@ -85,32 +85,18 @@ COMPUTE_SHADER_BUFFER(${raytrace.voxel_buffer}, readonly, u_voxel_buffer_t, u_vo
 #define MAX_STEPS_PER_RAY ${raytrace.max_steps_per_ray}u
 #define MATERIAL_SPAN_MERGE_COEF ${raytrace.material_span_merge_coef}
 
-COMPUTE_SHADER_BUFFER(${raytrace.voxel_chunk_map}, readonly, u_voxel_chunk_map_t, u_voxel_chunk_map, {
-    uint data[];
+COMPUTE_SHADER_BUFFER(${world.chunk_map_buffer}, readonly, u_voxel_chunk_map_t, u_voxel_chunk_map, {
+    int data[];
 })
 
 
-uint lookupVoxelChunk(ivec3 position) {
-    uvec3 u_pos = uvec3(position);
-    return position.x < 100 && position.y == 0 && position.z < 100 ? 1u : uint(-1);
-
-    uint map_index = ((u_pos.x * 93911u) ^ (u_pos.y * 263167u) ^ (u_pos.z * 32993u)) & (VOXEL_CHUNK_LOOKUP_MAP_SIZE - 1u);
-    map_index *= VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY;
-
-    // get first 10 bits for each axis and pack them into int
-    uint hash = (u_pos.x & 0x3FFu) | ((u_pos.y & 0x3FFu) << 10u) | ((u_pos.z & 0x3FFu) << 20u) | 0x80000000u;
-
-    for (uint i = 0u; i < VOXEL_CHUNK_LOOKUP_MAP_UNIT_CAPACITY; i++) {
-        uint h = u_voxel_chunk_map.data[map_index << 2u];
-        if (h == hash) {
-            return u_voxel_chunk_map.data[(map_index << 2u) | 1u];
-        } else if (h == 0u) {
-            return 0u;
-        }
-        map_index++;
+uint lookupVoxelChunk(ivec3 position, ivec3 map_offset, ivec3 map_size) {
+    position -= map_offset;
+    if (position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < map_size.x && position.y < map_size.y && position.z < map_size.z) {
+        return uint(u_voxel_chunk_map.data[position.x + map_size.x * (position.y + map_size.y * position.z) + 6]);
     }
-
-    return 0u;
+    return uint(-1);
+    // return position.x < 100 && position.y == 0 && position.z < 100 ? 1u : uint(-1);
 }
 
 struct RaycastResultSpan {
@@ -666,9 +652,11 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, bool req
     material_data.last_mat = uvec3(0u);
     material_data.in_voxel = false;
 
+    ivec3 chunk_map_offset = ivec3(u_voxel_chunk_map.data[0], u_voxel_chunk_map.data[1], u_voxel_chunk_map.data[2]);
+    ivec3 chunk_map_size = ivec3(u_voxel_chunk_map.data[3], u_voxel_chunk_map.data[4], u_voxel_chunk_map.data[5]);
     for (int i = 0; i < max_chunks; i++) {
         // Lookup chunk by position, and if it is found, raycast it
-        uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos);
+        uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos, chunk_map_offset, chunk_map_size);
         if (chunk_pointer != uint(-1)) {
             // If ray end has been reached, break out of loop
             if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, max_spans)) {

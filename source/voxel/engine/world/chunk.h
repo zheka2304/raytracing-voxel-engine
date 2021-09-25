@@ -11,7 +11,6 @@
 
 
 namespace voxel {
-namespace world {
 
 enum ChunkState {
     // Chunk is just initialized and must be generated & processed
@@ -87,7 +86,6 @@ public:
     void deleteAllBuffers();
 };
 
-} // world
 } // voxel
 
 

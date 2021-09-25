@@ -5,7 +5,6 @@
 
 
 namespace voxel {
-namespace world {
 
 class Chunk;
 
@@ -52,5 +51,4 @@ void ChunkLock::unlock() {
     }
 }
 
-} // world
 } // voxel

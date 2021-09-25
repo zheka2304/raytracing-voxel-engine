@@ -2,6 +2,7 @@
 #define VOXEL_ENGINE_BUFFER_H
 
 #include <glad/glad.h>
+#include "voxel/common/base.h"
 #include "voxel/common/opengl/shaders.h"
 
 
@@ -18,7 +19,7 @@ private:
     GLuint m_buffer_type;
 
     // holds currently allocated size
-    size_t m_allocated_size = 0;
+    u32 m_allocated_size = 0;
 
 public:
     Buffer(GLuint buffer_type);
@@ -28,11 +29,13 @@ public:
 
     GLuint getType();
     GLuint getHandle();
-    GLuint getAllocatedSize();
+    u32 getAllocatedSize();
     bool isValid();
 
-    void setData(size_t size, void* data, GLuint access_type, bool unbind = true);
-    void preallocate(size_t size, GLuint access_type);
+    void setData(u32 size, const void* data, GLuint access_type, bool unbind = true);
+    void setDataSpan(u32 offset, u32 size, const void* data, bool unbind = true);
+    void getDataSpan(u32 offset, u32 size, void* data, bool unbind = true);
+    void preallocate(u32 size, GLuint access_type);
     void clear(GLuint internal_format, GLuint format, GLuint type, void* data = nullptr);
 
     void bindBuffer();
@@ -71,6 +74,10 @@ public:
     void bindUniform(ShaderManager& shader_manager) {
         setData(sizeof(T), m_data_ptr ? m_data_ptr : &m_data, GL_STATIC_READ);
         ShaderStorageBuffer::bind(shader_manager);
+    }
+
+    void loadData() {
+        getDataSpan(0, sizeof(T), m_data_ptr ? m_data_ptr : &m_data);
     }
 
     inline T* operator->() {

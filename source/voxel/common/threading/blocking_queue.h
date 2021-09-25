@@ -4,6 +4,7 @@
 #include <deque>
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <condition_variable>
 
 
@@ -34,23 +35,23 @@ public:
         return rc;
     }
 
-    bool tryPop(T& result, bool block) {
+    std::optional<T> tryPop(bool block = false) {
         std::unique_lock<std::mutex> lock(m_mutex);
         if (block) {
             m_condition.wait(lock, [=] { return m_released || !m_queue.empty(); });
             if (m_released) {
-                return false;
+                return std::optional<T>();
             }
-            result = std::move(m_queue.back());
+            std::optional<T> result = std::move(m_queue.back());
             m_queue.pop_back();
-            return true;
+            return result;
         } else {
             if (m_queue.empty()) {
-                return false;
+                return std::optional<T>();
             } else {
-                result = std::move(m_queue.back());
+                std::optional<T> result = std::move(m_queue.back());
                 m_queue.pop_back();
-                return true;
+                return result;
             }
         }
     }

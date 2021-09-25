@@ -7,7 +7,6 @@
 
 
 namespace voxel {
-namespace world {
 
 class Chunk;
 
@@ -25,7 +24,6 @@ public:
     void unlock();
 };
 
-} // world
 } // voxel
 
 #endif //VOXEL_ENGINE_CHUNK_LOCK_H

@@ -22,6 +22,14 @@ void TaskExecutor::await(const Task<void>& task) {
     cv->wait(lock);
 }
 
+BlockingQueue<std::function<void()>>& TaskExecutor::getQueue() {
+    return m_tasks;
+}
+
+void TaskExecutor::clearQueue() {
+    m_tasks.clear();
+}
+
 i32 TaskExecutor::getEstimatedRemainingTasks() {
     return m_tasks.getDeque().size();
 }

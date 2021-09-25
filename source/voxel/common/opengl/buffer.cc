@@ -32,7 +32,7 @@ GLuint Buffer::getHandle() {
     return m_handle;
 }
 
-GLuint Buffer::getAllocatedSize() {
+u32 Buffer::getAllocatedSize() {
     return m_allocated_size;
 }
 
@@ -40,7 +40,7 @@ bool Buffer::isValid() {
     return m_handle != 0;
 }
 
-void Buffer::setData(size_t size, void* data, GLuint access_type, bool unbind) {
+void Buffer::setData(u32 size, const void* data, GLuint access_type, bool unbind) {
     glBindBuffer(m_buffer_type, m_handle);
     glBufferData(m_buffer_type, size, data, access_type);
     if (unbind) {
@@ -49,7 +49,23 @@ void Buffer::setData(size_t size, void* data, GLuint access_type, bool unbind) {
     m_allocated_size = size;
 }
 
-void Buffer::preallocate(size_t size, GLuint access_type) {
+void Buffer::setDataSpan(u32 offset, u32 size, const void* data, bool unbind) {
+    glBindBuffer(m_buffer_type, m_handle);
+    glBufferSubData(m_buffer_type, offset, size, data);
+    if (unbind) {
+        glBindBuffer(m_buffer_type, 0);
+    }
+}
+
+void Buffer::getDataSpan(u32 offset, u32 size, void* data, bool unbind) {
+    glBindBuffer(m_buffer_type, m_handle);
+    glGetBufferSubData(m_buffer_type, offset, size, data);
+    if (unbind) {
+        glBindBuffer(m_buffer_type, 0);
+    }
+}
+
+void Buffer::preallocate(u32 size, GLuint access_type) {
     setData(size, nullptr, access_type);
 }
 

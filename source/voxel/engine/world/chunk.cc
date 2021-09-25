@@ -8,7 +8,6 @@
 
 
 namespace voxel {
-namespace world {
 
 Chunk::Chunk(ChunkPosition position) : m_position(position) {
     // initialize buffer size
@@ -235,5 +234,4 @@ void Chunk::unlock() {
     m_lock.unlock();
 }
 
-} // world
 } // voxel

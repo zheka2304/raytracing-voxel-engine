@@ -22,7 +22,8 @@ protected:
 
 public:
     TaskExecutor();
-
+    TaskExecutor(const TaskExecutor&) = delete;
+    TaskExecutor(TaskExecutor&&) = delete;
     virtual ~TaskExecutor();
 
     virtual void queue(const Task<void>& task) = 0;
@@ -44,6 +45,8 @@ public:
         return result->value();
     }
 
+    BlockingQueue<std::function<void()>>& getQueue();
+    void clearQueue();
     i32 getEstimatedRemainingTasks();
 };
 
