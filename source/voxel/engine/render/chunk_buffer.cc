@@ -28,10 +28,24 @@ void FetchedChunksList::runDataUpdate(i32 threshold) {
         }
         i++;
     }
+
+    beginIteration();
 }
 
 std::vector<ChunkPosition>& FetchedChunksList::getChunksToFetch() {
     return m_fetched_chunks;
+}
+
+void FetchedChunksList::beginIteration() {
+    m_fetched_chunks_iter = m_fetched_chunks.begin();
+}
+
+ChunkPosition FetchedChunksList::next() {
+    return *(m_fetched_chunks_iter++);
+}
+
+bool FetchedChunksList::hasNext() {
+    return m_fetched_chunks_iter != m_fetched_chunks.end();
 }
 
 
@@ -51,6 +65,7 @@ ChunkBuffer::ChunkBuffer(i32 page_count, math::Vec3i map_buffer_dimensions) :
     m_data_shader_buffer.preallocate(m_data_buffer_size * sizeof(u32), GL_DYNAMIC_DRAW);
     m_map_shader_buffer.preallocate(m_map_buffer_size * sizeof(u32), GL_DYNAMIC_DRAW);
     m_fetch_shader_buffer.preallocate(m_fetch_buffer_size * sizeof(u32), GL_DYNAMIC_DRAW);
+    m_fetch_shader_buffer.clear(GL_R32UI, GL_RED, GL_UNSIGNED_INT);
 }
 
 ChunkBuffer::~ChunkBuffer() {

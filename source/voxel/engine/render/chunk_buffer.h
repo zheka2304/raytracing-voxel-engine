@@ -26,6 +26,7 @@ class FetchedChunksList {
 
     std::vector<u32> m_raw_data;
     std::vector<ChunkPosition> m_fetched_chunks;
+    std::vector<ChunkPosition>::iterator m_fetched_chunks_iter = m_fetched_chunks.begin();
 
 public:
     FetchedChunksList() = default;
@@ -34,6 +35,10 @@ public:
 
     void runDataUpdate(i32 threshold);
     std::vector<ChunkPosition>& getChunksToFetch();
+
+    void beginIteration();
+    bool hasNext();
+    ChunkPosition next();
 
     friend ChunkBuffer;
 };

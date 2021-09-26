@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <condition_variable>
+#include <unordered_set>
 
 
 namespace voxel {
@@ -30,9 +31,9 @@ public:
     T pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_condition.wait(lock, [=] { return !m_queue.empty(); });
-        T rc(std::move(m_queue.back()));
+        T result(std::move(m_queue.back()));
         m_queue.pop_back();
-        return rc;
+        return result;
     }
 
     std::optional<T> tryPop(bool block = false) {
@@ -64,6 +65,78 @@ public:
     void clear() {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_queue.clear();
+    }
+
+    std::deque<T>& getDeque() {
+        return m_queue;
+    }
+
+    std::mutex& getMutex() {
+        return m_mutex;
+    }
+};
+
+
+template<typename T>
+class UniqueBlockingQueue {
+    std::deque<T> m_queue;
+    std::unordered_set<T> m_item_set;
+
+    std::mutex m_mutex;
+    std::condition_variable m_condition;
+    std::atomic<bool> m_released = false;
+
+public:
+    void push(T const& value) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (m_item_set.find(value) == m_item_set.end()) {
+            m_queue.push_front(value);
+            m_item_set.insert(value);
+            m_condition.notify_one();
+        }
+    }
+
+    T pop() {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_condition.wait(lock, [=] { return !m_queue.empty(); });
+        T result(std::move(m_queue.back()));
+        m_queue.pop_back();
+        m_item_set.erase(result);
+        return result;
+    }
+
+    std::optional<T> tryPop(bool block = false) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (block) {
+            m_condition.wait(lock, [=] { return m_released || !m_queue.empty(); });
+            if (m_released) {
+                return std::optional<T>();
+            }
+            std::optional<T> result = std::move(m_queue.back());
+            m_queue.pop_back();
+            m_item_set.erase(result.value());
+            return result;
+        } else {
+            if (m_queue.empty()) {
+                return std::optional<T>();
+            } else {
+                std::optional<T> result = std::move(m_queue.back());
+                m_queue.pop_back();
+                m_item_set.erase(result.value());
+                return result;
+            }
+        }
+    }
+
+    void release() {
+        m_released = true;
+        m_condition.notify_all();
+    }
+
+    void clear() {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_queue.clear();
+        m_item_set.clear();
     }
 
     std::deque<T>& getDeque() {

@@ -10,6 +10,11 @@
 #include "voxel/common/utils/time.h"
 #include "voxel/engine/file/vox_file_format.h"
 #include "voxel/engine/file/riff_file_format.h"
+#include "voxel/engine/world/chunk_provider.h"
+#include "voxel/engine/world/chunk_storage.h"
+#include "voxel/engine/world/chunk_source.h"
+#include "voxel/engine/world/world_renderer.h"
+#include "voxel/engine/world.h"
 
 
 u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
@@ -21,6 +26,66 @@ u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
     return (u32((yaw + M_PI) / (M_PI * 2) * 63.0) |
             (u32((pitch / M_PI + 0.5) * 31.0) << 6) |
             (u32(weight * 15.0) << 11)) << bit_offset;
+}
+
+namespace voxel {
+class DebugChunkProvider : public ChunkProvider {
+    VoxelModel m_model;
+
+public:
+    DebugChunkProvider(const VoxelModel& model) : m_model(model) {
+
+    }
+
+    bool canFetchChunk(ChunkSource& chunk_source, ChunkPosition position) override {
+        return position.y == 0 && ((position.x + position.z) & 1);
+    }
+
+    Shared<Chunk> createChunk(ChunkSource &chunk_source, ChunkPosition position) override {
+        return CreateShared<Chunk>(position);
+    }
+
+    bool buildChunk(ChunkSource &chunk_source, Shared<Chunk> chunk) override {
+//        for (u32 x = 0; x < 64; x++) {
+//            for (u32 z = 0; z < 64; z++) {
+//                for (u32 y = 0; y < 64; y ++) {
+//                    int dx = int(x) - 32;
+//                    int dy = int(y) - 32;
+//                    int dz = int(z) - 32;
+//                    if (dx * dx + dy * dy + dz * dz < 32 * 32) {
+//                        chunk->setVoxel({6, x, y, z}, { (31 << 25) | 0x00FFFF, getNormalBits(dx, dy, dz, 0.5) });
+//                    }
+//                }
+//            }
+//        }
+//        chunk->setVoxel({1, 0, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
+//        chunk->setVoxel({1, 0, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
+//        chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
+//        chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
+
+        auto size = m_model.getSize();
+        for (unsigned int x = 0; x < size.x; x++) {
+            for (unsigned int y = 0; y < size.y; y++) {
+                for (unsigned int z = 0; z < size.z; z++) {
+                    voxel::Voxel voxel = m_model.getVoxel(x, y, z);
+                    voxel.material = 0;
+                    if (voxel.color != 0) {
+                        voxel.color |= (31 << 25);
+                        chunk->setVoxel({7, x, y, z}, voxel);
+                    }
+                }
+            }
+        }
+
+        for (unsigned int x = 0; x < 128; x++) {
+            for (unsigned int z = 0; z < 128; z++) {
+                chunk->setVoxel({7, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
+            }
+        }
+
+        return true;
+    }
+};
 }
 
 int main() {
@@ -35,6 +100,16 @@ int main() {
     engine->initialize();
     auto context = engine->newContext("ctx1");
     context->initWindow({900, 900, "test", {}});
+
+    voxel::Shared<voxel::threading::TaskExecutor> background_executor = voxel::CreateShared<voxel::threading::ThreadPool>(1);
+    voxel::Shared<voxel::ChunkProvider> chunk_provider = voxel::CreateShared<voxel::DebugChunkProvider>(*model);
+    voxel::Shared<voxel::ChunkStorage> chunk_storage = voxel::CreateShared<voxel::ChunkStorage>();
+    voxel::Shared<voxel::World> world = voxel::CreateShared<voxel::World>(
+            voxel::threading::TickingThread::TicksPerSecond(20),
+            chunk_provider, chunk_storage,
+            background_executor);
+
+    world->setTicking(true);
 
     static voxel::render::Camera* camera = nullptr;
     static voxel::input::SimpleInput* simple_input = nullptr;
@@ -63,71 +138,21 @@ int main() {
         simple_input->update(*camera);
     });
 
-    context->setFrameHandleCallback([model, context] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
+    context->setFrameHandleCallback([model, world, context] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         static voxel::opengl::FullScreenQuad* quad = nullptr;
         if (!quad) {
             quad = new voxel::opengl::FullScreenQuad();
         }
 
         static voxel::render::RenderTarget* render_target = nullptr;
-        static voxel::render::ChunkBuffer* chunk_buffer = nullptr;
+        static voxel::WorldRenderer* world_renderer = nullptr;
         if (!render_target) {
             render_target = new voxel::render::RenderTarget(900, 900);
+            world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(2048, voxel::math::Vec3i(20, 20, 20)), voxel::WorldRendererSettings());
 
-            auto chunk = voxel::CreateShared<voxel::Chunk>(voxel::ChunkPosition({ 0, 0, 0 }));
-//            for (u32 x = 0; x < 64; x++) {
-//                for (u32 z = 0; z < 64; z++) {
-//                    for (u32 y = 0; y < 64; y ++) {
-//                        int dx = int(x) - 32;
-//                        int dy = int(y) - 32;
-//                        int dz = int(z) - 32;
-//                        if (dx * dx + dy * dy + dz * dz < 32 * 32) {
-//                            chunk->setVoxel({6, x, y, z}, { (31 << 25) | 0x00FFFF, getNormalBits(dx, dy, dz, 0.5) });
-//                        }
-//                    }
-//                }
-//            }
-//            chunk->setVoxel({1, 0, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
-//            chunk->setVoxel({1, 0, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
-//            chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
-//            chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
-
-            auto size = model->getSize();
-            for (unsigned int x = 0; x < size.x; x++) {
-                for (unsigned int y = 0; y < size.y; y++) {
-                    for (unsigned int z = 0; z < size.z; z++) {
-                        voxel::Voxel voxel = model->getVoxel(x, y, z);
-                        voxel.material = 0;
-                        if (voxel.color != 0) {
-                            voxel.color |= (31 << 25);
-                            chunk->setVoxel({7, x, y, z}, voxel);
-                        }
-                    }
-                }
-            }
-
-            for (unsigned int x = 0; x < 128; x++) {
-                for (unsigned int z = 0; z < 128; z++) {
-                    chunk->setVoxel({7, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
-                }
-            }
-
-            if (!chunk_buffer) {
-                chunk_buffer = new voxel::render::ChunkBuffer(256, voxel::math::Vec3i(50, 50, 50));
-            }
-
-            chunk_buffer->uploadChunk(chunk);
-            chunk_buffer->rebuildChunkMap(voxel::math::Vec3i(0));
-//            auto buffer = new voxel::opengl::ShaderStorageBuffer("world.chunk_data_buffer");
-//            buffer->setData(chunk->getBufferSize() * 4, (void*) chunk->getBuffer(), GL_STATIC_DRAW);
-//            buffer->bind(render_context.getShaderManager());
         }
 
-        static voxel::render::FetchedChunksList fetched_chunks_list;
-        chunk_buffer->getFetchedChunks(fetched_chunks_list);
-        fetched_chunks_list.runDataUpdate(1024);
-        std::cout << fetched_chunks_list.getChunksToFetch().size() << "\n";
-        chunk_buffer->prepareAndBind(render_context);
+        world_renderer->render(render_context);
 
         camera->render(render_context, *render_target);
 

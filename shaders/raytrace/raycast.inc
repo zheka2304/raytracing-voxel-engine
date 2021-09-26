@@ -95,13 +95,12 @@ uint lookupVoxelChunk(ivec3 position, ivec3 map_offset, ivec3 map_size, bool req
     position -= map_offset;
     if (position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < map_size.x && position.y < map_size.y && position.z < map_size.z) {
         int index = position.x + map_size.x * (position.y + map_size.y * position.z);
-        if (true) {
+        if (request_fetch) {
             atomicAdd(u_voxel_fetch_map.data[index], 1u);
         }
         return uint(u_voxel_chunk_map.data[index + 6]);
     }
     return uint(-1);
-    // return position.x < 100 && position.y == 0 && position.z < 100 ? 1u : uint(-1);
 }
 
 struct RaycastResultSpan {

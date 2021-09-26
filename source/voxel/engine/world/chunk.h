@@ -28,6 +28,9 @@ enum ChunkState {
     // Chunk is in lazy state, it is not ticking or rendering, yet it is in memory and can quickly change to LOADED state
     CHUNK_LAZY,
 
+    //
+    CHUNK_STORING,
+
     // Chunk is waiting for unloading task to complete, such chunks cannot change state and can only be removed
     CHUNK_UNLOADING,
 

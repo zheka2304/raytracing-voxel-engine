@@ -14,7 +14,13 @@ namespace voxel {
 
 class ChunkStorage;
 class ChunkProvider;
+class ChunkSource;
 
+class ChunkSourceListener {
+public:
+    virtual void onChunkSourceTick(ChunkSource& chunk_source);
+    virtual void onChunkUpdated(ChunkSource& chunk_source, Shared<Chunk> chunk);
+};
 
 class ChunkSource {
 public:
@@ -35,6 +41,7 @@ private:
     Shared<threading::TaskExecutor> m_executor;
 
     ChunkSourceState m_state;
+    std::vector<ChunkSourceListener*> m_listeners;
 
     std::unordered_map<ChunkPosition, Shared<Chunk>> m_chunks;
     std::mutex m_chunks_mutex;
@@ -50,6 +57,8 @@ public:
 
     ChunkSourceState getState();
     void setState(ChunkSourceState state);
+    void addListener(ChunkSourceListener* listener);
+    void removeListener(ChunkSourceListener* listener);
 
     void onTick();
     Shared<Chunk> getChunkAt(ChunkPosition position);
@@ -57,7 +66,7 @@ public:
 
 private:
     void handleChunk(Shared<Chunk> chunk);
-    void handleChunkStateTask(Shared<Chunk> chunk);
+    void handleChangingChunkStateTask(Shared<Chunk> chunk);
     void handleLoadedChunk(Shared<Chunk> chunk);
     void handleLazyChunk(Shared<Chunk> chunk);
 
@@ -66,6 +75,8 @@ private:
     void runChunkLoad(Shared<Chunk> chunk);
     void runChunkUnload(Shared<Chunk> chunk);
 
+    void fireEventTick();
+    void fireEventChunkUpdated(const Shared<Chunk>& chunk);
 };
 
 } // voxel

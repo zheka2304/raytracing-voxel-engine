@@ -8,9 +8,9 @@
 namespace voxel {
 
 class World {
-    ChunkSource m_chunk_source;
-    threading::TickingThread m_ticking_thread;
+    Shared<ChunkSource> m_chunk_source;
     Shared<threading::TaskExecutor> m_background_executor;
+    threading::TickingThread m_ticking_thread;
 
 public:
     World(const threading::TickingThread::Scheduler& tick_scheduler,
@@ -21,8 +21,9 @@ public:
     World(World&&) = delete;
     ~World();
 
-    ChunkSource& getChunkSource();
-    threading::TaskExecutor& getBackgroundExecutor();
+    void setTicking(bool ticking);
+    const Shared<ChunkSource>& getChunkSource() const;
+    const Shared<threading::TaskExecutor>& getBackgroundExecutor() const;
 
 protected:
     void onTick();
