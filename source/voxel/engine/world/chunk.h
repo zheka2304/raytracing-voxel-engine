@@ -69,6 +69,7 @@ public:
     ChunkState getState() const;
     void setState(ChunkState state);
     u64 getLastFetched() const;
+    u64 getTimeSinceLastFetch() const;
     void fetch();
 
     std::mutex& getLock();

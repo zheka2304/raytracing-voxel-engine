@@ -44,6 +44,7 @@ private:
     std::vector<ChunkSourceListener*> m_listeners;
 
     std::unordered_map<ChunkPosition, Shared<Chunk>> m_chunks;
+    threading::BlockingQueue<Weak<Chunk>> m_updates_queue;
     std::mutex m_chunks_mutex;
 
 public:
@@ -68,6 +69,9 @@ private:
     bool canAddTasks();
 
     void tryCreateNewChunk(ChunkPosition position);
+
+    void startUpdatingChunk(Shared<Chunk> chunk);
+    bool updateChunk(Shared<Chunk> chunk);
 
     // void handleChunk(Shared<Chunk> chunk);
     void handleChangingChunkStateTask(Shared<Chunk> chunk);

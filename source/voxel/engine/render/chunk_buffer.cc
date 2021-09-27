@@ -211,7 +211,7 @@ ChunkBuffer::ChunkUploadResult ChunkBuffer::uploadChunk(Shared<Chunk> chunk) {
     }
     lock.unlock();
 
-    std::cout << "uploading chunk to " << buffer_offset << ":" << buffer_offset + chunk->getBufferSize() << '\n';
+    std::cout << "uploading chunk to " << buffer_offset << ":" << buffer_offset + required_pages << '\n';
 
     if (buffer_offset != -1) {
         // copy chunk buffer to shader buffer
@@ -241,6 +241,9 @@ void ChunkBuffer::removeChunk(Shared<Chunk> chunk) {
         for (i32 i = span.first; i < span.second; i++) {
             m_chunk_by_page[i] = 0;
         }
+
+        std::cout << "deallocating chunk " << span.first << ":" << span.second << " map_index=" << map_index << "\n";
+        m_pages_by_chunk.erase(found);
     }
 }
 

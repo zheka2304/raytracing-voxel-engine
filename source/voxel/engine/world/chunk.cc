@@ -57,6 +57,10 @@ u64 Chunk::getLastFetched() const {
     return m_last_fetched;
 }
 
+u64 Chunk::getTimeSinceLastFetch() const {
+    return utils::getTimestampMillis() - m_last_fetched;
+}
+
 void Chunk::fetch() {
     m_last_fetched = utils::getTimestampMillis();
 }

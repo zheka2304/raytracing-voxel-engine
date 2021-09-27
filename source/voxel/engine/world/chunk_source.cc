@@ -69,6 +69,27 @@ void ChunkSource::tryCreateNewChunk(ChunkPosition position) {
     }
 }
 
+void ChunkSource::startUpdatingChunk(Shared<Chunk> chunk) {
+    m_updates_queue.push(Weak<Chunk>(chunk));
+}
+
+bool ChunkSource::updateChunk(Shared<Chunk> chunk) {
+    bool continue_updating = true;
+    if (chunk->tryLock()) {
+        if (chunk->getState() == CHUNK_LOADED) {
+            if (chunk->getTimeSinceLastFetch() > 5000) {
+                chunk->setState(CHUNK_LAZY);
+                fireEventChunkUpdated(chunk);
+            }
+        } else if (chunk->getState() == CHUNK_LAZY) {
+        } else {
+            continue_updating = false;
+        }
+        chunk->unlock();
+    }
+    return continue_updating;
+}
+
 /*
 void ChunkSource::handleChunk(Shared<Chunk> chunk) {
     ChunkState state = chunk->getState();
@@ -105,7 +126,10 @@ void ChunkSource::handleLazyChunk(Shared<Chunk> chunk) {
     if (m_state == STATE_UNLOADED) {
         chunk->setState(CHUNK_STORING);
     } else {
-        //
+        if (chunk->getTimeSinceLastFetch() < 1000) {
+            chunk->setState(CHUNK_LOADED);
+            fireEventChunkUpdated(chunk);
+        }
     }
 }
 
@@ -149,6 +173,7 @@ void ChunkSource::runChunkProcessing(Shared<Chunk> chunk) {
 
 void ChunkSource::runChunkLoad(Shared<Chunk> chunk) {
     chunk->setState(CHUNK_LOADED);
+    startUpdatingChunk(chunk);
     fireEventChunkUpdated(chunk);
 }
 
@@ -163,6 +188,16 @@ void ChunkSource::runChunkUnload(Shared<Chunk> chunk) {
 
 
 void ChunkSource::onTick() {
+    i32 updates_count = std::min(8, i32(m_updates_queue.getDeque().size()));
+    for (i32 i = 0; i < updates_count; i++) {
+        auto popped = m_updates_queue.tryPop();
+        if (popped.has_value()) {
+            Shared<Chunk> chunk = popped->lock();
+            if (chunk && updateChunk(chunk)) {
+                m_updates_queue.push(popped.value());
+            }
+        }
+    }
     fireEventTick();
 }
 
