@@ -13,8 +13,12 @@ void WorkerThread::run() {
     }
 }
 
-void WorkerThread::queue(std::function<void()> const& task) {
-    m_tasks.push(task);
+void WorkerThread::queue(const std::function<void()>& task, bool immediate) {
+    immediate ? m_tasks.shift(task) : m_tasks.push(task);
+}
+
+i32 WorkerThread::getProcessingThreadCount() {
+    return 1;
 }
 
 WorkerThread::~WorkerThread() {

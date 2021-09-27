@@ -30,6 +30,10 @@ void TaskExecutor::clearQueue() {
     m_tasks.clear();
 }
 
+i32 TaskExecutor::getProcessingThreadCount() {
+    return 0;
+}
+
 i32 TaskExecutor::getEstimatedRemainingTasks() {
     return m_tasks.getDeque().size();
 }

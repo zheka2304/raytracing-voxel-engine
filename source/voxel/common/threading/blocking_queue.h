@@ -22,9 +22,15 @@ private:
     std::atomic<bool> m_released = false;
 
 public:
-    void push(T const& value) {
+    void push(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_queue.push_front(value);
+        m_condition.notify_one();
+    }
+
+    void shift(const T& value) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_queue.push_back(value);
         m_condition.notify_one();
     }
 
@@ -87,10 +93,19 @@ class UniqueBlockingQueue {
     std::atomic<bool> m_released = false;
 
 public:
-    void push(T const& value) {
+    void push(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
         if (m_item_set.find(value) == m_item_set.end()) {
             m_queue.push_front(value);
+            m_item_set.insert(value);
+            m_condition.notify_one();
+        }
+    }
+
+    void shift(const T& value) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (m_item_set.find(value) == m_item_set.end()) {
+            m_queue.push_back(value);
             m_item_set.insert(value);
             m_condition.notify_one();
         }

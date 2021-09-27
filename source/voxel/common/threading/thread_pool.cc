@@ -27,8 +27,12 @@ void ThreadPool::run() {
     }
 }
 
-void ThreadPool::queue(const Task<void>& task) {
-    m_tasks.push(task);
+void ThreadPool::queue(const Task<void>& task, bool immediate) {
+    immediate ? m_tasks.shift(task) : m_tasks.push(task);
+}
+
+i32 ThreadPool::getProcessingThreadCount() {
+    return m_threads.size();
 }
 
 } // threading

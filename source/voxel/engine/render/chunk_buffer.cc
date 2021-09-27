@@ -11,7 +11,6 @@ namespace render {
 
 void FetchedChunksList::runDataUpdate(i32 threshold) {
     m_fetched_chunks.clear();
-    m_fetched_chunks.reserve(1024);
 
     ThreadLock lock(m_mutex);
     math::Vec3i offset = m_map_offset;
@@ -24,7 +23,7 @@ void FetchedChunksList::runDataUpdate(i32 threshold) {
             i32 x = index % size.x; index /= size.x;
             i32 y = index % size.y; index /= size.y;
             i32 z = index % size.z;
-            m_fetched_chunks.emplace_back(x + offset.x, y + offset.y, z + offset.z);
+            m_fetched_chunks.insert({ChunkPosition(x + offset.x, y + offset.y, z + offset.z), request_count});
         }
         i++;
     }
@@ -32,7 +31,7 @@ void FetchedChunksList::runDataUpdate(i32 threshold) {
     beginIteration();
 }
 
-std::vector<ChunkPosition>& FetchedChunksList::getChunksToFetch() {
+std::set<FetchedChunksList::ChunkPosAndWeight>& FetchedChunksList::getChunksToFetch() {
     return m_fetched_chunks;
 }
 
@@ -40,8 +39,12 @@ void FetchedChunksList::beginIteration() {
     m_fetched_chunks_iter = m_fetched_chunks.begin();
 }
 
+void FetchedChunksList::endIteration() {
+    m_fetched_chunks_iter = m_fetched_chunks.end();
+}
+
 ChunkPosition FetchedChunksList::next() {
-    return *(m_fetched_chunks_iter++);
+    return (m_fetched_chunks_iter++)->pos;
 }
 
 bool FetchedChunksList::hasNext() {

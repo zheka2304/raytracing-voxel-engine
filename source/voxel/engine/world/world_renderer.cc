@@ -59,7 +59,10 @@ void WorldRenderer::fetchRequestedChunks() {
         // fetch some chunks
         for (int i = 0; i < m_settings.chunk_fetches_per_tick && m_fetched_chunks_list.hasNext(); i++) {
             ChunkPosition chunk_to_fetch = m_fetched_chunks_list.next();
-            m_chunk_source->fetchChunkAt(chunk_to_fetch);
+            if (!m_chunk_source->fetchChunkAt(chunk_to_fetch)) {
+                m_fetched_chunks_list.endIteration();
+                break;
+            }
         }
 
         // if no more left - request update from the next frame
@@ -68,7 +71,7 @@ void WorldRenderer::fetchRequestedChunks() {
         }
     } else if (!m_request_fetched_chunks) {
         // if no chunks are remaining and request update was already fulfilled by a render thread, update list of chunks to fetch
-        m_fetched_chunks_list.runDataUpdate(1);
+        m_fetched_chunks_list.runDataUpdate(m_settings.fetch_ray_count_threshold);
 
         // if no chunks are fetched - request them
         if (m_fetched_chunks_list.getChunksToFetch().empty()) {

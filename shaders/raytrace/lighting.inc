@@ -104,7 +104,7 @@ float getShadowValueFromRay(Ray light_ray, RaycastResultSpan span) {
         }
     }
 
-    RaycastResult shadow_result = raycastVoxelWorld(light_ray, 10, 1, true);
+    RaycastResult shadow_result = raycastVoxelWorld(light_ray, /* max count */ 10, /* max spans */ 1, /* fetch weight */ 0);
     return shadow_result.count > 0 ? 0.0 : 1.0;
 }
 

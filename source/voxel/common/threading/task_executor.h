@@ -26,7 +26,7 @@ public:
     TaskExecutor(TaskExecutor&&) = delete;
     virtual ~TaskExecutor();
 
-    virtual void queue(const Task<void>& task) = 0;
+    virtual void queue(const Task<void>& task, bool immediate = false) = 0;
 
     void await(const Task<void>& task);
 
@@ -47,6 +47,8 @@ public:
 
     BlockingQueue<std::function<void()>>& getQueue();
     void clearQueue();
+
+    virtual i32 getProcessingThreadCount();
     i32 getEstimatedRemainingTasks();
 };
 

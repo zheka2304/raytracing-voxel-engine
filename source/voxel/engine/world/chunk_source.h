@@ -62,10 +62,14 @@ public:
 
     void onTick();
     Shared<Chunk> getChunkAt(ChunkPosition position);
-    void fetchChunkAt(ChunkPosition position);
+    bool fetchChunkAt(ChunkPosition position);
 
 private:
-    void handleChunk(Shared<Chunk> chunk);
+    bool canAddTasks();
+
+    void tryCreateNewChunk(ChunkPosition position);
+
+    // void handleChunk(Shared<Chunk> chunk);
     void handleChangingChunkStateTask(Shared<Chunk> chunk);
     void handleLoadedChunk(Shared<Chunk> chunk);
     void handleLazyChunk(Shared<Chunk> chunk);

@@ -50,7 +50,7 @@ void raytraceMainImage(
     // setup default packed normal value
     o_light.g = PACK_H2F(vec2(0.0));
 
-    RaycastResult result = raycastVoxelWorld(ray, 50, 6, true);
+    RaycastResult result = raycastVoxelWorld(ray, /* max count */ 50, /* max spans */ 6, /* fetch weight */ 50);
     for (int i = result.count - 1; i >= 0; i--) {
         RaycastResultSpan span = getRaycastResultSpan(result, i);
         vec3 span_start_position = getRaycastSpanStart(ray, span);

@@ -16,7 +16,7 @@ struct WorldRendererSettings {
     i32 chunk_updates_per_frame = 16;
 
     // Amount of rays, requiring chunk fetch for it to be fetched = amount of visible chunk pixels
-    i32 fetch_ray_count_threshold = 256;
+    i32 fetch_ray_count_threshold = 1;
 
     // Maximum count of chunks, fetched each tick
     i32 chunk_fetches_per_tick = 512;

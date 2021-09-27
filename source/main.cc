@@ -101,7 +101,7 @@ int main() {
     auto context = engine->newContext("ctx1");
     context->initWindow({900, 900, "test", {}});
 
-    voxel::Shared<voxel::threading::TaskExecutor> background_executor = voxel::CreateShared<voxel::threading::ThreadPool>(1);
+    voxel::Shared<voxel::threading::TaskExecutor> background_executor = voxel::CreateShared<voxel::threading::ThreadPool>(4);
     voxel::Shared<voxel::ChunkProvider> chunk_provider = voxel::CreateShared<voxel::DebugChunkProvider>(*model);
     voxel::Shared<voxel::ChunkStorage> chunk_storage = voxel::CreateShared<voxel::ChunkStorage>();
     voxel::Shared<voxel::World> world = voxel::CreateShared<voxel::World>(

@@ -19,7 +19,8 @@ public:
     ThreadPool(i32 thread_count);
     ~ThreadPool() override;
 
-    void queue(const Task<void> &task) override;
+    void queue(const Task<void> &task, bool immediate = false) override;
+    i32 getProcessingThreadCount() override;
 };
 
 } // threading

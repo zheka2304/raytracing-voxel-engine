@@ -46,6 +46,30 @@ void ChunkSource::removeListener(ChunkSourceListener* listener) {
     }
 }
 
+void ChunkSource::tryCreateNewChunk(ChunkPosition position) {
+    {
+        ThreadLock lock(m_chunks_mutex);
+        if (m_chunks.find(position) != m_chunks.end()) {
+            return;
+        }
+    }
+
+    Shared<Chunk> chunk = m_provider->createChunk(*this, position);
+    if (!chunk) {
+        return;
+    }
+    chunk->setState(CHUNK_PENDING);
+
+    {
+        ThreadLock lock(m_chunks_mutex);
+        if (m_chunks.find(position) == m_chunks.end()) {
+            chunk->fetch();
+            m_chunks.emplace(position, chunk);
+        }
+    }
+}
+
+/*
 void ChunkSource::handleChunk(Shared<Chunk> chunk) {
     ChunkState state = chunk->getState();
     if (state == CHUNK_LOADED) {
@@ -61,9 +85,9 @@ void ChunkSource::handleChunk(Shared<Chunk> chunk) {
                 handleChangingChunkStateTask(chunk);
                 chunk->unlock();
             }
-        });
+        }, true);
     }
-}
+} */
 
 void ChunkSource::handleLoadedChunk(Shared<Chunk> chunk) {
     if (m_state == STATE_UNLOADED) {
@@ -104,6 +128,8 @@ void ChunkSource::handleChangingChunkStateTask(Shared<Chunk> chunk) {
         } else {
             chunk->setState(CHUNK_LAZY);
         }
+    } else if (state == CHUNK_LAZY) {
+        handleLazyChunk(chunk);
     } else if (state == CHUNK_UNLOADING) {
         runChunkUnload(chunk);
     }
@@ -135,18 +161,8 @@ void ChunkSource::runChunkUnload(Shared<Chunk> chunk) {
     chunk->setState(CHUNK_FINALIZED);
 }
 
-void ChunkSource::onTick() {
-    if (m_executor->getEstimatedRemainingTasks() < m_chunks.size()) {
-        ThreadLock lock(m_chunks_mutex);
-        for (auto& p : m_chunks) {
-            Shared<Chunk> chunk = p.second;
-            if (chunk->tryLock()) {
-                handleChunk(chunk);
-                chunk->unlock();
-            }
-        }
-    }
 
+void ChunkSource::onTick() {
     fireEventTick();
 }
 
@@ -160,37 +176,35 @@ Shared<Chunk> ChunkSource::getChunkAt(ChunkPosition position) {
     }
 }
 
-void ChunkSource::fetchChunkAt(ChunkPosition position) {
+bool ChunkSource::fetchChunkAt(ChunkPosition position) {
     Shared<Chunk> chunk = getChunkAt(position);
     if (chunk) {
         chunk->fetch();
-    } else if (m_executor->getEstimatedRemainingTasks() < m_chunks.size() + 8) {
-        if (m_provider->canFetchChunk(*this, position)) {
+        auto chunk_state = chunk->getState();
+        if (chunk_state == CHUNK_LOADED) {
+            return true;
+        } else if (canAddTasks()) {
             m_executor->queue([=] () -> void {
-                // check, if chunk was already created
-                {
-                    ThreadLock lock(m_chunks_mutex);
-                    if (m_chunks.find(position) != m_chunks.end()) {
-                        return;
-                    }
-                }
-
-                Shared<Chunk> chunk = m_provider->createChunk(*this, position);
-                if (!chunk) {
-                    return;
-                }
-                chunk->setState(CHUNK_PENDING);
-
-                {
-                    ThreadLock lock(m_chunks_mutex);
-                    if (m_chunks.find(position) == m_chunks.end()) {
-                        chunk->fetch();
-                        m_chunks.emplace(position, chunk);
-                    }
+                if (chunk->tryLock()) {
+                    handleChangingChunkStateTask(chunk);
+                    chunk->unlock();
                 }
             });
+            return true;
         }
+    } else if (canAddTasks()) {
+        if (m_provider->canFetchChunk(*this, position)) {
+            m_executor->queue([=] () -> void {
+                tryCreateNewChunk(position);
+            });
+        }
+        return true;
     }
+    return false;
+}
+
+bool ChunkSource::canAddTasks() {
+    return m_executor->getProcessingThreadCount() > m_executor->getEstimatedRemainingTasks();
 }
 
 void ChunkSource::fireEventTick() {

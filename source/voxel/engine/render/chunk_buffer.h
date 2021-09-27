@@ -1,6 +1,8 @@
 #ifndef VOXEL_ENGINE_CHUNK_BUFFER_H
 #define VOXEL_ENGINE_CHUNK_BUFFER_H
 
+#include <set>
+
 #include "voxel/common/base.h"
 #include "voxel/common/opengl.h"
 #include "voxel/common/define.h"
@@ -19,14 +21,27 @@ namespace render {
 class ChunkBuffer;
 
 class FetchedChunksList {
+public:
+    struct ChunkPosAndWeight {
+        ChunkPosition pos;
+        u32 weight;
+
+        inline bool operator<(const ChunkPosAndWeight& other) const {
+            // invert, so bigger ones go first
+            return weight > other.weight;
+        }
+    };
+
+private:
+
     std::mutex m_mutex;
 
     math::Vec3i m_map_offset;
     math::Vec3i m_map_dimensions;
 
     std::vector<u32> m_raw_data;
-    std::vector<ChunkPosition> m_fetched_chunks;
-    std::vector<ChunkPosition>::iterator m_fetched_chunks_iter = m_fetched_chunks.begin();
+    std::set<ChunkPosAndWeight> m_fetched_chunks;
+    std::set<ChunkPosAndWeight>::iterator m_fetched_chunks_iter = m_fetched_chunks.begin();
 
 public:
     FetchedChunksList() = default;
@@ -34,9 +49,10 @@ public:
     ~FetchedChunksList() = default;
 
     void runDataUpdate(i32 threshold);
-    std::vector<ChunkPosition>& getChunksToFetch();
+    std::set<ChunkPosAndWeight>& getChunksToFetch();
 
     void beginIteration();
+    void endIteration();
     bool hasNext();
     ChunkPosition next();
 

@@ -24,7 +24,8 @@ public:
 
     ~WorkerThread() override;
 
-    void queue(const std::function<void()>& task) override;
+    void queue(const std::function<void()>& task, bool immediate = false) override;
+    i32 getProcessingThreadCount() override;
 };
 
 } // threading
