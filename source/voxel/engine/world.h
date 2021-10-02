@@ -9,13 +9,11 @@ namespace voxel {
 
 class World {
     Shared<ChunkSource> m_chunk_source;
-    Shared<threading::TaskExecutor> m_background_executor;
     threading::TickingThread m_ticking_thread;
 
 public:
     World(Shared<ChunkProvider> chunk_provider,
           Shared<ChunkStorage> chunk_storage,
-          Shared<threading::TaskExecutor> background_executor,
           const threading::TickingThread::Scheduler& tick_scheduler,
           ChunkSource::Settings chunk_source_settings);
     World(const World&) = delete;
@@ -24,7 +22,6 @@ public:
 
     void setTicking(bool ticking);
     const Shared<ChunkSource>& getChunkSource() const;
-    const Shared<threading::TaskExecutor>& getBackgroundExecutor() const;
 
 protected:
     void onTick();

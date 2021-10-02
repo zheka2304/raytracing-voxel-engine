@@ -37,11 +37,13 @@ i32 ChunkSource::LoadingRegion::getMaxSize() {
 ChunkSource::ChunkSource(
         Shared<ChunkProvider> provider,
         Shared<ChunkStorage> storage,
-        Shared<threading::TaskExecutor> executor,
         Settings settings,
         ChunkSourceState initial_state) :
-        m_provider(provider), m_storage(storage), m_executor(executor), m_settings(settings), m_state(initial_state),
-        m_chunk_task_executor([this] () -> ChunkTask { return m_chunk_task_queue.pop(); }, [this] (ChunkTask task) -> void { runChunkTask(task); }, 4){
+        m_provider(provider), m_storage(storage), m_settings(settings), m_state(initial_state),
+        m_chunk_task_executor(
+                [this] () -> ChunkTask { return m_chunk_task_queue.pop(); },
+                [this] (ChunkTask task) -> void { runChunkTask(task); },
+                m_settings.worker_threads) {
 }
 
 ChunkSource::~ChunkSource() {

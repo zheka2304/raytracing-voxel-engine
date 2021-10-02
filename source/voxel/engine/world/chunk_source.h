@@ -37,6 +37,9 @@ public:
     };
 
     struct Settings {
+        // amount of chunk worker threads
+        i32 worker_threads = 4;
+
         // max loaded chunks updates per tick per tick
         i32 loaded_chunk_updates = 64;
 
@@ -85,7 +88,6 @@ private:
 
     Shared<ChunkProvider> m_provider;
     Shared<ChunkStorage> m_storage;
-    Shared<threading::TaskExecutor> m_executor;
 
     ChunkSourceState m_state;
     std::vector<ChunkSourceListener*> m_listeners;
@@ -105,7 +107,6 @@ private:
 public:
     ChunkSource(Shared<ChunkProvider> provider,
                 Shared<ChunkStorage> storage,
-                Shared<threading::TaskExecutor> executor,
                 Settings settings,
                 ChunkSourceState initial_state = STATE_LOADED);
     ChunkSource(const ChunkSource&) = delete;
@@ -126,6 +127,7 @@ public:
     f32 getMinDistanceToLoadingRegion(ChunkPosition position, bool relative);
 
     void setGpuMemoryRatio(f32 ratio);
+
 private:
     void runChunkTask(ChunkTask task);
 

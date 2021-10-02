@@ -4,13 +4,11 @@ namespace voxel {
 
 World::World(Shared<ChunkProvider> chunk_provider,
              Shared<ChunkStorage> chunk_storage,
-             Shared<threading::TaskExecutor> background_executor,
              const threading::TickingThread::Scheduler& tick_scheduler,
              ChunkSource::Settings chunk_source_settings) :
 
-             m_chunk_source(CreateShared<ChunkSource>(chunk_provider, chunk_storage, background_executor, chunk_source_settings)),
-             m_ticking_thread(tick_scheduler, std::bind(&World::onTick, this)),
-             m_background_executor(background_executor) {
+             m_chunk_source(CreateShared<ChunkSource>(chunk_provider, chunk_storage, chunk_source_settings)),
+             m_ticking_thread(tick_scheduler, std::bind(&World::onTick, this)) {
 }
 
 World::~World() {
@@ -24,10 +22,6 @@ void World::setTicking(bool ticking) {
 
 const Shared<ChunkSource>& World::getChunkSource() const {
     return m_chunk_source;
-}
-
-const Shared<threading::TaskExecutor>& World::getBackgroundExecutor() const {
-    return m_background_executor;
 }
 
 void World::onTick() {
