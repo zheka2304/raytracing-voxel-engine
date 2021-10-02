@@ -13,22 +13,34 @@ namespace voxel {
 
 struct WorldRendererSettings {
     // Maximum count of chunks to be uploaded or removed each frame
-    i32 chunk_updates_per_frame = 16;
-
-    // Amount of rays, requiring chunk fetch for it to be fetched = amount of visible chunk pixels
-    i32 fetch_ray_count_threshold = 1;
+    i32 chunk_updates_per_tick = 8;
 
     // Maximum count of chunks, fetched each tick
-    i32 chunk_fetches_per_tick = 512;
+    i32 chunk_fetches_per_tick = 4096 * 4;
+
+    // distance from previous offset to rebuild chunk buffer map
+    i32 buffer_offset_update_distance = 4;
+
+    // distance from camera, at which chunks are not unloaded
+    i32 min_loading_distance = 5;
+
+    // distance from camera, at which chunks should not be loaded
+    i32 max_loading_distance = 40;
 };
 
 class WorldRenderer : public ChunkSourceListener {
     Shared<ChunkSource> m_chunk_source;
     Shared<render::ChunkBuffer> m_chunk_buffer;
 
+    math::Vec3f m_camera_position = math::Vec3f(0.0);
+    math::Vec3i m_chunk_map_offset_position = math::Vec3i(0);
+    std::atomic<bool> m_rebuild_chunk_map = false;
+    Shared<ChunkSource::LoadingRegion> m_camera_loading_region;
+
     WorldRendererSettings m_settings;
     render::FetchedChunksList m_fetched_chunks_list;
     std::atomic<bool> m_request_fetched_chunks = true;
+    i64 m_chunk_fetch_priority = 0;
 
     threading::UniqueBlockingQueue<Shared<Chunk>> m_chunk_updates;
 
@@ -39,6 +51,7 @@ public:
     ~WorldRenderer();
 
     void addChunkToUpdateQueue(Shared<Chunk> chunk);
+    void setCameraPosition(math::Vec3f camera_position);
     void render(render::RenderContext& render_context);
     void onTick();
 
@@ -47,6 +60,7 @@ private:
     void onChunkUpdated(ChunkSource &chunk_source, Shared<Chunk> chunk) override;
 
     void fetchRequestedChunks();
+    void runChunkUpdates();
 };
 
 } // voxel

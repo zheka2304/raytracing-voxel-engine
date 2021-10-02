@@ -46,7 +46,7 @@ private:
 
 private:
     ChunkPosition m_position;
-    ChunkState m_state = CHUNK_PENDING;
+    std::atomic<ChunkState> m_state = CHUNK_PENDING;
     std::mutex m_lock;
     std::atomic<u64> m_last_fetched;
 

@@ -1,12 +1,14 @@
 #ifndef VOXEL_ENGINE_BLOCKING_QUEUE_H
 #define VOXEL_ENGINE_BLOCKING_QUEUE_H
 
+#include <queue>
 #include <deque>
 #include <atomic>
 #include <mutex>
 #include <optional>
 #include <condition_variable>
 #include <unordered_set>
+#include "voxel/common/base.h"
 
 
 namespace voxel {
@@ -73,12 +75,39 @@ public:
         m_queue.clear();
     }
 
+    i32 getSize() {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_queue.size();
+    }
+
     std::deque<T>& getDeque() {
         return m_queue;
     }
 
     std::mutex& getMutex() {
         return m_mutex;
+    }
+};
+
+template<typename T>
+class PriorityQueue {
+    std::priority_queue<T> m_queue;
+    std::condition_variable m_condition;
+    std::mutex m_mutex;
+
+public:
+    void push(const T& value) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_queue.push(value);
+        m_condition.notify_one();
+    }
+
+    T pop() {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_condition.wait(lock, [=] { return !m_queue.empty(); });
+        T result(std::move(m_queue.top()));
+        m_queue.pop();
+        return result;
     }
 };
 

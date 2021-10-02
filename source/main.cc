@@ -28,17 +28,21 @@ u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
             (u32(weight * 15.0) << 11)) << bit_offset;
 }
 
+
+//thread_local i64 debug_time_start = 0;
+//thread_local i64 debug_time_generation = 0;
+
 namespace voxel {
 class DebugChunkProvider : public ChunkProvider {
     VoxelModel m_model;
+    std::atomic<i32> m_generated_count = 0;
 
 public:
     DebugChunkProvider(const VoxelModel& model) : m_model(model) {
-
     }
 
     bool canFetchChunk(ChunkSource& chunk_source, ChunkPosition position) override {
-        return position.y == 0 && ((position.x + position.z) & 1);
+        return position.y == 0; // && ((position.x + position.z) & 1);
     }
 
     Shared<Chunk> createChunk(ChunkSource &chunk_source, ChunkPosition position) override {
@@ -46,6 +50,13 @@ public:
     }
 
     bool buildChunk(ChunkSource &chunk_source, Shared<Chunk> chunk) override {
+        m_generated_count++;
+
+//        i64 time_start = voxel::utils::getTimestampMillis();
+//        if (debug_time_start == 0) {
+//            debug_time_start = time_start;
+//        }
+
 //        for (u32 x = 0; x < 64; x++) {
 //            for (u32 z = 0; z < 64; z++) {
 //                for (u32 y = 0; y < 64; y ++) {
@@ -63,25 +74,31 @@ public:
 //        chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
 //        chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
 
-        auto size = m_model.getSize();
-        for (unsigned int x = 0; x < size.x; x++) {
-            for (unsigned int y = 0; y < size.y; y++) {
-                for (unsigned int z = 0; z < size.z; z++) {
-                    voxel::Voxel voxel = m_model.getVoxel(x, y, z);
-                    voxel.material = 0;
-                    if (voxel.color != 0) {
-                        voxel.color |= (31 << 25);
-                        chunk->setVoxel({7, x, y, z}, voxel);
-                    }
-                }
+//        auto size = m_model.getSize();
+//        for (unsigned int x = 0; x < size.x; x++) {
+//            for (unsigned int y = 0; y < size.y; y++) {
+//                for (unsigned int z = 0; z < size.z; z++) {
+//                    voxel::Voxel voxel = m_model.getVoxel(x, y, z);
+//                    voxel.material = 0;
+//                    if (voxel.color != 0) {
+//                        voxel.color |= (31 << 25);
+//                        chunk->setVoxel({7, x, y, z}, voxel);
+//                    }
+//                }
+//            }
+//        }
+
+        for (unsigned int x = 0; x < 256; x++) {
+            for (unsigned int z = 0; z < 256; z++) {
+                // if ((x + z) & 1)
+                chunk->setVoxel({8, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
             }
         }
 
-        for (unsigned int x = 0; x < 128; x++) {
-            for (unsigned int z = 0; z < 128; z++) {
-                chunk->setVoxel({7, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
-            }
-        }
+//        i64 time_end = voxel::utils::getTimestampMillis();
+//        debug_time_generation += time_end - time_start;
+//        std::cout << "efficient time ratio: " << debug_time_generation / f32(time_end - debug_time_start) << "\n";
+
 
         return true;
     }
@@ -89,6 +106,8 @@ public:
 }
 
 int main() {
+
+
     voxel::format::VoxFileFormat file_format;
     std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
     auto models = file_format.read(istream);
@@ -105,9 +124,9 @@ int main() {
     voxel::Shared<voxel::ChunkProvider> chunk_provider = voxel::CreateShared<voxel::DebugChunkProvider>(*model);
     voxel::Shared<voxel::ChunkStorage> chunk_storage = voxel::CreateShared<voxel::ChunkStorage>();
     voxel::Shared<voxel::World> world = voxel::CreateShared<voxel::World>(
+            chunk_provider, chunk_storage, background_executor,
             voxel::threading::TickingThread::TicksPerSecond(20),
-            chunk_provider, chunk_storage,
-            background_executor);
+            voxel::ChunkSource::Settings());
 
     world->setTicking(true);
 
@@ -116,12 +135,12 @@ int main() {
 
     context->setInitCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         camera = new voxel::render::Camera();
-        camera->getProjection().m_position = voxel::math::Vec3f(0, 2, 0);
+        camera->getProjection().m_position = voxel::math::Vec3f(0, 10, 0);
 
         simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
         simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
         simple_input->setSensitivity(0.0025, 0.0025);
-        simple_input->setMovementSpeed(0.025f);
+        simple_input->setMovementSpeed(0.25f);
     });
 
     context->setWindowResizeCallback([] (voxel::Context& ctx, int w, int h) -> void {
@@ -148,10 +167,13 @@ int main() {
         static voxel::WorldRenderer* world_renderer = nullptr;
         if (!render_target) {
             render_target = new voxel::render::RenderTarget(900, 900);
-            world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(2048, voxel::math::Vec3i(20, 20, 20)), voxel::WorldRendererSettings());
+            world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(4096, 65536, voxel::math::Vec3i(50)), voxel::WorldRendererSettings());
 
         }
 
+        voxel::utils::Stopwatch stopwatch;
+
+        world_renderer->setCameraPosition(camera->getProjection().m_position);
         world_renderer->render(render_context);
 
         camera->render(render_context, *render_target);
@@ -162,19 +184,22 @@ int main() {
         render_target->getResultTexture().bind(0, uniform_texture_0);
         quad->render();
 
-        voxel::utils::Stopwatch stopwatch;
+        u64 render_time = stopwatch.stop();
         glFinish();
 
         static int frame_counter = 0;
         static long long last_frame_timestamp = voxel::utils::getTimestampMillis();
+        static u64 last_render_time_sum = 0; last_render_time_sum += render_time;
         const int frames_per_measure = 30;
         if (frame_counter % frames_per_measure == 0) {
             long long timestamp = voxel::utils::getTimestampMillis();
             std::stringstream ss;
             ss << "fps: " << int(float(frames_per_measure) / (timestamp - last_frame_timestamp) * 1000.0);
-            ss << " frame time: " <<  int((timestamp - last_frame_timestamp) / float(frames_per_measure)) << " ms";
+            ss << " frame time: " << int((timestamp - last_frame_timestamp) / float(frames_per_measure)) << " ms";
+            ss << " render time: " << int(last_render_time_sum / float(frames_per_measure) / 10000.0) / 100.0 << " ms";
             glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
             last_frame_timestamp = timestamp;
+            last_render_time_sum = 0;
         }
 
         frame_counter++;

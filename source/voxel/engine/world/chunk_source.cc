@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <functional>
+#include "voxel/common/utils/time.h"
 #include "voxel/engine/world/chunk_provider.h"
 #include "voxel/engine/world/chunk_storage.h"
 
@@ -12,15 +14,43 @@ void ChunkSourceListener::onChunkSourceTick(ChunkSource& chunk_source) {}
 void ChunkSourceListener::onChunkUpdated(ChunkSource& chunk_source, Shared<Chunk> chunk) {}
 
 
+ChunkSource::LoadingRegion::LoadingRegion(ChunkSource* chunk_source, math::Vec3i position, i32 min_size, i32 max_size) :
+        m_chunk_source(chunk_source), m_position(position), m_min_size(min_size), m_max_size(max_size) {
+}
+
+math::Vec3i ChunkSource::LoadingRegion::getPosition() {
+    return m_position;
+}
+
+void ChunkSource::LoadingRegion::setPosition(math::Vec3i position) {
+    m_position = position;
+}
+
+i32 ChunkSource::LoadingRegion::getMinSize() {
+    return m_min_size;
+}
+
+i32 ChunkSource::LoadingRegion::getMaxSize() {
+    return m_max_size;
+}
+
 ChunkSource::ChunkSource(
         Shared<ChunkProvider> provider,
         Shared<ChunkStorage> storage,
         Shared<threading::TaskExecutor> executor,
+        Settings settings,
         ChunkSourceState initial_state) :
-    m_provider(provider), m_storage(storage), m_executor(executor), m_state(initial_state) {
+        m_provider(provider), m_storage(storage), m_executor(executor), m_settings(settings), m_state(initial_state),
+        m_chunk_task_executor([this] () -> ChunkTask { return m_chunk_task_queue.pop(); }, [this] (ChunkTask task) -> void { runChunkTask(task); }, 4){
 }
 
 ChunkSource::~ChunkSource() {
+    {
+        ThreadLock lock(m_loaded_regions_mutex);
+        for (auto& region : m_loaded_regions) {
+            region->m_chunk_source = nullptr;
+        }
+    }
 }
 
 ChunkSource::ChunkSourceState ChunkSource::getState() {
@@ -31,6 +61,10 @@ void ChunkSource::setState(ChunkSourceState state) {
     if (state != m_state) {
         m_state = state;
     }
+}
+
+void ChunkSource::setGpuMemoryRatio(f32 ratio) {
+    m_gpu_memory_ratio = ratio;
 }
 
 void ChunkSource::addListener(ChunkSourceListener* listener) {
@@ -69,6 +103,12 @@ void ChunkSource::tryCreateNewChunk(ChunkPosition position) {
     }
 }
 
+void ChunkSource::tryLoadLazyChunk(Shared<Chunk> chunk) {
+    chunk->setState(CHUNK_LOADED);
+    chunk->fetch();
+    fireEventChunkUpdated(chunk);
+}
+
 void ChunkSource::startUpdatingChunk(Shared<Chunk> chunk) {
     m_updates_queue.push(Weak<Chunk>(chunk));
 }
@@ -77,7 +117,8 @@ bool ChunkSource::updateChunk(Shared<Chunk> chunk) {
     bool continue_updating = true;
     if (chunk->tryLock()) {
         if (chunk->getState() == CHUNK_LOADED) {
-            if (chunk->getTimeSinceLastFetch() > 5000) {
+            f32 distance_to_loading_region = getMinDistanceToLoadingRegion(chunk->getPosition(), true);
+            if (chunk->getTimeSinceLastFetch() > 2000 && distance_to_loading_region < 0.0) {
                 chunk->setState(CHUNK_LAZY);
                 fireEventChunkUpdated(chunk);
             }
@@ -90,45 +131,12 @@ bool ChunkSource::updateChunk(Shared<Chunk> chunk) {
     return continue_updating;
 }
 
-/*
-void ChunkSource::handleChunk(Shared<Chunk> chunk) {
-    ChunkState state = chunk->getState();
-    if (state == CHUNK_LOADED) {
-        // chunk is loaded and should be checked to put into lazy state
-        handleLoadedChunk(chunk);
-    } else if (state == CHUNK_LAZY) {
-        // chunk is in lazy state, it can be instantly changed to loaded or start unloading sequence
-        handleLazyChunk(chunk);
-    } else if (state != CHUNK_FINALIZED) {
-        // chunk is in some of loading states and must execute next loading task
-        m_executor->queue([=] () -> void {
-            if (chunk->tryLock()) {
-                handleChangingChunkStateTask(chunk);
-                chunk->unlock();
-            }
-        }, true);
-    }
-} */
-
-void ChunkSource::handleLoadedChunk(Shared<Chunk> chunk) {
-    if (m_state == STATE_UNLOADED) {
-        chunk->setState(CHUNK_STORING);
-        fireEventChunkUpdated(chunk);
-    } else if (m_state == STATE_LAZY) {
-        chunk->setState(CHUNK_LAZY);
-        fireEventChunkUpdated(chunk);
-    } else {
-        //
-    }
-}
-
 void ChunkSource::handleLazyChunk(Shared<Chunk> chunk) {
     if (m_state == STATE_UNLOADED) {
         chunk->setState(CHUNK_STORING);
     } else {
         if (chunk->getTimeSinceLastFetch() < 1000) {
-            chunk->setState(CHUNK_LOADED);
-            fireEventChunkUpdated(chunk);
+            tryLoadLazyChunk(chunk);
         }
     }
 }
@@ -173,6 +181,7 @@ void ChunkSource::runChunkProcessing(Shared<Chunk> chunk) {
 
 void ChunkSource::runChunkLoad(Shared<Chunk> chunk) {
     chunk->setState(CHUNK_LOADED);
+    chunk->fetch();
     startUpdatingChunk(chunk);
     fireEventChunkUpdated(chunk);
 }
@@ -188,7 +197,8 @@ void ChunkSource::runChunkUnload(Shared<Chunk> chunk) {
 
 
 void ChunkSource::onTick() {
-    i32 updates_count = std::min(8, i32(m_updates_queue.getDeque().size()));
+    // TODO: bring back
+    /* i32 updates_count = std::min(m_settings.loaded_chunk_updates, i32(m_updates_queue.getDeque().size()));
     for (i32 i = 0; i < updates_count; i++) {
         auto popped = m_updates_queue.tryPop();
         if (popped.has_value()) {
@@ -197,8 +207,32 @@ void ChunkSource::onTick() {
                 m_updates_queue.push(popped.value());
             }
         }
-    }
+    } */
     fireEventTick();
+}
+
+void ChunkSource::runChunkTask(ChunkTask task) {
+    switch (task.type) {
+        case TASK_CREATE: {
+            tryCreateNewChunk(task.position);
+            break;
+        }
+        case TASK_LOAD: {
+            Shared<Chunk> chunk = getChunkAt(task.position);
+            ChunkState state = chunk->getState();
+            if (state == CHUNK_LOADED) {
+            } else if (state == CHUNK_LAZY) {
+                tryLoadLazyChunk(chunk);
+            } else {
+                if (chunk->tryLock()) {
+                    handleChangingChunkStateTask(chunk);
+                    chunk->unlock();
+                }
+            }
+            break;
+        }
+    }
+
 }
 
 Shared<Chunk> ChunkSource::getChunkAt(ChunkPosition position) {
@@ -211,35 +245,57 @@ Shared<Chunk> ChunkSource::getChunkAt(ChunkPosition position) {
     }
 }
 
-bool ChunkSource::fetchChunkAt(ChunkPosition position) {
+Shared<Chunk> ChunkSource::fetchChunkAt(ChunkPosition position, i64 priority) {
     Shared<Chunk> chunk = getChunkAt(position);
     if (chunk) {
         chunk->fetch();
         auto chunk_state = chunk->getState();
         if (chunk_state == CHUNK_LOADED) {
-            return true;
-        } else if (canAddTasks()) {
-            m_executor->queue([=] () -> void {
-                if (chunk->tryLock()) {
-                    handleChangingChunkStateTask(chunk);
-                    chunk->unlock();
-                }
-            });
-            return true;
+        } else if (chunk_state == CHUNK_LAZY) {
+            tryLoadLazyChunk(chunk);
+        } else {
+            m_chunk_task_queue.push({ position, TASK_LOAD, priority });
         }
-    } else if (canAddTasks()) {
-        if (m_provider->canFetchChunk(*this, position)) {
-            m_executor->queue([=] () -> void {
-                tryCreateNewChunk(position);
-            });
-        }
-        return true;
+    } else if (m_provider->canFetchChunk(*this, position)) {
+        m_chunk_task_queue.push({ position, TASK_CREATE, priority });
     }
-    return false;
+    return chunk;
 }
 
-bool ChunkSource::canAddTasks() {
-    return m_executor->getProcessingThreadCount() > m_executor->getEstimatedRemainingTasks();
+Shared<ChunkSource::LoadingRegion> ChunkSource::addLoadingRegion(math::Vec3i position, i32 min_size, i32 max_size) {
+    ThreadLock lock(m_loaded_regions_mutex);
+    Shared<ChunkSource::LoadingRegion> loading_region = CreateShared<LoadingRegion>(this, position, min_size, max_size);
+    m_loaded_regions.emplace_back(loading_region);
+    return loading_region;
+}
+
+void ChunkSource::removeLoadingRegion(Shared<LoadingRegion> loading_region) {
+    ThreadLock lock(m_loaded_regions_mutex);
+    loading_region->m_chunk_source = nullptr;
+    auto it = std::find(m_loaded_regions.begin(), m_loaded_regions.end(), loading_region);
+    if (it != m_loaded_regions.end()) {
+        m_loaded_regions.erase(it);
+    }
+}
+
+f32 ChunkSource::getMinDistanceToLoadingRegion(ChunkPosition position, bool relative) {
+    ThreadLock lock(m_loaded_regions_mutex);
+
+    math::Vec3i pos(position.x, position.y, position.z);
+    f32 distance = -1;
+    for (auto& region : m_loaded_regions) {
+        f32 d = math::len(region->m_position - pos);
+        if (d < region->m_max_size) {
+            if (relative) {
+                d = std::max(0.0f, d - region->m_min_size) / (region->m_max_size - region->m_min_size);
+            }
+            if (d < distance || distance < 0) {
+                distance = d;
+            }
+        }
+    }
+
+    return distance;
 }
 
 void ChunkSource::fireEventTick() {
