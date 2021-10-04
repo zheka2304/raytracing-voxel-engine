@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <functional>
 
 
 using f32 = float;
@@ -39,6 +40,15 @@ constexpr Unique<T> CreateUnique(Args&& ... args) {
 
 template<typename T>
 using Weak = std::weak_ptr<T>;
+
+// hash for pairs as unordered map keys
+struct PairHash {
+public:
+    template <typename T, typename U>
+    std::size_t operator()(const std::pair<T, U>& x) const {
+        return std::hash<T>()(x.first) ^ std::hash<U>()(x.second);
+    }
+};
 
 } // voxel
 

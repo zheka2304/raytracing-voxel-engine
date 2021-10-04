@@ -1,9 +1,9 @@
 #include <iostream>
 #include "riff_file_format.h"
 
-#define DEBUG_VERBOSE_RIFF
+#define DEBUG_VERBOSE_RIFF 1
 
-#ifdef DEBUG_VERBOSE_RIFF
+#if DEBUG_VERBOSE_RIFF
 #define VERBOSE(X) X
 #else
 #define VERBOSE(X)

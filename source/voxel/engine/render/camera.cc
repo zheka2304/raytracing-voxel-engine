@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include "voxel/common/utils/time.h"
+#include "voxel/common/profiler.h"
 
 
 namespace voxel {
@@ -56,21 +57,33 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
     m_screen_size_uniform.bindUniform(shader_manager);
 
     // run compute shader pass
-    target.bindForCompute(context);
-    raytrace_screen_pass_shader->dispatchForTexture(math::Vec3i(target.getWidth(), target.getHeight(), 1));
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_raytrace_pass)
+        target.bindForCompute(context);
+        raytrace_screen_pass_shader->dispatchForTexture(math::Vec3i(target.getWidth(), target.getHeight(), 1));
+    }
 
     // swap spatial buffer
-    target.getSpatialBuffer().runSwap(context);
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_spatial_buffer)
+        target.getSpatialBuffer().runSwap(context);
+    }
 
     // post process lightmap
-    target.getLightmap().runInterpolationPass(context);
-    target.getLightmap().runBlurPass(context);
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_lightmap)
+        target.getLightmap().runInterpolationPass(context);
+        target.getLightmap().runBlurPass(context);
+    }
 
     // run final post processing pass
-    raytrace_combine_pass_shader->bind();
-    target.bindForPostProcessing(*raytrace_combine_pass_shader);
-    target.getRenderToTexture().render();
-    raytrace_combine_pass_shader->unbind();
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_lightmap)
+        raytrace_combine_pass_shader->bind();
+        target.bindForPostProcessing(*raytrace_combine_pass_shader);
+        target.getRenderToTexture().render();
+        raytrace_combine_pass_shader->unbind();
+    }
 }
 
 } // render

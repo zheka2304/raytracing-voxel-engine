@@ -15,6 +15,7 @@
 #include "voxel/engine/world/chunk_source.h"
 #include "voxel/engine/world/world_renderer.h"
 #include "voxel/engine/world.h"
+#include "voxel/common/profiler.h"
 
 
 u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
@@ -107,13 +108,16 @@ public:
 
 int main() {
 
-
+    voxel::VoxelModel* model;
     voxel::format::VoxFileFormat file_format;
     std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
-    auto models = file_format.read(istream);
-    istream.close();
-    auto model = models[0].get();
-    std::cout << "model loaded\n";
+
+    {
+        VOXEL_ENGINE_PROFILE_SCOPE(startup_model_load);
+        auto models = file_format.read(istream);
+        istream.close();
+        model = models[0].get();
+    }
 
     auto engine = std::make_shared<voxel::Engine>();
     engine->initialize();
@@ -157,6 +161,8 @@ int main() {
     });
 
     context->setFrameHandleCallback([model, world, context] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_all)
+
         static voxel::opengl::FullScreenQuad* quad = nullptr;
         if (!quad) {
             quad = new voxel::opengl::FullScreenQuad();
@@ -167,15 +173,18 @@ int main() {
         if (!render_target) {
             render_target = new voxel::render::RenderTarget(900, 900);
             world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(4096, 65536, voxel::math::Vec3i(50)), voxel::WorldRendererSettings());
-
         }
 
-        voxel::utils::Stopwatch stopwatch;
+        {
+            VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_world)
+            world_renderer->setCameraPosition(camera->getProjection().m_position);
+            world_renderer->render(render_context);
+        }
 
-        world_renderer->setCameraPosition(camera->getProjection().m_position);
-        world_renderer->render(render_context);
-
-        camera->render(render_context, *render_target);
+        {
+            VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_main_camera)
+            camera->render(render_context, *render_target);
+        }
 
         VOXEL_ENGINE_SHADER_REF(voxel::opengl::GraphicsShader, basic_texture_shader, render_context.getShaderManager(), "basic_texture");
         VOXEL_ENGINE_SHADER_UNIFORM(uniform_texture_0, *basic_texture_shader, "TEXTURE_0");
@@ -183,25 +192,21 @@ int main() {
         render_target->getResultTexture().bind(0, uniform_texture_0);
         quad->render();
 
-        u64 render_time = stopwatch.stop();
-        glFinish();
+        std::stringstream ss;
+        ss << "fps: " << int(1000.0 / voxel::Profiler::get().getAverageValue("render_all"));
+        ss << " frame time: " << voxel::Profiler::get().getAverageValue("render_main_camera") << " ms";
+        ss << " world time: " << voxel::Profiler::get().getAverageValue("render_world") << " ms";
+        glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
 
-        static int frame_counter = 0;
-        static long long last_frame_timestamp = voxel::utils::getTimestampMillis();
-        static u64 last_render_time_sum = 0; last_render_time_sum += render_time;
-        const int frames_per_measure = 30;
-        if (frame_counter % frames_per_measure == 0) {
-            long long timestamp = voxel::utils::getTimestampMillis();
-            std::stringstream ss;
-            ss << "fps: " << int(float(frames_per_measure) / (timestamp - last_frame_timestamp) * 1000.0);
-            ss << " frame time: " << int((timestamp - last_frame_timestamp) / float(frames_per_measure)) << " ms";
-            ss << " render time: " << int(last_render_time_sum / float(frames_per_measure) / 10000.0) / 100.0 << " ms";
-            glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
-            last_frame_timestamp = timestamp;
-            last_render_time_sum = 0;
-        }
-
-        frame_counter++;
+//        std::cout << "\n";
+//        std::cout << voxel::Profiler::get().getStats("render_all");
+//        std::cout << voxel::Profiler::get().getStats("render_raytrace_pass");
+//        std::cout << voxel::Profiler::get().getStats("render_spatial_buffer_reset");
+//        std::cout << voxel::Profiler::get().getStats("render_spatial_buffer_pass");
+//        std::cout << voxel::Profiler::get().getStats("render_spatial_buffer_postprocess");
+//        std::cout << voxel::Profiler::get().getStats("render_lightmap_interpolate");
+//        std::cout << voxel::Profiler::get().getStats("render_lightmap_blur");
+//        std::cout << voxel::Profiler::get().getStats("render_lightmap_3x3");
 
 //         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     });

@@ -84,7 +84,6 @@ void WorldRenderer::runChunkUpdates() {
         if (next.has_value()) {
             Shared<Chunk> chunk = next.value();
             auto pos = chunk->getPosition();
-            std::cout << "chunk update: " << pos.x << ", " << pos.y << ", " << pos.z << "\n";
             if (chunk->tryLock()) {
                 if (chunk->getState() == CHUNK_LOADED) {
                     m_chunk_buffer->uploadChunk(chunk, 0);

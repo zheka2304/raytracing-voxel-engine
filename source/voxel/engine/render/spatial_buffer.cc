@@ -1,5 +1,7 @@
 #include "spatial_buffer.h"
 
+#include "voxel/common/profiler.h"
+
 
 namespace voxel {
 namespace render {
@@ -37,16 +39,25 @@ void SpatialRenderBuffer::runSwap(RenderContext& context) {
     bind(context);
 
     // reset buffer
-    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_reset, shader_manager, "spatial_buffer_reset");
-    spatial_buffer_reset->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_spatial_buffer_reset)
+        VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_reset, shader_manager, "spatial_buffer_reset");
+        spatial_buffer_reset->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    }
 
     // run main shader
-    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_pass, shader_manager, "spatial_buffer_pass");
-    spatial_buffer_pass->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_spatial_buffer_pass)
+        VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_pass, shader_manager, "spatial_buffer_pass");
+        spatial_buffer_pass->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    }
 
     // run main postprocess shader (interpolate + discard)
-    VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_postprocess_interpolate, shader_manager, "spatial_buffer_postprocess_interpolate");
-    spatial_buffer_postprocess_interpolate->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    {
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_spatial_buffer_postprocess)
+        VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_postprocess_interpolate, shader_manager, "spatial_buffer_postprocess_interpolate");
+        spatial_buffer_postprocess_interpolate->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+    }
 
     // optionally, you can run add margin pass, that adds 1 pixel margin to remaining zero-stability regions
     // VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, spatial_buffer_postprocess_margin, shader_manager, "spatial_buffer_postprocess_margin");

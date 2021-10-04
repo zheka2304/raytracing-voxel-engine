@@ -4,6 +4,8 @@
 #include <iostream>
 #include "voxel/engine/world/chunk.h"
 
+#define DEBUG_VERBOSE 0
+
 
 namespace voxel {
 namespace render {
@@ -374,7 +376,9 @@ i32 ChunkBuffer::tryAllocatePageSpan(i32 page_count, u64 chunk) {
         return -1;
     }
 
+#if DEBUG_VERBOSE
     std::cout << "allocated chunk buffer span " << offset_page << ":" << offset_page + page_count << " total_allocated_pages=" << m_allocated_page_count << '\n';
+#endif
     for (i32 page = offset_page; page < offset_page + page_count; page++) {
         m_chunk_by_page[page] = chunk;
         m_allocated_page_count++;
