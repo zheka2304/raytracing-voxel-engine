@@ -67,5 +67,9 @@ namespace voxel {
         return m_window_focus;
     }
 
+    void WindowHandler::setWindowFocus(i32 focus) {
+        m_window_focus = focus;
+    }
+
 
 } // voxel

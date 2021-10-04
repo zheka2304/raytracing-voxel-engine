@@ -214,5 +214,12 @@ int main() {
     context->runEventLoop();
     engine->joinAllEventLoops();
 
+    std::cout << "Profiler data:\n" <<
+        "  full frame: " << voxel::Profiler::get().getAverageValue("render_all") << " ms\n" <<
+        "  raytrace: " << voxel::Profiler::get().getAverageValue("render_raytrace_pass") << " ms\n" <<
+        "  lightmap: " << voxel::Profiler::get().getAverageValue("render_lightmap") << " ms\n" <<
+        "  spatial buffer: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer") << " ms\n" <<
+        "  world: " << voxel::Profiler::get().getAverageValue("render_world") << " ms\n";
+
     return 0;
 }

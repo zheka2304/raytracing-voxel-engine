@@ -294,9 +294,11 @@ namespace voxel {
             m_window_resize_callback(*this, width, height);
         }
 
-        // then invoke focus callback with focused state (window will always start focused)
+        // then invoke focus callback with focused state
         if (m_window_focus_callback) {
-            m_window_focus_callback(*this, 1);
+            i32 focused = glfwGetWindowAttrib(m_window, GLFW_FOCUSED);
+            m_window_focus_callback(*this, focused);
+            m_window_handler->setWindowFocus(focused);
         }
 
         // unlock event loop mutex

@@ -39,6 +39,7 @@ namespace voxel {
         bool isFocused();
         bool wasFocused();
         i32 getWindowFocus();
+        void setWindowFocus(i32 focus);
     };
 
 
