@@ -28,20 +28,19 @@ f32 Profiler::ScopeInfo::getValue() const {
 }
 
 
-Profiler::GpuScope::GpuScope() {
-    glFinish();
-}
-
-Profiler::GpuScope::~GpuScope() {
-    glFinish();
-}
-
-
-Profiler::Timer::Timer(ScopeInfo* scope_info) : m_scope_info(scope_info), m_start(std::chrono::steady_clock::now()) {
+Profiler::Timer::Timer(ScopeInfo* scope_info, bool gpu_scope) :
+    m_scope_info(scope_info), m_gpu_scope(gpu_scope) {
+    if (m_gpu_scope) {
+        glFinish();
+    }
+    m_start = std::chrono::steady_clock::now();
 }
 
 void Profiler::Timer::stop() {
     if (!m_stopped) {
+        if (m_gpu_scope) {
+            glFinish();
+        }
         auto end = std::chrono::steady_clock::now();
         i64 start_i = std::chrono::duration_cast<std::chrono::microseconds>(m_start.time_since_epoch()).count();
         i64 end_i = std::chrono::duration_cast<std::chrono::microseconds>(end.time_since_epoch()).count();

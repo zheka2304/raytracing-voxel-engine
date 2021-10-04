@@ -78,7 +78,7 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
 
     // run final post processing pass
     {
-        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_lightmap)
+        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_postprocess_output)
         raytrace_combine_pass_shader->bind();
         target.bindForPostProcessing(*raytrace_combine_pass_shader);
         target.getRenderToTexture().render();

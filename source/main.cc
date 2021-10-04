@@ -198,16 +198,6 @@ int main() {
         ss << " world time: " << voxel::Profiler::get().getAverageValue("render_world") << " ms";
         glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
 
-//        std::cout << "\n";
-//        std::cout << voxel::Profiler::get().getStats("render_all");
-//        std::cout << voxel::Profiler::get().getStats("render_raytrace_pass");
-//        std::cout << voxel::Profiler::get().getStats("render_spatial_buffer_reset");
-//        std::cout << voxel::Profiler::get().getStats("render_spatial_buffer_pass");
-//        std::cout << voxel::Profiler::get().getStats("render_spatial_buffer_postprocess");
-//        std::cout << voxel::Profiler::get().getStats("render_lightmap_interpolate");
-//        std::cout << voxel::Profiler::get().getStats("render_lightmap_blur");
-//        std::cout << voxel::Profiler::get().getStats("render_lightmap_3x3");
-
 //         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     });
 
@@ -216,10 +206,17 @@ int main() {
 
     std::cout << "Profiler data:\n" <<
         "  full frame: " << voxel::Profiler::get().getAverageValue("render_all") << " ms\n" <<
-        "  raytrace: " << voxel::Profiler::get().getAverageValue("render_raytrace_pass") << " ms\n" <<
-        "  lightmap: " << voxel::Profiler::get().getAverageValue("render_lightmap") << " ms\n" <<
-        "  spatial buffer: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer") << " ms\n" <<
-        "  world: " << voxel::Profiler::get().getAverageValue("render_world") << " ms\n";
+        "    raytrace: " << voxel::Profiler::get().getAverageValue("render_raytrace_pass") << " ms\n" <<
+        "    lightmap: " << voxel::Profiler::get().getAverageValue("render_lightmap") << " ms\n" <<
+        "      interpolate: " << voxel::Profiler::get().getAverageValue("render_lightmap_interpolate") << " ms\n" <<
+        "      blur: " << voxel::Profiler::get().getAverageValue("render_lightmap_blur") << " ms\n" <<
+        "      3x3: " << voxel::Profiler::get().getAverageValue("render_lightmap_3x3") << " ms\n" <<
+        "    spatial buffer: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer") << " ms\n" <<
+        "      reset: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_reset") << " ms\n" <<
+        "      pass: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_pass") << " ms\n" <<
+        "      postprocess: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_postprocess") << " ms\n" <<
+        "    postprocess and output: " << voxel::Profiler::get().getAverageValue("render_postprocess_output") << " ms\n" <<
+        "    world: " << voxel::Profiler::get().getAverageValue("render_world") << " ms\n";
 
     return 0;
 }

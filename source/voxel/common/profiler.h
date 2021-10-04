@@ -38,19 +38,14 @@ public:
         f32 getValue() const;
     };
 
-    class GpuScope {
-    public:
-        GpuScope();
-        ~GpuScope();
-    };
-
     class Timer {
         bool m_stopped = false;
+        bool m_gpu_scope;
         ScopeInfo* m_scope_info;
         std::chrono::time_point<std::chrono::steady_clock> m_start;
 
     public:
-        Timer(ScopeInfo* scope_info);
+        Timer(ScopeInfo* scope_info, bool gpu_scope = false);
         void stop();
         ~Timer();
     };
@@ -72,16 +67,18 @@ public:
 
 #if VOXEL_ENGINE_PROFILER_ENABLE
 
-#define VOXEL_ENGINE_PROFILE_SCOPE(name) \
+#define VOXEL_ENGINE_PROFILE_SCOPE0(name, gpu_scope) \
     static voxel::Profiler::ScopeInfo* profiler_scope_info_ ## name = nullptr; \
     if (profiler_scope_info_ ## name == nullptr) profiler_scope_info_ ## name = &voxel::Profiler::get().getScopeInfo(#name); \
-    voxel::Profiler::Timer profiler_timer_ ## name(profiler_scope_info_ ## name);
+    voxel::Profiler::Timer profiler_timer_ ## name(profiler_scope_info_ ## name, gpu_scope);
+
+#define VOXEL_ENGINE_PROFILE_SCOPE(name) VOXEL_ENGINE_PROFILE_SCOPE0(name, false)
 
 #define VOXEL_ENGINE_PROFILE_SCOPE_END(name) (profiler_timer_ ## name).stop();
 
-#define VOXEL_ENGINE_PROFILE_GPU_SCOPE(name) VOXEL_ENGINE_PROFILE_SCOPE(name); voxel::Profiler::GpuScope profiler_gpu_scope_ ## name;
+#define VOXEL_ENGINE_PROFILE_GPU_SCOPE(name) VOXEL_ENGINE_PROFILE_SCOPE0(name, true);
 
-#define VOXEL_ENGINE_PROFILE_GPU_SCOPE_END(name) { (profiler_timer_ ## name).stop(); glFinish(); }
+#define VOXEL_ENGINE_PROFILE_GPU_SCOPE_END(name) VOXEL_ENGINE_PROFILE_GPU_SCOPE(name)
 
 #else
 
