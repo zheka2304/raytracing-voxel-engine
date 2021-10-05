@@ -31,7 +31,7 @@ Ray getCameraRay(vec2 screen_pos) {
     vec2 perspective = u_camera_projection.perspective;
     vec2 distance_range = u_camera_projection.distance_range;
 
-    vec3 ray = normalize(screen_pos.x * u_camera_projection.basis_matrix[0] + screen_pos.y * u_camera_projection.basis_matrix[1] + u_camera_projection.basis_matrix[2]);
+    vec3 ray = normalize(u_camera_projection.basis_matrix * vec3(screen_pos * perspective, 1.0));
     vec3 start = u_camera_projection.position + ray * distance_range.x;
     float max_distance = distance_range.y - distance_range.x;
 

@@ -36,8 +36,8 @@
     "lighting.interpolate_blend_rate_factor": 5,
     "lighting.interpolate_blur_sample_count": 3,
     "lighting.interpolate_blur_rate_factor": 2,
-    "lighting.denoise_blur_sample_count": 2,
-    "lighting.denoise_blur_sample_count_add": 3,
+    "lighting.denoise_blur_sample_count": 3,
+    "lighting.denoise_blur_sample_count_add": 4,
 
     "lighting.blur_depth_factor": 0.05,
     "lighting.blur_value_factor": 0.5,
