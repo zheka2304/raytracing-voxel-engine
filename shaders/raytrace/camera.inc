@@ -11,6 +11,7 @@ COMPUTE_SHADER_BUFFER(${raytrace.camera_projection}, readonly, u_camera_projecti
     vec2 ortho_range;
     vec2 perspective;
     vec2 distance_range;
+    mat3 basis_matrix;
 })
 
 // TODO: roll rotation is not supported yet
@@ -27,15 +28,11 @@ void getAllCameraVectors(out vec3 forward, out vec3 right, out vec3 up) {
 }
 
 Ray getCameraRay(vec2 screen_pos) {
-    vec3 forward, right, up;
-    getAllCameraVectors(forward, right, up);
-
-    vec2 ortho_range = u_camera_projection.ortho_range;
     vec2 perspective = u_camera_projection.perspective;
     vec2 distance_range = u_camera_projection.distance_range;
 
-    vec3 ray = normalize(forward + screen_pos.x * perspective.x * right + screen_pos.y * perspective.y * up);
-    vec3 start = u_camera_projection.position + screen_pos.x * ortho_range.x * right + screen_pos.y * ortho_range.y * up + ray * distance_range.x;
+    vec3 ray = normalize(screen_pos.x * u_camera_projection.basis_matrix[0] + screen_pos.y * u_camera_projection.basis_matrix[1] + u_camera_projection.basis_matrix[2]);
+    vec3 start = u_camera_projection.position + ray * distance_range.x;
     float max_distance = distance_range.y - distance_range.x;
 
     return Ray(start, ray, max_distance);
@@ -49,23 +46,12 @@ float getDistanceToCamera(vec3 world_pos) {
     return length(world_pos - u_camera_projection.position);
 }
 
-dvec3 worldPositionToScreen(dvec3 world_pos) {
-    vec3 forward, right, up;
-    getAllCameraVectors(forward, right, up);
-    dmat3 basis;
-    basis[0] = dvec3(right);
-    basis[1] = dvec3(up);
-    basis[2] = dvec3(forward);
+vec3 worldPositionToScreen(vec3 world_pos) {
+    vec3 pos_to_camera = world_pos - u_camera_projection.position;
+    vec3 ray = normalize(pos_to_camera);
+    vec3 projected = ray * u_camera_projection.basis_matrix;
 
-    dvec2 ortho_range = u_camera_projection.ortho_range;
-    dvec2 perspective = u_camera_projection.perspective;
-    dvec2 distance_range = u_camera_projection.distance_range;
-
-    dvec3 pos_to_camera = world_pos - dvec3(u_camera_projection.position);
-    dvec3 ray = normalize(pos_to_camera);
-    dvec3 projected = ray * basis;
-
-    return dvec3(projected.xy / projected.z / perspective.xy, length(pos_to_camera));
+    return vec3(projected.xy / projected.z / u_camera_projection.perspective.xy, length(pos_to_camera));
 }
 
 #endif  // VOXEL_ENGINE_CAMERA_INC

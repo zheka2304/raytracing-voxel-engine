@@ -149,7 +149,6 @@ void main() {
 //    o_color.rg = vec2(spatial_buffer_data.pixel.xy) / vec2(U_SCREEN_SIZE);
     // -- DEBUG END --
 
-
     imageStore(spatial_buffer_current_frame, pixel, o_spatial_buffer);
     imageStore(output_texture_color, pixel, vec4(o_color.rgb, 1.0));
     imageStore(output_texture_light, pixel, o_light);

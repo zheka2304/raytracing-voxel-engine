@@ -68,8 +68,8 @@ void main() {
     // get world space position, that was in this pixel on last frame,
     // convert to screen space position, that was here on the last frame and then to pixel position
     vec4 last_position = imageLoad(last_frame_texture, pixel_pos);
-    dvec3 last_screen_position = worldPositionToScreen(dvec3(last_position.xyz));
-    vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * dvec2(U_SCREEN_SIZE));
+    vec3 last_screen_position = worldPositionToScreen(last_position.xyz);
+    vec2 last_pixel_position_f = vec2((last_screen_position.xy * .5 + .5) * vec2(U_SCREEN_SIZE));
 
     // discard pixels, that moved behind camera
     if (last_screen_position.z < 0.0) return;

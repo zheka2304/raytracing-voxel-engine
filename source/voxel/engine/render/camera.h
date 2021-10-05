@@ -19,24 +19,28 @@ namespace render {
 // this structure can be directly passed as uniform buffer, as it is aligned in proper way
 struct CameraProjection {
     // position of the camera in chunk units
-    GLSL_BUFFER_ALIGN(16) math::Vec3f m_position;
+    GLSL_BUFFER_ALIGN(16) math::Vec3f position;
 
     // rotation euler angles in radians
-    GLSL_BUFFER_ALIGN(16) math::Vec3f m_rotation;
+    GLSL_BUFFER_ALIGN(16) math::Vec3f rotation;
 
     // orthographic projection parameters: (x, y) is size of the camera view in chunk units
-    GLSL_BUFFER_ALIGN(8) math::Vec2f m_ortho_range;
+    GLSL_BUFFER_ALIGN(8) math::Vec2f ortho_range;
 
     // perspective parameters: (x, y) is coefficients of ray direction displacement from the position relative to screen center,
     // where relative position x and y are in range (-1; 1), this values are usually calculated from vertical and horizontal FOV
-    GLSL_BUFFER_ALIGN(8) math::Vec2f m_perspective;
+    GLSL_BUFFER_ALIGN(8) math::Vec2f perspective;
 
     // x is near plane and y is far plane
-    GLSL_BUFFER_ALIGN(8) math::Vec2f m_distance_range;
+    GLSL_BUFFER_ALIGN(8) math::Vec2f distance_range;
+
+    // 3x3 matrix, that contains 3 basis vectors for camera view (right, up, forward) vec4 is used instead of vec3 for alignment
+    GLSL_BUFFER_ALIGN(16) math::Vec4f basis_matrix[3];
 
     void setOrtho(f32 w, f32 h);
     void setFov(f32 fov, f32 ratio);
     void setNearAndFar(f32 near, f32 far);
+    void updateMatrix();
 };
 
 /*

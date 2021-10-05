@@ -11,21 +11,41 @@ namespace render {
 
 void CameraProjection::setFov(f32 fov, f32 ratio) {
     if (fov == 0 || ratio == 0) {
-        m_perspective = math::Vec2f(0, 0);
+        perspective = math::Vec2f(0, 0);
         return;
     }
 
     f32 tg = tan(fov / 2.0f);
-    m_perspective.x = tg;
-    m_perspective.y = tg * ratio;
+    perspective.x = tg;
+    perspective.y = tg * ratio;
 }
 
 void CameraProjection::setOrtho(f32 w, f32 h) {
-    m_ortho_range = math::Vec2f(w / 2.0f, h / 2.0f);
+    ortho_range = math::Vec2f(w / 2.0f, h / 2.0f);
 }
 
 void CameraProjection::setNearAndFar(f32 near, f32 far) {
-    m_distance_range = math::Vec2f(near, far);
+    distance_range = math::Vec2f(near, far);
+}
+
+void CameraProjection::updateMatrix() {
+    f32 cos_pitch = cos(rotation.x);
+    math::Vec3f forward = math::Vec3f(
+            cos_pitch * sin(rotation.y),
+            sin(rotation.x),
+            cos_pitch * cos(rotation.y)
+    );
+    math::Vec3f right = math::Vec3f(cos(rotation.y), 0.0, -sin(rotation.y));
+    math::Vec3f up = math::cross(forward, right);
+    basis_matrix[0].x = right.x;
+    basis_matrix[0].y = right.y;
+    basis_matrix[0].z = right.z;
+    basis_matrix[1].x = up.x;
+    basis_matrix[1].y = up.y;
+    basis_matrix[1].z = up.z;
+    basis_matrix[2].x = forward.x;
+    basis_matrix[2].y = forward.y;
+    basis_matrix[2].z = forward.z;
 }
 
 
@@ -50,6 +70,7 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
     // update camera uniforms
     *m_time_uniform = utils::getTimeSinceStart();
     *m_screen_size_uniform = math::Vec2i(target.getWidth(), target.getHeight());
+    m_projection_uniform->updateMatrix();
 
     // bind camera uniforms
     m_time_uniform.bindUniform(shader_manager);

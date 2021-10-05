@@ -30,9 +30,6 @@ u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
 }
 
 
-//thread_local i64 debug_time_start = 0;
-//thread_local i64 debug_time_generation = 0;
-
 namespace voxel {
 class DebugChunkProvider : public ChunkProvider {
     VoxelModel m_model;
@@ -138,7 +135,7 @@ int main() {
 
     context->setInitCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         camera = new voxel::render::Camera();
-        camera->getProjection().m_position = voxel::math::Vec3f(0, 10, 0);
+        camera->getProjection().position = voxel::math::Vec3f(0, 10, 0);
 
         simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
         simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
@@ -171,13 +168,13 @@ int main() {
         static voxel::render::RenderTarget* render_target = nullptr;
         static voxel::WorldRenderer* world_renderer = nullptr;
         if (!render_target) {
-            render_target = new voxel::render::RenderTarget(900, 900);
+            render_target = new voxel::render::RenderTarget(2048, 2048);
             world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(4096, 65536, voxel::math::Vec3i(50)), voxel::WorldRendererSettings());
         }
 
         {
             VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_world)
-            world_renderer->setCameraPosition(camera->getProjection().m_position);
+            world_renderer->setCameraPosition(camera->getProjection().position);
             world_renderer->render(render_context);
         }
 
@@ -194,8 +191,8 @@ int main() {
 
         std::stringstream ss;
         ss << "fps: " << int(1000.0 / voxel::Profiler::get().getAverageValue("render_all"));
-        ss << " frame time: " << voxel::Profiler::get().getAverageValue("render_main_camera") << " ms";
-        ss << " world time: " << voxel::Profiler::get().getAverageValue("render_world") << " ms";
+        ss << " frame time: " << voxel::Profiler::get().getAverageValue("render_main_camera") << "ms";
+        ss << " world time: " << voxel::Profiler::get().getAverageValue("render_world") << "ms";
         glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
 
 //         std::this_thread::sleep_for(std::chrono::milliseconds(250));

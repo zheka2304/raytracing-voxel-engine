@@ -27,13 +27,13 @@ void SimpleInput::update(render::Camera& camera) {
     if (m_window_handler.isFocused()) {
         // rotation
         voxel::math::Vec2f mouse_move = m_mouse_control.getMouseMove() * m_sensitivity;
-        voxel::math::Vec3f& camera_rotation = camera.getProjection().m_rotation;
+        voxel::math::Vec3f& camera_rotation = camera.getProjection().rotation;
         camera_rotation.y += mouse_move.x;
         camera_rotation.x = std::max(-3.1416f / 2.0f, std::min(3.1416f / 2.0f, camera_rotation.x - mouse_move.y));
 
         // movement
         GLFWwindow* window = m_window_handler.getWindow();
-        voxel::math::Vec3f& camera_position = camera.getProjection().m_position;
+        voxel::math::Vec3f& camera_position = camera.getProjection().position;
         if (glfwGetKey(window, GLFW_KEY_W)) {
             camera_position.x += cos(camera_rotation.x) * sin(camera_rotation.y) * m_movement_speed;
             camera_position.y += sin(camera_rotation.x) * m_movement_speed;
