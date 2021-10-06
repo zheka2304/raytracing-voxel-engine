@@ -663,7 +663,7 @@ RaycastResult raycastVoxelWorld(Ray ray, int max_chunks, int max_spans, int fetc
         uint chunk_pointer = lookupVoxelChunk(chunk_raycast.pos, chunk_map_offset, chunk_map_size, fetch_weight--);
         if (chunk_pointer != uint(-1)) {
             // If ray end has been reached, break out of loop
-            if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), 0u, max_spans)) {
+            if (raycastVoxelChunk(result, material_data, ray, vec3(chunk_raycast.pos), chunk_pointer, max_spans)) {
                 break;
             }
         // If we advanced out of chunk, and have pending material span, finish it
