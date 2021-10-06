@@ -26,39 +26,35 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 vec2 getLastFrameBlurredValue(ivec2 origin_pos, vec4 origin, float factor, int step) {
     float weight = 0.0;
     float value = 0.0;
-    float stability_sum = 0.0;
     for (int x = -1; x <= 1; x++) {
         for (int y = -1; y <= 1; y++) {
             if (x == 0 && y == 0) continue;
-            ivec2 pixel_pos = origin_pos + ivec2(x, y) * step;
-            vec4 pixel = imageLoad(lightmap_last_frame, clamp(pixel_pos, ivec2(0), U_SCREEN_SIZE - 1));
+            ivec2 pixel_pos = clamp(origin_pos + ivec2(x, y) * step, ivec2(0), U_SCREEN_SIZE - 1);
+//            float stability = ACCESS_SPATIAL_BUFFER(pixel_pos).value.w;
+            vec4 pixel = imageLoad(lightmap_last_frame, pixel_pos);
             float v = pixel.r;
-            float w = factor;
-            float stability = 1.0;// ACCESS_SPATIAL_BUFFER(pixel_pos).value.w;
+            float w = factor; // * stability;
             w -= abs(pixel.a - origin.a) / origin.a / BLUR_DEPTH_FACTOR;
             w -= length(UNPACK_H2F(origin.g) - UNPACK_H2F(pixel.g));
-            //w += max(0.0, 1.0 - abs(v - origin.r) / BLUR_VALUE_FACTOR) * factor;
-            w = clamp(w, 0.0, 1.0) * stability;
+            w = clamp(w, 0.0, 1.0);
             weight += w;
             value += w * v;
-            stability_sum += stability;
         }
     }
-    return vec2(weight > 0.0 ? value / weight : 0.0, stability_sum);
+    return vec2(value, weight);
 }
 
-vec2 getLastFrameBlurredValueMultiSample(ivec2 pixel, float factor, int sample_count) {
+float getLastFrameBlurredValueMultiSample(ivec2 pixel, float factor, int sample_count) {
     vec4 origin = imageLoad(lightmap_last_frame, pixel);
     if (factor < .1 || sample_count <= 0) {
-        return vec2(origin.r, 1.0);
+        return origin.r;
     }
-    vec2 value = vec2(0.0);
+    vec2 value_and_weight = vec2(0.0);
     for (int i = 0; i < sample_count; i++) {
         vec2 s = getLastFrameBlurredValue(pixel, origin, factor, i * 2 + 1);
-        value += s / float(sample_count);
-        // origin.r = s.r;
+        value_and_weight += s / float(sample_count);
     }
-    return value;
+    return value_and_weight.y > 0.0 ? value_and_weight.x / value_and_weight.y : origin.r;
 }
 
 void main() {
@@ -80,10 +76,10 @@ void main() {
 
     //
     float blur_factor = clamp(1.0 - spatial_buffer_data.value.w * BLUR_RATE_FACTOR, 0.0, 1.0);
-    vec2 last_value = getLastFrameBlurredValueMultiSample(spatial_buffer_data.pixel.xy, blur_factor, BLUR_SAMPLE_COUNT);
+    float last_value = getLastFrameBlurredValueMultiSample(spatial_buffer_data.pixel.xy, blur_factor, BLUR_SAMPLE_COUNT);
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
 
-    current_value.r = mix(last_value.r, current_value.r, blend_value);
+    current_value.r = mix(last_value, current_value.r, blend_value);
     imageStore(lightmap_current_frame, pixel, current_value);
 
     //

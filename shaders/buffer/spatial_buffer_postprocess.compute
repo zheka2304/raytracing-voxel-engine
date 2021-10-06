@@ -74,7 +74,7 @@ void main() {
         SPATIAL_BUFFER[spatial_buffer_index] = spatial_buffer_data;
         vec2 new_pixel_pos_f = vec2(pixel_pos) + 0.5;
         new_pixel_pos_f += spatial_buffer_data.value.xy;
-        ivec2 new_pixel_pos = ivec2(new_pixel_pos_f);
+        ivec2 new_pixel_pos = clamp(ivec2(new_pixel_pos_f), ivec2(0), U_SCREEN_SIZE - 1);
         if (new_pixel_pos != pixel_pos) {
             vec2 new_pixel_error = new_pixel_pos_f - (vec2(new_pixel_pos) + .5);
             if (ACCESS_SPATIAL_BUFFER(new_pixel_pos).pixel.w > 0) {

@@ -23,15 +23,10 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 #define SHIFT(X) ivec2(0, X)
 #endif
 
-#define BLUR_DEPTH_FACTOR float(${lighting.blur_depth_factor})
-#define BLUR_VALUE_FACTOR float(${lighting.blur_value_factor})
-#define BLUR_SAMPLE_COUNT int(${lighting.denoise_blur_sample_count})
-#define BLUR_SAMPLE_COUNT_ADD float(${lighting.denoise_blur_sample_count_add})
-
 
 float get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, int step) {
     float origin_val = UNPACK_H2F(READ(origin)).y;
-    float sum = origin_val;
+    float sum = origin_val * origin_weight;
     float weight = origin_weight;
 
     for (int x = -1; x <= 1; x++) {
@@ -40,9 +35,9 @@ float get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, int step) {
             vec4 pixel = imageLoad(blur_pass_texture, pos + ivec2(x, y) * step);
             float v = UNPACK_H2F(READ(pixel)).y;
             float w = 1.0;
-            w -= abs(pixel.g - origin.g) / origin.g / BLUR_DEPTH_FACTOR;
+            w -= abs(pixel.g - origin.g) / origin.g / float(${lighting.blur_depth_factor});
             w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
-            w += max(0.0, 1.0 - abs(v - origin_val) / BLUR_VALUE_FACTOR);
+            w += max(0.0, 1.0 - abs(v - origin_val) / float(${lighting.blur_value_factor}));
             w = clamp(w, 0.0, 1.0);
             sum += v * w;
             weight += w;
@@ -51,12 +46,20 @@ float get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, int step) {
     return sum / weight;
 }
 
-float getMultiSample3x3Blur(ivec2 pos, int sample_count) {
-    float value = 0.0;
+float getMultiSample3x3Blur(ivec2 pos, float spatial_stability) {
     vec4 origin = imageLoad(blur_pass_texture, pos);
+    float origin_val = UNPACK_H2F(READ(origin)).y;
+    int sample_count = int(${lighting.denoise_blur_sample_count}) + int((1.0 - spatial_stability) * float(${lighting.denoise_blur_sample_count_add}));
     if (sample_count <= 0) {
-        return READ(origin);
+        return origin_val;
     }
+
+    float eps = float(${lightmap.denoise_blur_optimization_epsilon});
+    if ((origin_val < eps || origin_val > 1.0 - eps) && spatial_stability > 0.1) {
+        return origin_val;
+    }
+
+    float value = 0.0;
     for (int i = 0; i < sample_count; i++) {
         value += get3x3Blur(pos, origin, 1.0, i * 2 + 1) / float(sample_count);
     }
@@ -100,7 +103,8 @@ void main() {
     vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
     vec2 pixel_value = UNPACK_H2F(READ(pixel));
     float spatial_stability = ACCESS_SPATIAL_BUFFER(pixel_pos).value.w;
-    pixel_value.y = getMultiSample3x3Blur(pixel_pos, BLUR_SAMPLE_COUNT + int((1.0 - spatial_stability) * BLUR_SAMPLE_COUNT_ADD));
+    pixel_value.y = getMultiSample3x3Blur(pixel_pos, spatial_stability);
+//    pixel_value.y = mix(pixel_value.x, pixel_value.y, spatial_stability);
     WRITE(pixel) = PACK_H2F(pixel_value);
 
     // -- DEBUG START --

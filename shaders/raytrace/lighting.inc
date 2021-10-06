@@ -41,7 +41,7 @@ Ray getLightRayForPosition(LightSource light_source, vec3 position, bool randomi
 
 
 LightSource getSkyLightSource() {
-    return LightSource(vec3(-2.0, -.5, -1.0), 0.15, 1.0);
+    return LightSource(vec3(-2.0, -.5, -1.0), 0.05, 1.0);
 }
 
 //

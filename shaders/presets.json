@@ -18,7 +18,7 @@
 
     // -- spatial buffer --
     // Per frame gain of stability, when pixel is tracked.
-    "spatial_buffer.stability_per_frame": 0.05,
+    "spatial_buffer.stability_per_frame": 0.075,
 
     // When pixel z value change relative to camera distance is greater than this threshold, pixel is discarded
     "spatial_buffer.z_delta_discard_threshold": 0.05,
@@ -34,10 +34,11 @@
 
     "lighting.interpolate_blend_rate_min": 0.05,
     "lighting.interpolate_blend_rate_factor": 5,
-    "lighting.interpolate_blur_sample_count": 3,
+    "lighting.interpolate_blur_sample_count": 6,
     "lighting.interpolate_blur_rate_factor": 2,
     "lighting.denoise_blur_sample_count": 3,
     "lighting.denoise_blur_sample_count_add": 4,
+    "lightmap.denoise_blur_optimization_epsilon": 0.0005,
 
     "lighting.blur_depth_factor": 0.05,
     "lighting.blur_value_factor": 0.5,

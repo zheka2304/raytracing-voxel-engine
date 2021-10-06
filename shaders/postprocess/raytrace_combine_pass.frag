@@ -15,6 +15,7 @@ varying vec2 uv;
 #define PACK_I2F(X) uintBitsToFloat(packInt2x16(X))
 #define UNPACK_I2F(X) unpackInt2x16(floatBitsToUint(X))
 
+
 void main() {
     vec4 color_data = texture(IN_TEXTURE_COLOR, uv);
     vec4 light_data = texture(IN_TEXTURE_LIGHT, uv);
@@ -25,8 +26,10 @@ void main() {
 
     // extract light value
     vec2 light_value_v2 = UNPACK_H2F(light_data.r);
-    float light_value = mix(light_value_v2.x, light_value_v2.y, 1.0 - clamp(1.0 / (abs(light_value_v2.x - light_value_v2.y) / ${lighting.linear_blur_blend_factor} + 1.0), 0.0, 1.0));
+    float light_value_denoise_factor = 1.0 - clamp(1.0 / (abs(light_value_v2.x - light_value_v2.y) / ${lighting.linear_blur_blend_factor} + 1.0), 0.0, 1.0);
+    float light_value = mix(light_value_v2.x, light_value_v2.y, light_value_denoise_factor);
 
+    // write result
     vec4 result = vec4(1.0);
     result.rgb = mix(colors.color1.rgb, colors.color2.rgb, 1.0 - light_value);
     gl_FragColor = result;
