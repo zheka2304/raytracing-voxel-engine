@@ -16,7 +16,6 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 #define BLUR_SAMPLE_COUNT int(${lighting.interpolate_blur_sample_count})
 #define BLUR_RATE_FACTOR float(${lighting.interpolate_blur_rate_factor})
 #define BLUR_DEPTH_FACTOR float(${lighting.blur_depth_factor})
-#define BLUR_VALUE_FACTOR float(${lighting.blur_value_factor})
 
 
 #include "common.inc"
