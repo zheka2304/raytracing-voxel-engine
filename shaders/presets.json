@@ -35,7 +35,7 @@
     "lighting.interpolate_blend_rate_min": 0.05,
     "lighting.interpolate_blend_rate_factor": 5,
     "lighting.interpolate_blur_sample_count": 6,
-    "lighting.interpolate_blur_rate_factor": 2,
+    "lighting.interpolate_blur_rate_factor": 4,
     "lighting.denoise_blur_sample_count": 3,
     "lighting.denoise_blur_sample_count_add": 0,
     "lightmap.denoise_blur_optimization_epsilon": 0.0005,
