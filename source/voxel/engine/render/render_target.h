@@ -16,7 +16,6 @@ class RenderTarget {
     i32 m_width, m_height;
 
     opengl::Texture m_color_texture;
-    opengl::Texture m_depth_texture;
     LightMapTexture m_lightmap;
     SpatialRenderBuffer m_spatial_buffer;
 
@@ -31,7 +30,6 @@ public:
     // shader constant bindings:
     // - ${raytrace.color_texture}
     // - ${raytrace.light_texture}
-    // - ${raytrace.depth_texture}
     void bindForCompute(RenderContext& render_context);
 
     // bind render target as a post processing shader input
@@ -45,7 +43,6 @@ public:
     i32 getHeight();
 
     opengl::Texture& getColorTexture();
-    opengl::Texture& getDepthTexture();
     LightMapTexture& getLightmap();
     SpatialRenderBuffer& getSpatialBuffer();
 

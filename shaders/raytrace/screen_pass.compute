@@ -20,14 +20,9 @@ layout(std430) buffer;
 layout(rgba32f, binding = ${raytrace.color_texture}) writeonly uniform highp image2D output_texture_color;
 
 // Light parameters of the pixel:
-// - r: light value (only shadows)
-// - g: packed normal
-// - b: ray count
-// - a: distance to camera
+// - r, g, b - light color
+// - a: point difference value
 layout(rgba32f, binding = ${raytrace.light_texture}) writeonly uniform highp image2D output_texture_light;
-
-// Depth & detail parameters of the pixel
-layout(rgba32f, binding = ${raytrace.depth_texture}) writeonly uniform highp image2D output_texture_depth;
 
 //
 layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp image2D spatial_buffer_current_frame;
@@ -36,7 +31,6 @@ layout(rgba32f, binding = ${common.spatial_buffer_current_frame}) uniform highp 
 void raytraceMainImage(
     out vec4 o_color,
     out vec4 o_light,
-    out vec4 o_depth,
     out vec4 o_spatial_buffer,
     Ray ray,
     int light_rays_count
@@ -63,7 +57,6 @@ void raytraceMainImage(
         // voxel side hash
         uint voxel_side_hash = getVoxelPositionHash(span_start_position, span.mat.z);
         o_spatial_buffer.w = uintBitsToFloat(voxel_side_hash);
-        o_depth.r = float(voxel_side_hash) * (1.0 / float(0xffffffffu));
 
         // skylight normal shading
         LightSource sky_light_source = getSkyLightSource();
@@ -132,9 +125,8 @@ void main() {
 
     vec4 o_color;
     vec4 o_light;
-    vec4 o_depth;
     vec4 o_spatial_buffer;
-    raytraceMainImage(o_color, o_light, o_depth, o_spatial_buffer, ray, light_rays_count);
+    raytraceMainImage(o_color, o_light, o_spatial_buffer, ray, light_rays_count);
 
     // -- DEBUG --
 //    o_color.b = 1.0 - spatial_buffer_data.value.w;
@@ -145,5 +137,4 @@ void main() {
     imageStore(spatial_buffer_current_frame, pixel, o_spatial_buffer);
     imageStore(output_texture_color, pixel, vec4(o_color.rgb, 1.0));
     imageStore(output_texture_light, pixel, o_light);
-    imageStore(output_texture_depth, pixel, o_depth);
 }
