@@ -16,15 +16,13 @@ layout(rgba32f, binding = ${lightmap.blur_frame_current}) uniform highp image2D 
 #include "buffer/spatial_buffer.inc"
 
 
-#ifdef D_PASS_PARITY_1
-#define READ(X) (X).r
-#define WRITE(X) (X).a
-#define SHIFT(X) ivec2(X, 0)
-#else
-#define READ(X) (X).a
-#define WRITE(X) (X).r
-#define SHIFT(X) ivec2(0, X)
-#endif
+#ifdef D_BLUR_PASS
+    #ifdef D_PASS_PARITY_1
+        #define SHIFT(X) ivec2(X, 0)
+    #else
+        #define SHIFT(X) ivec2(0, X)
+    #endif
+#endif // D_BLUR_PASS
 
 
 vec3 getPackedColor1(vec3 p) {
@@ -48,7 +46,7 @@ vec3 get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, float color_cutout,
             float w = 1.0;
             w -= getLightPointDifferenceDelta(pixel.a, origin.a) / float(${lighting.blur_depth_factor});
             // w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
-            w -= length(v - origin_val) * float(${lighting.blur_value_factor}) * color_cutout;
+            w -= pow(length(v - origin_val) / sqrt(3.0), 2.0) * float(${lighting.blur_value_factor}) * color_cutout;
             w = clamp(w, 0.0, 1.0);
             sum += v * w;
             weight += w;

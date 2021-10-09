@@ -86,10 +86,10 @@ void LightMapTexture::runBlurPass(RenderContext& context) {
 
     {
         VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_lightmap_3x3)
-        VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, soft_shadow_3x3_pass1, shader_manager, "soft_shadow_3x3_pass1");
+        VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, soft_shadow_3x3_pass, shader_manager, "soft_shadow_3x3_pass");
         for (i32 i = 0; i < 2; i++) {
             _bindTexturesForBlurPass(shader_manager);
-            soft_shadow_3x3_pass1->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
+            soft_shadow_3x3_pass->dispatchForTexture(math::Vec3i(m_width, m_height, 1));
             _swapBlurFrames();
         }
     }

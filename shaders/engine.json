@@ -61,16 +61,10 @@
       "source": "postprocess/lightmap_interpolate_pass.compute"
     },
 
-    "soft_shadow_3x3_pass1": {
+    "soft_shadow_3x3_pass": {
       "type": "compute",
       "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_3X3_FILTER_PASS", "D_PASS_PARITY_1"]
-    },
-
-    "soft_shadow_3x3_pass2": {
-      "type": "compute",
-      "source": "postprocess/lightmap_blur_pass.compute",
-      "defines": ["D_3X3_FILTER_PASS", "D_PASS_PARITY_2"]
+      "defines": ["D_3X3_FILTER_PASS"]
     },
 
     "soft_shadow_blur_pass1": {

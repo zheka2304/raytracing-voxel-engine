@@ -10,17 +10,10 @@ layout(rgba32f, binding = ${lightmap.interpolation_frame_current}) uniform highp
 layout(rgba32f, binding = ${lightmap.blur_frame_current}) uniform highp image2D blur_current_frame;
 
 
-#define BLEND_RATE_MIN float(${lighting.interpolate_blend_rate_min})
-#define BLEND_RATE_FACTOR float(${lighting.interpolate_blend_rate_factor})
-
-#define BLUR_SAMPLE_COUNT int(${lighting.interpolate_blur_sample_count})
-#define BLUR_RATE_FACTOR float(${lighting.interpolate_blur_rate_factor})
-#define BLUR_DEPTH_FACTOR float(${lighting.blur_depth_factor})
-
-
 #include "common.inc"
 #include "raytrace/camera.inc"
 #include "buffer/spatial_buffer.inc"
+
 
 vec4 getLastFrameBlurredValue(ivec2 origin_pos, vec4 origin, float factor, int step) {
     float weight = 0.0;
@@ -33,7 +26,7 @@ vec4 getLastFrameBlurredValue(ivec2 origin_pos, vec4 origin, float factor, int s
             vec4 pixel = imageLoad(lightmap_last_frame, pixel_pos);
             vec3 v = pixel.rgb;
             float w = factor; // * stability;
-            w -= getLightPointDifferenceDelta(pixel.a, origin.a) / BLUR_DEPTH_FACTOR;
+            w -= getLightPointDifferenceDelta(pixel.a, origin.a) / float(${lighting.blur_depth_factor});
             w = clamp(w, 0.0, 1.0);
             weight += w;
             value += w * v;
@@ -63,22 +56,22 @@ void main() {
         return;
     }
 
-    //
+    // get spatial buffer data
     SpatialBufferData spatial_buffer_data = ACCESS_SPATIAL_BUFFER(pixel);
 
-    // get blend value
-    float blend_value = clamp(1.0 - spatial_buffer_data.value.w * BLEND_RATE_FACTOR, BLEND_RATE_MIN, 1.0);
-    if (spatial_buffer_data.pixel.x >= 0) blend_value = BLEND_RATE_MIN;
+    // get blend factor
+    float blend_factor = clamp(1.0 - spatial_buffer_data.value.w * float(${lighting.interpolate_blend_rate_factor}), float(${lighting.interpolate_blend_rate_min}), 1.0);
+    if (spatial_buffer_data.pixel.x >= 0) blend_factor = float(${lighting.interpolate_blend_rate_min});
 
-    // correct blend value
-
-    //
-    float blur_factor = clamp(1.0 - spatial_buffer_data.value.w * BLUR_RATE_FACTOR, 0.0, 1.0);
-    vec3 last_value = getLastFrameBlurredValueMultiSample(spatial_buffer_data.pixel.xy, blur_factor, BLUR_SAMPLE_COUNT);
+    // get last and current value according to spatial buffer data
+    float blur_factor = clamp(1.0 - spatial_buffer_data.value.w * float(${lighting.interpolate_blur_rate_factor}), 0.0, 1.0);
+    vec3 last_value = getLastFrameBlurredValueMultiSample(spatial_buffer_data.pixel.xy, blur_factor, int(${lighting.interpolate_blur_sample_count}));
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
 
-    current_value.rgb = mix(last_value, current_value.rgb, blend_value);
+    // mix previous and current value
+    current_value.rgb = mix(last_value, current_value.rgb, blend_factor);
 
+    // write current value to current blur and interpolation textures
     imageStore(lightmap_current_frame, pixel, current_value);
     imageStore(blur_current_frame, pixel, vec4(
         PACK_H2F(vec2(current_value.r)),
