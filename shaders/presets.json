@@ -27,21 +27,26 @@
     "spatial_buffer.z_delta_interpolate_threshold": 0.03,
 
     // -- lighting --
+    // normal parameters
     "lighting.normal_fadeout_distance": 1920,
     "lighting.shadow_normal_fadeout_distance": 5120,
     "lighting.normal_fadeout_rate": 2.5,
     "lighting.shadow_normal_fadeout_rate": 2.5,
 
-    "lighting.blur_depth_factor": 0.025,
-    "lighting.blur_value_factor": 1.5,
+    // general blur parameters
+    "lighting.blur_depth_factor": 0.025,                              // greater values mean pixels with greater spatial difference (normal + distance from camera) will be blurred together
+    "lighting.blur_value_factor": 1.5,                                // greater values will make different colors to blur less
 
-    "lighting.interpolate_blend_rate_min": 0.05,
-    "lighting.interpolate_blend_rate_factor": 5,
-    "lighting.interpolate_blur_sample_count": 6,
-    "lighting.interpolate_blur_rate_factor": 4,
-    "lighting.denoise_blur_sample_count": 3,
-    "lighting.denoise_blur_sample_count_add": 0,
-    "lightmap.denoise_blur_optimization_epsilon": 0.0005,
+    // interpolation parameters
+    "lighting.interpolate_blend_rate_min": 0.05,                      // minimum blend rate between stored light value and new light value
+    "lighting.interpolate_blend_rate_factor": 5,                      // blend rate decrease factor with stability increase
+    "lighting.interpolate_blur_sample_count": 6,                      //
+    "lighting.interpolate_blur_rate_factor": 4,                       //
+
+    // denoise stage parameters - de
+    "lighting.denoise_blur_sample_count": 3,                          // denoise blur samples
+    "lighting.denoise_blur_sample_count_add": 0,                      // additional denoise samples for low stability regions
+    "lightmap.denoise_blur_optimization_epsilon": 0.0005,             // unused
 
     "lighting.linear_blur_sample_count": 8,
     "lighting.linear_blur_sample_step": 2,

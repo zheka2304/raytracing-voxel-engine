@@ -36,18 +36,19 @@ vec3 getPackedColor2(vec3 p) {
 vec3 get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, float color_cutout, int step) {
     vec3 origin_val = getPackedColor2(origin.rgb);
     vec3 sum = origin_val * origin_weight;
-    float weight = origin_weight;
+    vec3 weight = vec3(origin_weight);
 
     for (int x = -1; x <= 1; x++) {
         for (int y = -1; y <= 1; y++) {
             if (x == 0 && y == 0) continue;
             vec4 pixel = imageLoad(blur_pass_input, pos + ivec2(x, y) * step);
             vec3 v = getPackedColor2(pixel.rgb);
-            float w = 1.0;
+            vec3 w = vec3(1.0);
             w -= getLightPointDifferenceDelta(pixel.a, origin.a) / float(${lighting.blur_depth_factor});
             // w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
-            w -= pow(length(v - origin_val) / sqrt(3.0), 2.0) * float(${lighting.blur_value_factor}) * color_cutout;
-            w = clamp(w, 0.0, 1.0);
+            vec3 color_delta = v - origin_val;
+            w -= abs(color_delta) * float(${lighting.blur_value_factor}) * color_cutout;
+            w = clamp(w, vec3(0.0), vec3(1.0));
             sum += v * w;
             weight += w;
         }
