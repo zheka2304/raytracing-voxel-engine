@@ -45,10 +45,10 @@ void raytraceMainImage(
     vec4 shaded_color = pure_color;
 
     // initialize occluding object distance as POSITIVE_INF, because we didnt hit anything yet
-    o_light.r = 1.0;
+    o_light.rgb = vec3(1.0);
 
-    // setup default packed normal value
-    o_light.g = PACK_H2F(vec2(0.0));
+    // initialize light point difference value
+    o_light.a = POSITIVE_INF;
 
     RaycastResult result = raycastVoxelWorld(ray, /* max count */ 50, /* max spans */ 6, /* fetch weight */ 50);
     for (int i = result.count - 1; i >= 0; i--) {
@@ -73,9 +73,8 @@ void raytraceMainImage(
         // skylight shadow
         float skylight_shadow_value = getShadowValueFromLightSource(sky_light_source, span_start_position, span, light_rays_count);
 
-        // get normal and pack it for soft shadow post processor
+        // get normal
         vec3 normal = getVoxelNormalForSoftShadows(span.mat, span.span);
-        float packed_normal = PACK_H2F(vec2(dot(normal, vec3(1.0, 0.0, 0.0)), dot(normal, vec3(0.0, 1.0, 0.0))));
 
         // do blending
         pure_color = blendVoxelColors(
@@ -95,14 +94,11 @@ void raytraceMainImage(
         );
 
         // light value
-        o_light.r = skylight_shadow_value;
+        o_light.rgb = vec3(skylight_shadow_value);
 
-        // packed normal
-        o_light.g = packed_normal;
+        // light point difference value
+        o_light.a = getLightPointDifferenceValue(normal, span.span.x);
     }
-
-    // distance from camera value
-    o_light.a = result.distance;
 
     if (result.distance < POSITIVE_INF) {
         o_spatial_buffer.xyz = ray.start + ray.ray * result.distance;
@@ -139,9 +135,6 @@ void main() {
     vec4 o_depth;
     vec4 o_spatial_buffer;
     raytraceMainImage(o_color, o_light, o_depth, o_spatial_buffer, ray, light_rays_count);
-
-    // pass ray count to light data
-    o_light.b = light_rays_count_f;
 
     // -- DEBUG --
 //    o_color.b = 1.0 - spatial_buffer_data.value.w;

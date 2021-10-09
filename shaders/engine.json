@@ -26,10 +26,10 @@
       "source": "raytrace/screen_pass.compute"
     },
 
-    "raytrace_combine_pass": {
+    "raytrace_output_pass": {
       "type": "graphics",
       "vertex": "basic_shader.vert",
-      "fragment": "postprocess/raytrace_combine_pass.frag",
+      "fragment": "postprocess/raytrace_output_pass.frag",
       "defines": ["D_TEXTURE"]
     },
 

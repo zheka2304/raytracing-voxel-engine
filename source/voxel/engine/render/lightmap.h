@@ -13,9 +13,10 @@ namespace render {
 class LightMapTexture {
     i32 m_width, m_height;
 
-    opengl::Texture* m_last_frame;
-    opengl::Texture* m_current_frame;
-    opengl::Texture m_blur_pass_texture;
+    opengl::Texture* m_interpolation_frame_last;
+    opengl::Texture* m_interpolation_frame_current;
+    opengl::Texture* m_blur_frame_last;
+    opengl::Texture* m_blur_frame_current;
 
 public:
     LightMapTexture(i32 width, i32 height);
@@ -30,7 +31,10 @@ public:
     void runBlurPass(RenderContext& render_context);
 
 private:
-    void _bindTexturesForLightmapPass(opengl::ShaderManager& shader_manager);
+    void _bindTexturesForInterpolatePass(opengl::ShaderManager& shader_manager);
+    void _bindTexturesForBlurPass(opengl::ShaderManager& shader_manager);
+    void _swapInterpolationFrames();
+    void _swapBlurFrames();
 };
 
 

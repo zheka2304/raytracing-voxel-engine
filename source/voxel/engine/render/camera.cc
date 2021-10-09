@@ -65,7 +65,7 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
     // shader references
     opengl::ShaderManager& shader_manager = context.getShaderManager();
     VOXEL_ENGINE_SHADER_REF(opengl::ComputeShader, raytrace_screen_pass_shader, shader_manager, "raytrace_screen_pass");
-    VOXEL_ENGINE_SHADER_REF(opengl::GraphicsShader, raytrace_combine_pass_shader, shader_manager, "raytrace_combine_pass");
+    VOXEL_ENGINE_SHADER_REF(opengl::GraphicsShader, raytrace_output_pass_shader, shader_manager, "raytrace_output_pass");
 
     // update camera uniforms
     *m_time_uniform = utils::getTimeSinceStart();
@@ -97,13 +97,13 @@ void Camera::render(RenderContext& context, RenderTarget& target) {
         target.getLightmap().runBlurPass(context);
     }
 
-    // run final post processing pass
+    // run final post processing & output pass
     {
         VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_postprocess_output)
-        raytrace_combine_pass_shader->bind();
-        target.bindForPostProcessing(*raytrace_combine_pass_shader);
+        raytrace_output_pass_shader->bind();
+        target.bindForPostProcessing(*raytrace_output_pass_shader);
         target.getRenderToTexture().render();
-        raytrace_combine_pass_shader->unbind();
+        raytrace_output_pass_shader->unbind();
     }
 }
 

@@ -16,6 +16,13 @@ varying vec2 uv;
 #define UNPACK_I2F(X) unpackInt2x16(floatBitsToUint(X))
 
 
+float getLightColorComponent(float packed_input) {
+    vec2 light_value_v2 = UNPACK_H2F(packed_input);
+    float light_value_denoise_factor = 1.0 - clamp(1.0 / (abs(light_value_v2.x - light_value_v2.y) / ${lighting.linear_blur_blend_factor} + 1.0), 0.0, 1.0);
+    float light_value = mix(light_value_v2.x, light_value_v2.y, light_value_denoise_factor);
+    return light_value;
+}
+
 void main() {
     vec4 color_data = texture(IN_TEXTURE_COLOR, uv);
     vec4 light_data = texture(IN_TEXTURE_LIGHT, uv);
@@ -25,9 +32,7 @@ void main() {
     ColorPair colors = unpackColorPairF(color_data.rgb);
 
     // extract light value
-    vec2 light_value_v2 = UNPACK_H2F(light_data.r);
-    float light_value_denoise_factor = 1.0 - clamp(1.0 / (abs(light_value_v2.x - light_value_v2.y) / ${lighting.linear_blur_blend_factor} + 1.0), 0.0, 1.0);
-    float light_value = mix(light_value_v2.x, light_value_v2.y, light_value_denoise_factor);
+    vec3 light_value = vec3(getLightColorComponent(light_data.r), getLightColorComponent(light_data.g), getLightColorComponent(light_data.b));
 
     // write result
     vec4 result = vec4(1.0);
@@ -43,5 +48,6 @@ void main() {
 //    gl_FragColor.rgb = vec3(abs(color_data.rg), 0.0);
 //    gl_FragColor.rgb = vec3(light_value);
 //    gl_FragColor.rgb = vec3(depth_data.r);
+//    gl_FragColor.rgb = vec3(UNPACK_H2F(light_data.g) / 5.0, 0.0);
     // -- DEBUG END --
 }

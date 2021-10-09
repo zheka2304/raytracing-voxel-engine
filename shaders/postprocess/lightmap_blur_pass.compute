@@ -5,11 +5,14 @@
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
 layout(std430) buffer;
 
-layout(rgba32f, binding = ${lightmap.current_frame}) uniform highp image2D lightmap_texture;
-layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D blur_pass_texture;
+layout(rgba32f, binding = ${lightmap.interpolation_frame_current}) uniform highp image2D lightmap_texture;
+layout(rgba32f, binding = ${lightmap.blur_frame_last}) uniform highp image2D blur_pass_output;
+layout(rgba32f, binding = ${lightmap.blur_frame_current}) uniform highp image2D blur_pass_input;
 
 
 #include "common.inc"
+#include "util.inc"
+#include "raytrace/camera.inc"
 #include "buffer/spatial_buffer.inc"
 
 
@@ -24,20 +27,28 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 #endif
 
 
-float get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, float color_cutout, int step) {
-    float origin_val = UNPACK_H2F(READ(origin)).y;
-    float sum = origin_val * origin_weight;
+vec3 getPackedColor1(vec3 p) {
+    return vec3(UNPACK_H2F(p.r).x, UNPACK_H2F(p.g).x, UNPACK_H2F(p.b).x);
+}
+
+vec3 getPackedColor2(vec3 p) {
+    return vec3(UNPACK_H2F(p.r).y, UNPACK_H2F(p.g).y, UNPACK_H2F(p.b).y);
+}
+
+vec3 get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, float color_cutout, int step) {
+    vec3 origin_val = getPackedColor2(origin.rgb);
+    vec3 sum = origin_val * origin_weight;
     float weight = origin_weight;
 
     for (int x = -1; x <= 1; x++) {
         for (int y = -1; y <= 1; y++) {
             if (x == 0 && y == 0) continue;
-            vec4 pixel = imageLoad(blur_pass_texture, pos + ivec2(x, y) * step);
-            float v = UNPACK_H2F(READ(pixel)).y;
+            vec4 pixel = imageLoad(blur_pass_input, pos + ivec2(x, y) * step);
+            vec3 v = getPackedColor2(pixel.rgb);
             float w = 1.0;
-            w -= abs(pixel.g - origin.g) / origin.g / float(${lighting.blur_depth_factor});
-            w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
-            w -= abs(v - origin_val) * float(${lighting.blur_value_factor}) * color_cutout;
+            w -= getLightPointDifferenceDelta(pixel.a, origin.a) / float(${lighting.blur_depth_factor});
+            // w -= length(UNPACK_H2F(origin.b) - UNPACK_H2F(pixel.b));
+            w -= length(v - origin_val) * float(${lighting.blur_value_factor}) * color_cutout;
             w = clamp(w, 0.0, 1.0);
             sum += v * w;
             weight += w;
@@ -46,9 +57,9 @@ float get3x3Blur(ivec2 pos, vec4 origin, float origin_weight, float color_cutout
     return sum / weight;
 }
 
-float getMultiSample3x3Blur(ivec2 pos, float spatial_stability) {
-    vec4 origin = imageLoad(blur_pass_texture, pos);
-    float origin_val = UNPACK_H2F(READ(origin)).y;
+vec3 getMultiSample3x3Blur(ivec2 pos, float spatial_stability) {
+    vec4 origin = imageLoad(blur_pass_input, pos);
+    vec3 origin_val = getPackedColor2(origin.rgb);
     int sample_count = int(${lighting.denoise_blur_sample_count}) + int((1.0 - spatial_stability) * float(${lighting.denoise_blur_sample_count_add}));
 
     /* float eps = float(${lightmap.denoise_blur_optimization_epsilon});
@@ -57,7 +68,7 @@ float getMultiSample3x3Blur(ivec2 pos, float spatial_stability) {
     } */
 
     float color_cutout = 1.0 - spatial_stability;
-    float value = get3x3Blur(pos, origin, 1.0, 0.0, 1) / float(sample_count);
+    vec3 value = get3x3Blur(pos, origin, 1.0, 0.0, 1) / float(sample_count);
     for (int i = 1; i < sample_count; i++) {
         value += get3x3Blur(pos, origin, 1.0, spatial_stability, i * 2 + 1) / float(sample_count);
     }
@@ -75,9 +86,9 @@ void main() {
     image_size--;
 
 #ifdef D_BLUR_PASS
-    vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
-    vec2 pixel_value = UNPACK_H2F(READ(pixel));
-    float value = pixel_value.x;
+    vec4 pixel = imageLoad(blur_pass_input, pixel_pos);
+    ColorPair pixel_value = unpackColorPairF(pixel.rgb);
+    vec3 value = pixel_value.color1;
     float weight = 1.0;
 
     image_size--;
@@ -85,28 +96,24 @@ void main() {
     for (int i = -sample_size; i <= sample_size; i++) {
         if (i == 0) continue;
         ivec2 pos1 = clamp(pixel_pos + SHIFT(i) * int(${lighting.linear_blur_sample_step}), ivec2(0.0), image_size);
-        vec4 pixel1 = imageLoad(blur_pass_texture, pos1);
-        float v = UNPACK_H2F(READ(pixel1)).x;
-        float w = max(0.0, 1.0 - abs(pixel1.g - pixel.g) / pixel.g / float(${lighting.linear_blur_distance_factor}));
+        vec4 pixel1 = imageLoad(blur_pass_input, pos1);
+        vec3 v = getPackedColor1(pixel1.rgb);
+        float w = max(0.0, 1.0 - getLightPointDifferenceDelta(pixel1.a, pixel.a) / float(${lighting.linear_blur_distance_factor}));
         value += v * w;
         weight += w;
     }
 
-    pixel_value.x = value / weight;
-    WRITE(pixel) = PACK_H2F(pixel_value);
-    imageStore(blur_pass_texture, pixel_pos, pixel);
+    pixel_value.color1 = value / weight;
+    pixel.rgb = packColorPairF(pixel_value.color1, pixel_value.color2);
+    imageStore(blur_pass_output, pixel_pos, pixel);
 #endif
 
 #ifdef D_3X3_FILTER_PASS
-    vec4 pixel = imageLoad(blur_pass_texture, pixel_pos);
-    vec2 pixel_value = UNPACK_H2F(READ(pixel));
+    vec4 pixel = imageLoad(blur_pass_input, pixel_pos);
+    ColorPair pixel_value = unpackColorPairF(pixel.rgb);
     SpatialBufferData spatial_data = ACCESS_SPATIAL_BUFFER(pixel_pos);
-    if (spatial_data.pixel.x >= 0) {
-        pixel_value.y = getMultiSample3x3Blur(pixel_pos, spatial_data.value.w);
-    } else {
-        pixel_value.y = pixel_value.x;
-    }
-    WRITE(pixel) = PACK_H2F(pixel_value);
+    pixel_value.color2 = getMultiSample3x3Blur(pixel_pos, spatial_data.value.w);
+    pixel.rgb = packColorPairF(pixel_value.color1, pixel_value.color2);
 
     // -- DEBUG START --
 //    #ifdef D_PASS_PARITY_2
@@ -114,7 +121,7 @@ void main() {
 //    #endif
     // -- DEBUG END --
 
-    imageStore(blur_pass_texture, pixel_pos, pixel);
+    imageStore(blur_pass_output, pixel_pos, pixel);
 #endif
 
 }

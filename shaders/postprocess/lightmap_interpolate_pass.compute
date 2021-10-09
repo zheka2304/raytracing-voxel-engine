@@ -5,9 +5,9 @@
 layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE, local_size_z = 1) in;
 layout(std430) buffer;
 
-layout(rgba32f, binding = ${lightmap.last_frame}) uniform highp image2D lightmap_last_frame;
-layout(rgba32f, binding = ${lightmap.current_frame}) uniform highp image2D lightmap_current_frame;
-layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D blur_pass_texture;
+layout(rgba32f, binding = ${lightmap.interpolation_frame_last}) uniform highp image2D lightmap_last_frame;
+layout(rgba32f, binding = ${lightmap.interpolation_frame_current}) uniform highp image2D lightmap_current_frame;
+layout(rgba32f, binding = ${lightmap.blur_frame_current}) uniform highp image2D blur_current_frame;
 
 
 #define BLEND_RATE_MIN float(${lighting.interpolate_blend_rate_min})
@@ -19,41 +19,40 @@ layout(rgba32f, binding = ${lightmap.blur_pass_texture}) uniform highp image2D b
 
 
 #include "common.inc"
+#include "raytrace/camera.inc"
 #include "buffer/spatial_buffer.inc"
 
-
-vec2 getLastFrameBlurredValue(ivec2 origin_pos, vec4 origin, float factor, int step) {
+vec4 getLastFrameBlurredValue(ivec2 origin_pos, vec4 origin, float factor, int step) {
     float weight = 0.0;
-    float value = 0.0;
+    vec3 value = vec3(0.0);
     for (int x = -1; x <= 1; x++) {
         for (int y = -1; y <= 1; y++) {
             if (x == 0 && y == 0) continue;
             ivec2 pixel_pos = clamp(origin_pos + ivec2(x, y) * step, ivec2(0), U_SCREEN_SIZE - 1);
 //            float stability = ACCESS_SPATIAL_BUFFER(pixel_pos).value.w;
             vec4 pixel = imageLoad(lightmap_last_frame, pixel_pos);
-            float v = pixel.r;
+            vec3 v = pixel.rgb;
             float w = factor; // * stability;
-            w -= abs(pixel.a - origin.a) / origin.a / BLUR_DEPTH_FACTOR;
-            w -= length(UNPACK_H2F(origin.g) - UNPACK_H2F(pixel.g));
+            w -= getLightPointDifferenceDelta(pixel.a, origin.a) / BLUR_DEPTH_FACTOR;
             w = clamp(w, 0.0, 1.0);
             weight += w;
             value += w * v;
         }
     }
-    return vec2(value, weight);
+    return vec4(value, weight);
 }
 
-float getLastFrameBlurredValueMultiSample(ivec2 pixel, float factor, int sample_count) {
+vec3 getLastFrameBlurredValueMultiSample(ivec2 pixel, float factor, int sample_count) {
     vec4 origin = imageLoad(lightmap_last_frame, pixel);
     if (factor < .1 || sample_count <= 0) {
-        return origin.r;
+        return origin.xyz;
     }
-    vec2 value_and_weight = vec2(0.0);
+    vec4 value_and_weight = vec4(0.0);
     for (int i = 0; i < sample_count; i++) {
-        vec2 s = getLastFrameBlurredValue(pixel, origin, factor, i * 2 + 1);
+        vec4 s = getLastFrameBlurredValue(pixel, origin, factor, i * 2 + 1);
         value_and_weight += s / float(sample_count);
     }
-    return value_and_weight.y > 0.0 ? value_and_weight.x / value_and_weight.y : origin.r;
+    return value_and_weight.w > 0.0 ? value_and_weight.xyz / value_and_weight.w : origin.xyz;
 }
 
 void main() {
@@ -75,17 +74,16 @@ void main() {
 
     //
     float blur_factor = clamp(1.0 - spatial_buffer_data.value.w * BLUR_RATE_FACTOR, 0.0, 1.0);
-    float last_value = getLastFrameBlurredValueMultiSample(spatial_buffer_data.pixel.xy, blur_factor, BLUR_SAMPLE_COUNT);
+    vec3 last_value = getLastFrameBlurredValueMultiSample(spatial_buffer_data.pixel.xy, blur_factor, BLUR_SAMPLE_COUNT);
     vec4 current_value = imageLoad(lightmap_current_frame, pixel);
 
-    current_value.r = mix(last_value, current_value.r, blend_value);
-    imageStore(lightmap_current_frame, pixel, current_value);
+    current_value.rgb = mix(last_value, current_value.rgb, blend_value);
 
-    //
-    imageStore(blur_pass_texture, pixel, vec4(
-        PACK_H2F(vec2(current_value.r)),                               // light value
-        current_value.a,                                               // distance from camera
-        current_value.g,                                               // packed normal dot values
-        PACK_H2F(vec2(current_value.r))                                // reserved for passes
+    imageStore(lightmap_current_frame, pixel, current_value);
+    imageStore(blur_current_frame, pixel, vec4(
+        PACK_H2F(vec2(current_value.r)),
+        PACK_H2F(vec2(current_value.g)),
+        PACK_H2F(vec2(current_value.b)),
+        current_value.a
     ));
 }

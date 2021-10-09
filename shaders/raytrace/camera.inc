@@ -54,4 +54,18 @@ vec3 worldPositionToScreen(vec3 world_pos) {
     return vec3(projected.xy / projected.z / u_camera_projection.perspective.xy, length(pos_to_camera));
 }
 
+float getLightPointDifferenceValue(vec3 normal, float distance) {
+    float dot_right = dot(normal, normalize(u_camera_projection.basis_matrix[0]));
+    float dot_up = dot(normal, normalize(u_camera_projection.basis_matrix[1]));
+    float dot_forward = dot(normal, normalize(u_camera_projection.basis_matrix[2]));
+    float factor = max(1.0, distance * 0.2);
+    return PACK_H2F(vec2((dot_forward + 1.0) * factor + distance, (dot_right + 1.0) * factor + distance));
+}
+
+float getLightPointDifferenceDelta(float value1, float value2) {
+    vec2 v1 = UNPACK_H2F(value1);
+    vec2 v2 = UNPACK_H2F(value2);
+    return length(v1 - v2) / min(length(v1), length(v2));
+}
+
 #endif  // VOXEL_ENGINE_CAMERA_INC

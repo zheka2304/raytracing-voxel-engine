@@ -72,24 +72,32 @@ public:
 //        chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
 //        chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
 
-//        auto size = m_model.getSize();
-//        for (unsigned int x = 0; x < size.x; x++) {
-//            for (unsigned int y = 0; y < size.y; y++) {
-//                for (unsigned int z = 0; z < size.z; z++) {
-//                    voxel::Voxel voxel = m_model.getVoxel(x, y, z);
-//                    voxel.material = 0;
-//                    if (voxel.color != 0) {
-//                        voxel.color |= (31 << 25);
-//                        chunk->setVoxel({7, x, y, z}, voxel);
-//                    }
-//                }
-//            }
-//        }
+        srand(voxel::utils::getTimestampNanos());
+        i32 offset_x = rand() % 1;
+        i32 offset_z = rand() % 1;
 
+        auto size = m_model.getSize();
+        for (unsigned int x = 0; x < size.x; x++) {
+            for (unsigned int y = 0; y < size.y; y++) {
+                for (unsigned int z = 0; z < size.z; z++) {
+                    voxel::Voxel voxel = m_model.getVoxel(x, y, z);
+                    voxel.material = 0;
+                    if (voxel.color != 0) {
+                        voxel.color |= (31 << 25);
+                        chunk->setVoxel({7, x + offset_x, y, z + offset_z}, voxel);
+                    }
+                }
+            }
+        }
+
+        u32 grass_mat = 0;//getNormalBits(0.0, 1.0, 0.0, 1.0);
         for (unsigned int x = 0; x < 256; x++) {
             for (unsigned int z = 0; z < 256; z++) {
                 // if ((x + z) & 1)
-                chunk->setVoxel({8, x, 0, z}, { (31 << 25) | 0x77FFCC, 0 });
+                chunk->setVoxel({8, x, 0, z}, {(31 << 25) | 0x77FFCC, grass_mat});
+//                for (unsigned int i = 0; i < rand() % 4; i++) {
+//                    chunk->setVoxel({8, x, i + 1, z}, {(31 << 25) | 0x77FFCC, grass_mat});
+//                }
             }
         }
 
@@ -109,17 +117,16 @@ int main() {
     voxel::format::VoxFileFormat file_format;
     std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
 
-    {
-        VOXEL_ENGINE_PROFILE_SCOPE(startup_model_load);
-        auto models = file_format.read(istream);
-        istream.close();
-        model = models[0].get();
-    }
+    VOXEL_ENGINE_PROFILE_SCOPE(startup_model_load);
+    auto models = file_format.read(istream);
+    istream.close();
+    model = models[0].get();
+    VOXEL_ENGINE_PROFILE_SCOPE_END(startup_model_load);
 
     auto engine = std::make_shared<voxel::Engine>();
     engine->initialize();
     auto context = engine->newContext("ctx1");
-    context->initWindow({900, 900, "test", {}});
+    context->initWindow({1920, 1080, "test", {}});
 
     voxel::Shared<voxel::ChunkProvider> chunk_provider = voxel::CreateShared<voxel::DebugChunkProvider>(*model);
     voxel::Shared<voxel::ChunkStorage> chunk_storage = voxel::CreateShared<voxel::ChunkStorage>();
@@ -135,18 +142,18 @@ int main() {
 
     context->setInitCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
         camera = new voxel::render::Camera();
-        camera->getProjection().position = voxel::math::Vec3f(0, 10, 0);
+        camera->getProjection().position = voxel::math::Vec3f(0, 1, 0);
 
         simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
         simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
         simple_input->setSensitivity(0.0025, 0.0025);
-        simple_input->setMovementSpeed(0.25f);
+        simple_input->setMovementSpeed(0.025f);
     });
 
     context->setWindowResizeCallback([] (voxel::Context& ctx, int w, int h) -> void {
         std::cout << "window resize: " << w << ", " << h << "\n";
         glViewport(0, 0, w, h);
-        camera->getProjection().setFov(60 * (180.0f / 3.1416f), h / (float) w);
+        camera->getProjection().setFov(90 / (180.0f / 3.1416f), h / (float) w);
     });
 
     context->setWindowFocusCallback([] (voxel::Context& ctx, int focus) -> void {
@@ -168,7 +175,7 @@ int main() {
         static voxel::render::RenderTarget* render_target = nullptr;
         static voxel::WorldRenderer* world_renderer = nullptr;
         if (!render_target) {
-            render_target = new voxel::render::RenderTarget(2048, 2048);
+            render_target = new voxel::render::RenderTarget(1920, 1080);
             world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(4096, 65536, voxel::math::Vec3i(50)), voxel::WorldRendererSettings());
         }
 
