@@ -21,11 +21,8 @@ struct WorldRendererSettings {
     // distance from previous offset to rebuild chunk buffer map
     i32 buffer_offset_update_distance = 4;
 
-    // distance from camera, at which chunks are not unloaded
-    i32 min_loading_distance = 5;
-
-    // distance from camera, at which chunks should not be loaded
-    i32 max_loading_distance = 40;
+    // loading level for camera region
+    i32 chunk_loading_level = 40;
 };
 
 class WorldRenderer : public ChunkSourceListener {

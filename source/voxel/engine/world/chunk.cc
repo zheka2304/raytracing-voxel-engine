@@ -50,6 +50,9 @@ ChunkState Chunk::getState() const {
 }
 
 void Chunk::setState(ChunkState state) {
+#if 0
+    std::cout << "changing chunk state: " << std::to_string(m_state) << " -> " << std::to_string(state) << "\n";
+#endif
     m_state = state;
 }
 
@@ -239,3 +242,28 @@ void Chunk::unlock() {
 }
 
 } // voxel
+
+
+namespace std {
+std::string to_string(voxel::ChunkState state) {
+    switch (state) {
+        case voxel::CHUNK_PENDING:
+            return "CHUNK_PENDING";
+        case voxel::CHUNK_BUILT:
+            return "CHUNK_BUILT";
+        case voxel::CHUNK_PROCESSED:
+            return "CHUNK_PROCESSED";
+        case voxel::CHUNK_LOADED:
+            return "CHUNK_LOADED";
+        case voxel::CHUNK_LAZY:
+            return "CHUNK_LAZY";
+        case voxel::CHUNK_STORING:
+            return "CHUNK_STORING";
+        case voxel::CHUNK_UNLOADING:
+            return "CHUNK_UNLOADING";
+        case voxel::CHUNK_FINALIZED:
+            return "CHUNK_FINALIZED";
+    }
+    return "CHUNK_STATE_UNKNOWN";
+}
+}

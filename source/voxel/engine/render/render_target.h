@@ -36,7 +36,6 @@ public:
     // shader uniform bindings and indices:
     // - IN_TEXTURE_COLOR (1)
     // - IN_TEXTURE_LIGHT (2)
-    // - IN_TEXTURE_DEPTH (3)
     void bindForPostProcessing(opengl::GraphicsShader& post_processing_shader);
 
     i32 getWidth();

@@ -1,6 +1,7 @@
 #include "world_renderer.h"
 
 #include <iostream>
+#include "voxel/common/profiler.h"
 
 
 namespace voxel {
@@ -9,7 +10,7 @@ WorldRenderer::WorldRenderer(Shared<ChunkSource> chunk_source, Shared<render::Ch
     m_chunk_source(chunk_source), m_chunk_buffer(chunk_buffer), m_settings(settings) {
     m_chunk_source->addListener(this);
     m_chunk_buffer->rebuildChunkMap(m_chunk_map_offset_position);
-    m_camera_loading_region = m_chunk_source->addLoadingRegion(m_chunk_map_offset_position, m_settings.min_loading_distance, m_settings.max_loading_distance);
+    m_camera_loading_region = m_chunk_source->addLoadingRegion(m_chunk_map_offset_position, m_settings.chunk_loading_level);
 }
 
 WorldRenderer::~WorldRenderer() {
@@ -41,15 +42,18 @@ void WorldRenderer::render(render::RenderContext& render_context) {
 }
 
 void WorldRenderer::onTick() {
+    VOXEL_ENGINE_PROFILE_SCOPE(world_renderer_tick);
+
     if (m_rebuild_chunk_map.exchange(false)) {
         m_chunk_buffer->rebuildChunkMap(m_chunk_map_offset_position);
     }
-    m_chunk_source->setGpuMemoryRatio(m_chunk_buffer->getMemoryRatio());
     fetchRequestedChunks();
     runChunkUpdates();
 }
 
 void WorldRenderer::fetchRequestedChunks() {
+    VOXEL_ENGINE_PROFILE_SCOPE(world_renderer_fetch_chunks);
+
     // if there remaining chunks to fetch
     if (m_fetched_chunks_list.hasNext()) {
         // fetch some chunks
@@ -79,11 +83,12 @@ void WorldRenderer::fetchRequestedChunks() {
 }
 
 void WorldRenderer::runChunkUpdates() {
+    VOXEL_ENGINE_PROFILE_SCOPE(world_renderer_update_chunks);
+
     for (i32 i = 0; i < m_settings.chunk_updates_per_tick; i++) {
         auto next = m_chunk_updates.tryPop();
         if (next.has_value()) {
             Shared<Chunk> chunk = next.value();
-            auto pos = chunk->getPosition();
             if (chunk->tryLock()) {
                 if (chunk->getState() == CHUNK_LOADED) {
                     m_chunk_buffer->uploadChunk(chunk, 0);

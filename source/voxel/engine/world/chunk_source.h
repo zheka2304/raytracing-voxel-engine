@@ -43,29 +43,29 @@ public:
         // max loaded chunks updates per tick per tick
         i32 loaded_chunk_updates = 64;
 
-        // Timeout and gpu memory ratio threshold, after which chunk will become lazy and unload from GPU memory.
-        // For minimum gpu memory ration maximum timeout will be used and vice versa, so with increasing gpu memory chunks will be unloaded from gpu faster
-        i32 chunk_lazy_timeout_min = 1000;
-        i32 chunk_lazy_timeout_max = 2000;
-        f32 chunk_lazy_gpu_mem_ratio_min = 0.1;
-        f32 chunk_lazy_gpu_mem_ratio_max = 0.9;
+        // time since last fetch for chunk to be checked for changing state to lazy or start unloading
+        i32 chunk_unload_timeout = 10000;
     };
 
     // TODO: LoadingRegion related logic is not thread-safe
     class LoadingRegion {
+    public:
+        static const i32 LEVEL_LOAD = 20;
+        static const i32 LEVEL_LAZY = 18;
+
+    private:
         ChunkSource* m_chunk_source;
         math::Vec3i m_position;
-        i32 m_min_size, m_max_size;
+        i32 m_loading_level;
 
     public:
-        LoadingRegion(ChunkSource* chunk_source, math::Vec3i position, i32 min_size, i32 max_size);
+        LoadingRegion(ChunkSource* chunk_source, math::Vec3i position, i32 loading_level);
         LoadingRegion(const LoadingRegion& other) = delete;
         LoadingRegion(LoadingRegion&& other) = delete;
 
         math::Vec3i getPosition();
         void setPosition(math::Vec3i position);
-        i32 getMaxSize();
-        i32 getMinSize();
+        i32 getLoadingLevel();
 
         friend ChunkSource;
     };
@@ -92,7 +92,6 @@ private:
     ChunkSourceState m_state;
     std::vector<ChunkSourceListener*> m_listeners;
     Settings m_settings;
-    f32 m_gpu_memory_ratio = 0;
 
     std::mutex m_chunks_mutex;
     std::unordered_map<ChunkPosition, Shared<Chunk>> m_chunks;
@@ -122,18 +121,16 @@ public:
     Shared<Chunk> getChunkAt(ChunkPosition position);
     Shared<Chunk> fetchChunkAt(ChunkPosition position, i64 priority);
 
-    Shared<LoadingRegion> addLoadingRegion(math::Vec3i position, i32 min_size, i32 max_size);
+    Shared<LoadingRegion> addLoadingRegion(math::Vec3i position, i32 loading_level);
     void removeLoadingRegion(Shared<LoadingRegion> loading_region);
-    f32 getMinDistanceToLoadingRegion(ChunkPosition position, bool relative);
-
-    void setGpuMemoryRatio(f32 ratio);
+    i32 getLoadingLevelForPosition(ChunkPosition position);
 
 private:
     void runChunkTask(ChunkTask task);
 
     void tryCreateNewChunk(ChunkPosition position);
     void tryLoadLazyChunk(Shared<Chunk> chunk);
-    void handleChangingChunkStateTask(Shared<Chunk> chunk);
+    void handleChunkLoading(Shared<Chunk> chunk);
     void handleLazyChunk(Shared<Chunk> chunk);
     void startUpdatingChunk(Shared<Chunk> chunk);
     bool updateChunk(Shared<Chunk> chunk);

@@ -92,6 +92,9 @@ public:
 
 } // voxel
 
+namespace std {
+std::string to_string(voxel::ChunkState state);
+} // std
 
 
 #endif //VOXEL_ENGINE_CHUNK_H
