@@ -16,7 +16,7 @@ struct WorldRendererSettings {
     i32 chunk_updates_per_tick = 8;
 
     // Maximum count of chunks, fetched each tick
-    i32 chunk_fetches_per_tick = 4096 * 4;
+    i32 chunk_fetches_per_tick = 4096;
 
     // distance from previous offset to rebuild chunk buffer map
     i32 buffer_offset_update_distance = 4;

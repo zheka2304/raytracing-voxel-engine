@@ -56,12 +56,14 @@ void WorldRenderer::fetchRequestedChunks() {
 
     // if there remaining chunks to fetch
     if (m_fetched_chunks_list.hasNext()) {
-        // fetch some chunks
+        // fetch some chunks, requested by gpu
         for (i32 i = 0; i < m_settings.chunk_fetches_per_tick && m_fetched_chunks_list.hasNext(); i++) {
             auto chunk_to_fetch = m_fetched_chunks_list.next();
             i64 priority = m_chunk_fetch_priority * 64 + chunk_to_fetch.weight;
             Shared<Chunk> chunk = m_chunk_source->fetchChunkAt(chunk_to_fetch.pos, priority);
-            m_chunk_buffer->updateChunkPriority(chunk, priority);
+            if (chunk) {
+                m_chunk_buffer->updateChunkPriority(chunk, priority);
+            }
         }
 
         // if all chunks fetched - request more

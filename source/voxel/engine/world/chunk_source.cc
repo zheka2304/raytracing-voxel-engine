@@ -196,13 +196,16 @@ void ChunkSource::runChunkUnload(Shared<Chunk> chunk) {
 
 void ChunkSource::onTick() {
     VOXEL_ENGINE_PROFILE_SCOPE(chunk_source_tick)
-    i32 updates_count = std::min(m_settings.loaded_chunk_updates, i32(m_updates_queue.getDeque().size()));
-    for (i32 i = 0; i < updates_count; i++) {
-        auto popped = m_updates_queue.tryPop();
-        if (popped.has_value()) {
-            Shared<Chunk> chunk = popped->lock();
-            if (chunk && updateChunk(chunk)) {
-                m_updates_queue.push(popped.value());
+    {
+        VOXEL_ENGINE_PROFILE_SCOPE(chunk_source_update_chunks)
+        i32 updates_count = std::min(m_settings.loaded_chunk_updates, i32(m_updates_queue.getDeque().size()));
+        for (i32 i = 0; i < updates_count; i++) {
+            auto popped = m_updates_queue.tryPop();
+            if (popped.has_value()) {
+                Shared<Chunk> chunk = popped->lock();
+                if (chunk && updateChunk(chunk)) {
+                    m_updates_queue.push(popped.value());
+                }
             }
         }
     }

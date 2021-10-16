@@ -209,6 +209,7 @@ int main() {
     engine->joinAllEventLoops();
 
     std::cout << "Profiler data:\n" <<
+        "GRAPHICS:\n" <<
         "  full frame: " << voxel::Profiler::get().getAverageValue("render_all") << " ms\n" <<
         "    raytrace: " << voxel::Profiler::get().getAverageValue("render_raytrace_pass") << " ms\n" <<
         "    lightmap: " << voxel::Profiler::get().getAverageValue("render_lightmap") << " ms\n" <<
@@ -220,7 +221,13 @@ int main() {
         "      pass: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_pass") << " ms\n" <<
         "      postprocess: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_postprocess") << " ms\n" <<
         "    postprocess and output: " << voxel::Profiler::get().getAverageValue("render_postprocess_output") << " ms\n" <<
-        "    world: " << voxel::Profiler::get().getAverageValue("render_world") << " ms\n";
+        "    world: " << voxel::Profiler::get().getAverageValue("render_world") << " ms\n" <<
+        "TICK:\n" <<
+        "  chunk source tick: " << voxel::Profiler::get().getAverageValue("chunk_source_tick") << " ms\n" <<
+        "    update chunks: " << voxel::Profiler::get().getAverageValue("chunk_source_update_chunks") << " ms\n" <<
+        "    world renderer tick: " << voxel::Profiler::get().getAverageValue("world_renderer_tick") << " ms\n" <<
+        "      fetch chunks: " << voxel::Profiler::get().getAverageValue("world_renderer_fetch_chunks") << " ms\n" <<
+        "      update chunks: " << voxel::Profiler::get().getAverageValue("world_renderer_update_chunks") << " ms\n";
 
     return 0;
 }
