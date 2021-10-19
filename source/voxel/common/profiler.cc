@@ -7,6 +7,45 @@
 
 namespace voxel {
 
+Profiler& Profiler::get() {
+    static Profiler profiler;
+    return profiler;
+}
+
+std::string Profiler::getAppProfilerStats() {
+    std::stringstream ss;
+    Profiler& profiler = get();
+    ss << "GRAPHICS:\n" <<
+       "  full frame: " << profiler.getAverageValue("render_all") << " ms\n" <<
+       "    raytrace: " << profiler.getAverageValue("render_raytrace_pass") << " ms\n" <<
+       "    lightmap: " << profiler.getAverageValue("render_lightmap") << " ms\n" <<
+       "      interpolate: " << profiler.getAverageValue("render_lightmap_interpolate") << " ms\n" <<
+       "      blur: " << profiler.getAverageValue("render_lightmap_blur") << " ms\n" <<
+       "      3x3: " << profiler.getAverageValue("render_lightmap_3x3") << " ms\n" <<
+       "    spatial buffer: " << profiler.getAverageValue("render_spatial_buffer") << " ms\n" <<
+       "      reset: " << profiler.getAverageValue("render_spatial_buffer_reset") << " ms\n" <<
+       "      pass: " << profiler.getAverageValue("render_spatial_buffer_pass") << " ms\n" <<
+       "      postprocess: " << profiler.getAverageValue("render_spatial_buffer_postprocess") << " ms\n" <<
+       "    postprocess and output: " << profiler.getAverageValue("render_postprocess_output") << " ms\n" <<
+       "    world: " << profiler.getAverageValue("render_world") << " ms\n" <<
+       "TICK:\n" <<
+       "  chunk source tick: " << profiler.getAverageValue("chunk_source_tick") << " ms\n" <<
+       "    update chunks: " << profiler.getAverageValue("chunk_source_update_chunks") << " ms\n" <<
+       "    world renderer tick: " << profiler.getAverageValue("world_renderer_tick") << " ms\n" <<
+       "      fetch chunks: " << profiler.getAverageValue("world_renderer_fetch_chunks") << " ms\n" <<
+       "      update chunks: " << profiler.getAverageValue("world_renderer_update_chunks") << " ms\n";
+    return ss.str();
+}
+
+std::string Profiler::getWindowTitlePerformanceStats() {
+    std::stringstream ss;
+    Profiler& profiler = get();
+    ss << "fps: " << int(1000.0 / profiler.getAverageValue("render_all"));
+    ss << " frame time: " << profiler.getAverageValue("render_main_camera") << "ms";
+    ss << " world time: " << profiler.getAverageValue("render_world") << "ms";
+    return ss.str();
+}
+
 Profiler::ScopeInfo::ScopeInfo(std::thread::id thread_id, const std::string& name) : m_thread_id(thread_id), m_name(name) {
 }
 

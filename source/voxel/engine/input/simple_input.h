@@ -16,7 +16,7 @@ class SimpleInput {
     MouseControl m_mouse_control;
 
     f32 m_movement_speed = 0.1f;
-    math::Vec2f m_sensitivity = math::Vec2f(0.01f, 0.01f);
+    math::Vec2f m_sensitivity = math::Vec2f(0.0025f, 0.0025f);
 
 public:
     SimpleInput(WindowHandler& window_handler);

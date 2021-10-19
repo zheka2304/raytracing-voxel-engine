@@ -19,10 +19,9 @@ public:
     constexpr static const i32 FRAMES_PER_MEASURE = 4;
     constexpr static const f32 ACCUMULATION_FACTOR = 0.4f;
 
-    static Profiler& get() {
-        static Profiler profiler;
-        return profiler;
-    }
+    static Profiler& get();
+    static std::string getAppProfilerStats();
+    static std::string getWindowTitlePerformanceStats();
 
     class ScopeInfo {
         std::string m_name;

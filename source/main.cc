@@ -2,35 +2,24 @@
 #include <sstream>
 #include <fstream>
 
-#include "voxel/engine/engine.h"
-#include "voxel/engine/input/simple_input.h"
-#include "voxel/engine/render/camera.h"
-#include "voxel/engine/render/chunk_buffer.h"
-#include "voxel/engine/world/chunk.h"
+#include "voxel/common/base.h"
+#include "voxel/common/profiler.h"
 #include "voxel/common/utils/time.h"
-#include "voxel/engine/file/vox_file_format.h"
-#include "voxel/engine/file/riff_file_format.h"
+
+#include "voxel/engine/world.h"
+#include "voxel/engine/world/chunk.h"
+#include "voxel/engine/render/chunk_buffer.h"
 #include "voxel/engine/world/chunk_provider.h"
 #include "voxel/engine/world/chunk_storage.h"
 #include "voxel/engine/world/chunk_source.h"
 #include "voxel/engine/world/world_renderer.h"
-#include "voxel/engine/world.h"
-#include "voxel/common/profiler.h"
+#include "voxel/engine/file/vox_file_format.h"
+
+#include "voxel/app.h"
 
 
-u32 getNormalBits(f32 x, f32 y, f32 z, f32 weight) {
-    f32 xz = sqrt(x * x + z * z);
-    f32 yaw = atan2(z, x);
-    f32 pitch = atan2(y, xz);
+using namespace voxel;
 
-    const i32 bit_offset = 8;
-    return (u32((yaw + M_PI) / (M_PI * 2) * 63.0) |
-            (u32((pitch / M_PI + 0.5) * 31.0) << 6) |
-            (u32(weight * 15.0) << 11)) << bit_offset;
-}
-
-
-namespace voxel {
 class DebugChunkProvider : public ChunkProvider {
     VoxelModel m_model;
     std::atomic<i32> m_generated_count = 0;
@@ -50,7 +39,7 @@ public:
     bool buildChunk(ChunkSource &chunk_source, Shared<Chunk> chunk) override {
         m_generated_count++;
 
-//        i64 time_start = voxel::utils::getTimestampMillis();
+//        i64 time_start = utils::getTimestampMillis();
 //        if (debug_time_start == 0) {
 //            debug_time_start = time_start;
 //        }
@@ -72,23 +61,23 @@ public:
 //        chunk->setVoxel({1, 1, 0, 0}, { (31 << 25) | 0xFFFF00, 0 });
 //        chunk->setVoxel({1, 1, 0, 1}, { (31 << 25) | 0xFFFF00, 0 });
 
-        srand(voxel::utils::getTimestampNanos());
+        srand(utils::getTimestampNanos());
         i32 offset_x = rand() % 1;
         i32 offset_z = rand() % 1;
 
-        auto size = m_model.getSize();
-        for (unsigned int x = 0; x < size.x; x++) {
-            for (unsigned int y = 0; y < size.y; y++) {
-                for (unsigned int z = 0; z < size.z; z++) {
-                    voxel::Voxel voxel = m_model.getVoxel(x, y, z);
-                    voxel.material = 0;
-                    if (voxel.color != 0) {
-                        voxel.color |= (31 << 25);
-                        chunk->setVoxel({7, x + offset_x, y, z + offset_z}, voxel);
-                    }
-                }
-            }
-        }
+//        auto size = m_model.getSize();
+//        for (unsigned int x = 0; x < size.x; x++) {
+//            for (unsigned int y = 0; y < size.y; y++) {
+//                for (unsigned int z = 0; z < size.z; z++) {
+//                    Voxel voxel = m_model.getVoxel(x, y, z);
+//                    voxel.material = 0;
+//                    if (voxel.color != 0) {
+//                        voxel.color |= (31 << 25);
+//                        chunk->setVoxel({7, x + offset_x, y, z + offset_z}, voxel);
+//                    }
+//                }
+//            }
+//        }
 
         u32 grass_mat = 0;//getNormalBits(0.0, 1.0, 0.0, 1.0);
         for (unsigned int x = 0; x < 256; x++) {
@@ -101,7 +90,7 @@ public:
             }
         }
 
-//        i64 time_end = voxel::utils::getTimestampMillis();
+//        i64 time_end = utils::getTimestampMillis();
 //        debug_time_generation += time_end - time_start;
 //        std::cout << "efficient time ratio: " << debug_time_generation / f32(time_end - debug_time_start) << "\n";
 
@@ -109,125 +98,67 @@ public:
         return true;
     }
 };
+
+
+namespace voxel {
+
+class MyVoxelEngineApp : public BasicVoxelEngineApp {
+    void setupInput(input::SimpleInput& input) override {
+        input.getMouseControl().setMode(input::MouseControl::Mode::IN_GAME);
+        input.setSensitivity(0.0025, 0.0025);
+        input.setMovementSpeed(0.25f);
+    }
+
+    void setupCamera(render::Camera& camera) override {
+        camera.getProjection().position = math::Vec3f(0, 1, 0);
+        camera.getProjection().setFov(90 / (180.0f / 3.1416f), 1);
+    }
+
+    void updateCameraDimensions(render::Camera &camera, i32 width, i32 height) override {
+        camera.getProjection().setFov(90 / (180.0f / 3.1416f), 1);
+    }
+
+    virtual Unique<World> createWorld() override {
+        VoxelModel* model;
+        format::VoxFileFormat file_format;
+        std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
+        auto models = file_format.read(istream);
+        istream.close();
+        model = models[0].get();
+
+        Shared<ChunkProvider> chunk_provider = CreateShared<DebugChunkProvider>(*model);
+        Shared<ChunkStorage> chunk_storage = CreateShared<ChunkStorage>();
+        Unique<World> world = CreateUnique<World>(
+                chunk_provider, chunk_storage,
+                threading::TickingThread::TicksPerSecond(20),
+                ChunkSource::Settings());
+        return world;
+    }
+
+    virtual Unique<WorldRenderer> createWorldRenderer(Shared<ChunkSource> chunk_source) override {
+        return CreateUnique<WorldRenderer>(chunk_source, CreateShared<render::ChunkBuffer>(4096, 65536, math::Vec3i(32)), WorldRendererSettings());
+    }
+
+    virtual void createWindow(Context& context) override {
+        context.initWindow({800, 600, "", {}});
+    }
+
+    void onFrame(Context& context, render::RenderContext& render_context) override {
+        BasicVoxelEngineApp::onFrame(context, render_context);
+        glfwSetWindowTitle(context.getGlfwWindow(), Profiler::getWindowTitlePerformanceStats().data());
+    }
+};
+
 }
 
+
 int main() {
+    MyVoxelEngineApp app;
+    app.init();
+    app.run();
+    app.joinEventLoopAndFinish();
 
-    voxel::VoxelModel* model;
-    voxel::format::VoxFileFormat file_format;
-    std::ifstream istream("models/vox/monu16.vox", std::ifstream::binary);
-
-    VOXEL_ENGINE_PROFILE_SCOPE(startup_model_load);
-    auto models = file_format.read(istream);
-    istream.close();
-    model = models[0].get();
-    VOXEL_ENGINE_PROFILE_SCOPE_END(startup_model_load);
-
-    auto engine = std::make_shared<voxel::Engine>();
-    engine->initialize();
-    auto context = engine->newContext("ctx1");
-    context->initWindow({1920, 1080, "test", {}});
-
-    voxel::Shared<voxel::ChunkProvider> chunk_provider = voxel::CreateShared<voxel::DebugChunkProvider>(*model);
-    voxel::Shared<voxel::ChunkStorage> chunk_storage = voxel::CreateShared<voxel::ChunkStorage>();
-    voxel::Shared<voxel::World> world = voxel::CreateShared<voxel::World>(
-            chunk_provider, chunk_storage,
-            voxel::threading::TickingThread::TicksPerSecond(20),
-            voxel::ChunkSource::Settings());
-
-    world->setTicking(true);
-
-    static voxel::render::Camera* camera = nullptr;
-    static voxel::input::SimpleInput* simple_input = nullptr;
-
-    context->setInitCallback([] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
-        camera = new voxel::render::Camera();
-        camera->getProjection().position = voxel::math::Vec3f(0, 1, 0);
-
-        simple_input = new voxel::input::SimpleInput(ctx.getWindowHandler());
-        simple_input->getMouseControl().setMode(voxel::input::MouseControl::Mode::IN_GAME);
-        simple_input->setSensitivity(0.0025, 0.0025);
-        simple_input->setMovementSpeed(0.025f);
-    });
-
-    context->setWindowResizeCallback([] (voxel::Context& ctx, int w, int h) -> void {
-        std::cout << "window resize: " << w << ", " << h << "\n";
-        glViewport(0, 0, w, h);
-        camera->getProjection().setFov(90 / (180.0f / 3.1416f), h / (float) w);
-    });
-
-    context->setWindowFocusCallback([] (voxel::Context& ctx, int focus) -> void {
-        std::cout << "window focus: " << focus << "\n";
-    });
-
-    context->setEventProcessingCallback([] (voxel::Context& ctx, voxel::WindowHandler& window_handler) {
-        simple_input->update(*camera);
-    });
-
-    context->setFrameHandleCallback([model, world, context] (voxel::Context& ctx, voxel::render::RenderContext& render_context) {
-        VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_all)
-
-        static voxel::opengl::FullScreenQuad* quad = nullptr;
-        if (!quad) {
-            quad = new voxel::opengl::FullScreenQuad();
-        }
-
-        static voxel::render::RenderTarget* render_target = nullptr;
-        static voxel::WorldRenderer* world_renderer = nullptr;
-        if (!render_target) {
-            render_target = new voxel::render::RenderTarget(1920, 1080);
-            world_renderer = new voxel::WorldRenderer(world->getChunkSource(), voxel::CreateShared<voxel::render::ChunkBuffer>(4096, 65536, voxel::math::Vec3i(50)), voxel::WorldRendererSettings());
-        }
-
-        {
-            VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_world)
-            world_renderer->setCameraPosition(camera->getProjection().position);
-            world_renderer->render(render_context);
-        }
-
-        {
-            VOXEL_ENGINE_PROFILE_GPU_SCOPE(render_main_camera)
-            camera->render(render_context, *render_target);
-        }
-
-        VOXEL_ENGINE_SHADER_REF(voxel::opengl::GraphicsShader, basic_texture_shader, render_context.getShaderManager(), "basic_texture");
-        VOXEL_ENGINE_SHADER_UNIFORM(uniform_texture_0, *basic_texture_shader, "TEXTURE_0");
-        basic_texture_shader->bind();
-        render_target->getResultTexture().bind(0, uniform_texture_0);
-        quad->render();
-
-        std::stringstream ss;
-        ss << "fps: " << int(1000.0 / voxel::Profiler::get().getAverageValue("render_all"));
-        ss << " frame time: " << voxel::Profiler::get().getAverageValue("render_main_camera") << "ms";
-        ss << " world time: " << voxel::Profiler::get().getAverageValue("render_world") << "ms";
-        glfwSetWindowTitle(context->getGlfwWindow(), ss.str().data());
-
-//         std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    });
-
-    context->runEventLoop();
-    engine->joinAllEventLoops();
-
-    std::cout << "Profiler data:\n" <<
-        "GRAPHICS:\n" <<
-        "  full frame: " << voxel::Profiler::get().getAverageValue("render_all") << " ms\n" <<
-        "    raytrace: " << voxel::Profiler::get().getAverageValue("render_raytrace_pass") << " ms\n" <<
-        "    lightmap: " << voxel::Profiler::get().getAverageValue("render_lightmap") << " ms\n" <<
-        "      interpolate: " << voxel::Profiler::get().getAverageValue("render_lightmap_interpolate") << " ms\n" <<
-        "      blur: " << voxel::Profiler::get().getAverageValue("render_lightmap_blur") << " ms\n" <<
-        "      3x3: " << voxel::Profiler::get().getAverageValue("render_lightmap_3x3") << " ms\n" <<
-        "    spatial buffer: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer") << " ms\n" <<
-        "      reset: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_reset") << " ms\n" <<
-        "      pass: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_pass") << " ms\n" <<
-        "      postprocess: " << voxel::Profiler::get().getAverageValue("render_spatial_buffer_postprocess") << " ms\n" <<
-        "    postprocess and output: " << voxel::Profiler::get().getAverageValue("render_postprocess_output") << " ms\n" <<
-        "    world: " << voxel::Profiler::get().getAverageValue("render_world") << " ms\n" <<
-        "TICK:\n" <<
-        "  chunk source tick: " << voxel::Profiler::get().getAverageValue("chunk_source_tick") << " ms\n" <<
-        "    update chunks: " << voxel::Profiler::get().getAverageValue("chunk_source_update_chunks") << " ms\n" <<
-        "    world renderer tick: " << voxel::Profiler::get().getAverageValue("world_renderer_tick") << " ms\n" <<
-        "      fetch chunks: " << voxel::Profiler::get().getAverageValue("world_renderer_fetch_chunks") << " ms\n" <<
-        "      update chunks: " << voxel::Profiler::get().getAverageValue("world_renderer_update_chunks") << " ms\n";
+    std::cout << "\n--- PROFILER INFO: ---\n" << Profiler::getAppProfilerStats();
 
     return 0;
 }

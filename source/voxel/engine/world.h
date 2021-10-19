@@ -5,6 +5,7 @@
 #include "voxel/engine/world/chunk.h"
 #include "voxel/engine/world/chunk_source.h"
 
+
 namespace voxel {
 
 class World {
@@ -21,6 +22,8 @@ public:
     ~World();
 
     void setTicking(bool ticking);
+    void joinTickingThread();
+
     const Shared<ChunkSource>& getChunkSource() const;
 
 protected:

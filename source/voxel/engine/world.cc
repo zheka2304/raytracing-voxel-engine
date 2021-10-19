@@ -20,6 +20,10 @@ void World::setTicking(bool ticking) {
     m_ticking_thread.setRunning(ticking);
 }
 
+void World::joinTickingThread() {
+    m_ticking_thread.join();
+}
+
 const Shared<ChunkSource>& World::getChunkSource() const {
     return m_chunk_source;
 }
