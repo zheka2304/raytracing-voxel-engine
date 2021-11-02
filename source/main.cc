@@ -25,7 +25,7 @@ class MyVoxelEngineApp : public BasicVoxelEngineApp {
 
     virtual Unique<World> createWorld() override {
         return createWorldFromModel(
-                loadVoxelModelFromVoxFile("models/vox/monu16.vox"),
+                loadVoxelModelFromVoxFile("assets/models/vox/dragon.vox"),
                 { (31 << 25) | 0x77FFCC, 0 });
     }
 
