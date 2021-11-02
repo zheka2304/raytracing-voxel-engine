@@ -125,6 +125,14 @@ void BasicVoxelEngineApp::setupCamera(render::Camera& camera) {
 void BasicVoxelEngineApp::updateCameraDimensions(render::Camera& camera, i32 width, i32 height) {
 }
 
+Unique<WorldRenderer> BasicVoxelEngineApp::createWorldRenderer(Shared<ChunkSource> chunk_source) {
+    return CreateUnique<WorldRenderer>(chunk_source, CreateShared<render::ChunkBuffer>(4096, 65536, math::Vec3i(32)), WorldRendererSettings());
+}
+
+void BasicVoxelEngineApp::createWindow(Context& context) {
+    context.initWindow({1200, 800, "", {}});
+}
+
 void BasicVoxelEngineApp::onInit(Context& context, render::RenderContext& render_context) {
     VoxelEngineApp::onInit(context, render_context);
 
@@ -157,5 +165,6 @@ void BasicVoxelEngineApp::onDestroy(Context& ctx) {
     m_input.reset();
     m_camera.reset();
 }
+
 
 }

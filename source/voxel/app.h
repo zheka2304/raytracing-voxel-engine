@@ -57,6 +57,9 @@ protected:
     virtual void setupCamera(render::Camera& camera);
     virtual void updateCameraDimensions(render::Camera& camera, i32 width, i32 height);
 
+    virtual Unique<WorldRenderer> createWorldRenderer(Shared<ChunkSource> chunk_source) override;
+    virtual void createWindow(Context& context) override;
+
     void onInit(Context &context, render::RenderContext& render_context) override;
     void onFrame(Context &context, render::RenderContext& render_context) override;
     void onProcessEvents(Context& ctx, WindowHandler& window_handler) override;
