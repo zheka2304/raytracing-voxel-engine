@@ -5,7 +5,6 @@
 
 uniform sampler2D IN_TEXTURE_COLOR;
 uniform sampler2D IN_TEXTURE_LIGHT;
-uniform sampler2D IN_TEXTURE_DEPTH;
 
 varying vec2 uv;
 
@@ -26,7 +25,6 @@ float getLightColorComponent(float packed_input) {
 void main() {
     vec4 color_data = texture(IN_TEXTURE_COLOR, uv);
     vec4 light_data = texture(IN_TEXTURE_LIGHT, uv);
-    vec4 depth_data = texture(IN_TEXTURE_DEPTH, uv);
 
     // extract colors
     ColorPair colors = unpackColorPairF(color_data.rgb);
