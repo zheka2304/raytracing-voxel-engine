@@ -1,6 +1,6 @@
 # Voxel Raytracer
 
-Lightweight SVO voxel raytracer, built with OpenGL and C++, focused mostly on optimizing lighting right now. 
+SVO voxel raytracer, built with OpenGL and C++, focused mostly on optimizing lighting right now. 
 Operates on chunked worlds, generated or loaded in real time, so it supports both loading voxel models and procedural endless world generation.
 
 # Data structure
