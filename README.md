@@ -10,9 +10,9 @@ Chunks are stored in map, and pointers to visible chunks are stored in dense gri
 
 # Lighting
 
-Lighting supports soft shadows and, colored light from multiple light sources, using only one random ray casted each frame per pixel. 
-Optimizing lighting is one of the main goals of this project. In a nutshell, this is achieved by tracking movement of pixels on screen and accumulating light value each frame, then
-applying additional filtering to the result.
+Lighting supports soft shadows and colored light from multiple light sources, using only one random ray casted each frame per pixel. 
+Optimizing lighting is one of the main goals of this project. In a nutshell, this is achieved by tracking movement of pixels on screen and accumulating light value each frame, 
+then applying additional filtering to the result. Pixel tracking done by creating spatial buffer, that stores all pixel positions in world space.
 
 # Screenshots
 
