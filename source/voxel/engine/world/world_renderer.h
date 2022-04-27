@@ -13,7 +13,7 @@ namespace voxel {
 
 struct WorldRendererSettings {
     // Maximum count of chunks to be uploaded or removed each frame
-    i32 chunk_updates_per_tick = 8;
+    i32 chunk_updates_per_tick = 128;
 
     // Maximum count of chunks, fetched each tick
     i32 chunk_fetches_per_tick = 4096;

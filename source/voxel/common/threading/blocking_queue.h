@@ -89,24 +89,35 @@ public:
     }
 };
 
-template<typename T>
-class PriorityQueue {
-    std::priority_queue<T> m_queue;
+template<typename T, std::size_t MaxSize = 0>
+class PriorityQueue : protected std::priority_queue<T> {
+    using BaseType = std::priority_queue<T>;
     std::condition_variable m_condition;
     std::mutex m_mutex;
 
 public:
+    PriorityQueue() {
+        if (MaxSize > 0) {
+            BaseType::c.reserve(MaxSize);
+        }
+    }
+
     void push(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_queue.push(value);
+        BaseType::push(value);
+        if constexpr(MaxSize > 0) {
+            if (BaseType::size() > MaxSize) {
+                BaseType::c.pop_back();
+            }
+        }
         m_condition.notify_one();
     }
 
     T pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_condition.wait(lock, [=] { return !m_queue.empty(); });
-        T result(std::move(m_queue.top()));
-        m_queue.pop();
+        m_condition.wait(lock, [=] { return !BaseType::empty(); });
+        T result(std::move(BaseType::top()));
+        BaseType::pop();
         return result;
     }
 };

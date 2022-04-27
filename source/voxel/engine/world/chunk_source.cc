@@ -126,7 +126,7 @@ void ChunkSource::startUpdatingChunk(Chunk& chunk) {
     m_updates_queue.push(ChunkRef(chunk));
 }
 
-bool ChunkSource::updateChunk(const ChunkRef& ref) {
+bool ChunkSource::updateChunk(ChunkRef ref) {
     bool continue_updating = true;
     accessChunk<chunk_access_policy_weak>(ref, [&](Chunk& chunk) {
         auto state = chunk.getState();
@@ -223,6 +223,8 @@ void ChunkSource::onTick() {
                 if (updateChunk(popped.value())) {
                     m_updates_queue.push(popped.value());
                 }
+            } else {
+                break;
             }
         }
     }

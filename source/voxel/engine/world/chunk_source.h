@@ -112,7 +112,7 @@ private:
     flat_hash_map<ChunkPosition, Unique<Chunk>> m_chunks;
     threading::BlockingQueue<ChunkRef> m_updates_queue;
 
-    threading::PriorityQueue<ChunkTask> m_chunk_task_queue;
+    threading::PriorityQueue<ChunkTask, 1024> m_chunk_task_queue;
     threading::ThreadPoolExecutor<ChunkTask> m_chunk_task_executor;
 
     std::mutex m_loaded_regions_mutex;
@@ -213,7 +213,7 @@ private:
     void handleChunkLoading(Chunk& chunk);
     void handleLazyChunk(Chunk& chunk);
     void startUpdatingChunk(Chunk& chunk);
-    bool updateChunk(const ChunkRef& ref);
+    bool updateChunk(ChunkRef ref);
 
     void runChunkBuild(Chunk& chunk);
     void runChunkProcessing(Chunk& chunk);
