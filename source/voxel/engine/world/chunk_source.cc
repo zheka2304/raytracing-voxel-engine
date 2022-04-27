@@ -43,9 +43,29 @@ ChunkSource::ChunkSource(
 
 ChunkSource::~ChunkSource() {
     {
+        // detach all loaded regions
         ThreadLock lock(m_loaded_regions_mutex);
         for (auto& region : m_loaded_regions) {
             region->m_chunk_source = nullptr;
+        }
+    }
+
+    {
+        ThreadLock lock(m_chunks_mutex);
+
+        // lock all chunks
+        for (auto& [pos, chunk] : m_chunks) {
+            chunk->getLock().lock();
+        }
+
+        // move all chunks to local variable, so they cannot be accessed and locked again from outside
+        auto chunks = std::move(m_chunks);
+        m_chunks.clear();
+        lock.unlock();
+
+        // unlock all chunks
+        for (auto& [pos, chunk] : chunks) {
+            chunk->unlock();
         }
     }
 }
