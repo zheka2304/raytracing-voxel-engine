@@ -28,8 +28,8 @@ void WorldRenderer::setCameraPosition(math::Vec3f camera_position) {
     }
 }
 
-void WorldRenderer::addChunkToUpdateQueue(const Shared<Chunk>& chunk) {
-    m_chunk_updates.push(chunk);
+void WorldRenderer::addChunkToUpdateQueue(ChunkRef chunk_ref) {
+    m_chunk_updates.push(chunk_ref);
 }
 
 void WorldRenderer::render(render::RenderContext& render_context) {
@@ -37,7 +37,7 @@ void WorldRenderer::render(render::RenderContext& render_context) {
         m_chunk_buffer->getFetchedChunks(m_fetched_chunks_list);
     }
 
-    m_chunk_buffer->runUploadQueue();
+    m_chunk_buffer->runUploadQueue(*m_chunk_source);
     m_chunk_buffer->prepareAndBind(render_context);
 }
 
@@ -60,10 +60,9 @@ void WorldRenderer::fetchRequestedChunks() {
         for (i32 i = 0; i < m_settings.chunk_fetches_per_tick && m_fetched_chunks_list.hasNext(); i++) {
             auto chunk_to_fetch = m_fetched_chunks_list.next();
             i64 priority = m_chunk_fetch_priority * 64 + chunk_to_fetch.weight;
-            Shared<Chunk> chunk = m_chunk_source->fetchChunkAt(chunk_to_fetch.pos, priority);
-            if (chunk) {
+            m_chunk_source->fetchChunkAt(chunk_to_fetch.pos, priority, [&] (Chunk& chunk) {
                 m_chunk_buffer->updateChunkPriority(chunk, priority);
-            }
+            });
         }
 
         // if all chunks fetched - request more
@@ -90,17 +89,19 @@ void WorldRenderer::runChunkUpdates() {
     for (i32 i = 0; i < m_settings.chunk_updates_per_tick; i++) {
         auto next = m_chunk_updates.tryPop();
         if (next.has_value()) {
-            Shared<Chunk> chunk = next.value();
-            if (chunk->tryLock()) {
-                if (chunk->getState() == CHUNK_LOADED) {
+            ChunkRef chunk_ref = next.value();
+            m_chunk_source->accessChunk<chunk_access_policy_weak>(chunk_ref, [&](Chunk& chunk) {
+                if (chunk.getState() == CHUNK_LOADED) {
                     m_chunk_buffer->uploadChunk(chunk, 0);
                 } else {
                     m_chunk_buffer->removeChunk(chunk);
                 }
-                chunk->unlock();
-            } else {
-                m_chunk_updates.push(chunk);
-            }
+            }, [&] (bool exists) {
+                if (exists) {
+                    m_chunk_updates.push(chunk_ref);
+                }
+                // TODO: remove chunk if it does not exist
+            });
         } else {
             break;
         }
@@ -111,8 +112,8 @@ void WorldRenderer::onChunkSourceTick(ChunkSource& chunk_source) {
     onTick();
 }
 
-void WorldRenderer::onChunkUpdated(ChunkSource& chunk_source, const Shared<Chunk>& chunk) {
-    addChunkToUpdateQueue(chunk);
+void WorldRenderer::onChunkUpdated(ChunkSource& chunk_source, ChunkRef chunk_ref) {
+    addChunkToUpdateQueue(chunk_ref);
 }
 
 } // voxel

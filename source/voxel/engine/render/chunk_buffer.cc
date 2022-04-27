@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include "voxel/engine/world/chunk.h"
+#include "voxel/engine/world/chunk_source.h"
 
 #define DEBUG_VERBOSE 0
 
@@ -92,24 +93,22 @@ void ChunkBuffer::prepareAndBind(RenderContext& ctx) {
     m_fetch_shader_buffer.bind(shader_manager);
 }
 
-void ChunkBuffer::runUploadQueue() {
+void ChunkBuffer::runUploadQueue(ChunkSource& chunk_source) {
     i32 size = m_upload_request_queue.getSize();
     for (i32 i = 0; i < size; i++) {
         std::optional<UploadRequest> popped = m_upload_request_queue.tryPop();
         if (popped.has_value()) {
             UploadRequest request = popped.value();
-            Shared<Chunk> chunk = request.chunk.lock();
-            if (chunk) {
-                if (chunk->tryLock()) {
-                    i32 buffer_size = chunk->getBufferSize();
-                    if (buffer_size <= request.allocated_page_count * m_page_size) {
-                        m_data_shader_buffer.setDataSpan(request.offset_page * m_page_size * sizeof(u32), buffer_size * sizeof(u32), chunk->getBuffer());
-                    }
-                    chunk->unlock();
-                } else {
+            chunk_source.accessChunk<chunk_access_policy_weak>(request.chunk_ref, [&](Chunk& chunk) {
+                i32 buffer_size = chunk.getBufferSize();
+                if (buffer_size <= request.allocated_page_count * m_page_size) {
+                    m_data_shader_buffer.setDataSpan(request.offset_page * m_page_size * sizeof(u32), buffer_size * sizeof(u32), chunk.getBuffer());
+                }
+            }, [&] (bool exists) {
+                if (exists) {
                     m_upload_request_queue.push(request);
                 }
-            }
+            });
         }
     }
 }
@@ -131,20 +130,8 @@ void ChunkBuffer::rebuildChunkMap(math::Vec3i offset) {
     for (auto it = m_uploaded_chunks.begin(); it != m_uploaded_chunks.end();) {
         UploadedChunk& uploaded_chunk = it->second;
 
-        // check, if chunk is destroyed
-        Shared<Chunk> chunk = uploaded_chunk.chunk.lock();
-        if (!chunk) {
-            if (uploaded_chunk.allocated) {
-                m_allocated_chunk_heap.removeItem(&uploaded_chunk);
-            } else {
-                m_pending_chunk_heap.removeItem(&uploaded_chunk);
-            }
-            it = m_uploaded_chunks.erase(it);
-            continue;
-        }
-
         // get map index
-        i32 map_index = getMapIndex(chunk->getPosition());
+        i32 map_index = getMapIndex(uploaded_chunk.chunk_ref.position());
 
         if (uploaded_chunk.allocated) {
             // if chunk is allocated, check if chunk is in map
@@ -179,8 +166,8 @@ void ChunkBuffer::getFetchedChunks(FetchedChunksList& fetched_chunks_list) {
     m_fetch_shader_buffer.getDataSpan(0, m_fetch_buffer_size * sizeof(u32), &fetched_chunks_list.m_raw_data[0]);
 }
 
-void ChunkBuffer::updateChunkPriority(const Shared<Chunk>& chunk, i64 priority) {
-    const u64 chunk_hash = reinterpret_cast<u64>(chunk.get());
+void ChunkBuffer::updateChunkPriority(Chunk& chunk, i64 priority) {
+    const u64 chunk_hash = reinterpret_cast<u64>(std::addressof(chunk));
     auto found = m_uploaded_chunks.find(chunk_hash);
     if (found != m_uploaded_chunks.end()) {
         // get chunk and update its priority
@@ -197,10 +184,10 @@ void ChunkBuffer::updateChunkPriority(const Shared<Chunk>& chunk, i64 priority) 
                 // if chunk has enough priority to be in allocated queue
 
                 // check, if chunk inside map
-                i32 map_index = getMapIndex(chunk->getPosition());
+                i32 map_index = getMapIndex(chunk.getPosition());
                 if (map_index >= 0) {
                     // try allocate chunk
-                    const i32 required_pages = (chunk->getBufferSize() + m_page_size - 1) / m_page_size;
+                    const i32 required_pages = (chunk.getBufferSize() + m_page_size - 1) / m_page_size;
                     i32 allocated_span = allocatePageSpan(required_pages, chunk_hash, priority);
 
                     // if allocation succeeds, upload chunk and move from pending chunk heap to allocated chunk heap
@@ -210,7 +197,7 @@ void ChunkBuffer::updateChunkPriority(const Shared<Chunk>& chunk, i64 priority) 
                         uploaded_chunk.first = allocated_span;
                         uploaded_chunk.second = allocated_span + required_pages;
                         m_allocated_chunk_heap.addItem(&uploaded_chunk);
-                        m_upload_request_queue.push({Weak<Chunk>(chunk), allocated_span, required_pages});
+                        m_upload_request_queue.push({ChunkRef(chunk), allocated_span, required_pages});
                         m_map_buffer[map_index] = allocated_span * m_page_size;
                         return;
                     }
@@ -223,19 +210,19 @@ void ChunkBuffer::updateChunkPriority(const Shared<Chunk>& chunk, i64 priority) 
     }
 }
 
-void ChunkBuffer::uploadChunk(const Shared<Chunk>& chunk, i64 priority) {
-    const u64 chunk_hash = reinterpret_cast<u64>(chunk.get());
-    const i32 map_index = getMapIndex(chunk->getPosition());
+void ChunkBuffer::uploadChunk(Chunk& chunk, i64 priority) {
+    const u64 chunk_hash = reinterpret_cast<u64>(std::addressof(chunk));
+    const i32 map_index = getMapIndex(chunk.getPosition());
     if (map_index == -1) {
         // chunk is not in range, covered by map, it will not be visible in any case
         // add it to pending queue
-        UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_hash, UploadedChunk(Weak<Chunk>(chunk), chunk_hash, priority)).first->second;
+        UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_hash, UploadedChunk(ChunkRef(chunk), chunk_hash, priority)).first->second;
         m_pending_chunk_heap.addItem(&uploaded_chunk);
         return;
     }
 
     i32 buffer_offset;
-    const i32 required_pages = (chunk->getBufferSize() + m_page_size - 1) / m_page_size;
+    const i32 required_pages = (chunk.getBufferSize() + m_page_size - 1) / m_page_size;
 
     auto found = m_uploaded_chunks.find(chunk_hash);
     if (found != m_uploaded_chunks.end()) {
@@ -304,11 +291,11 @@ void ChunkBuffer::uploadChunk(const Shared<Chunk>& chunk, i64 priority) {
         buffer_offset = allocatePageSpan(required_pages, chunk_hash, priority);
         if (buffer_offset != -1) {
             // if allocated successfully, add to allocated heap
-            UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_hash, UploadedChunk(Weak<Chunk>(chunk), chunk_hash, buffer_offset, buffer_offset + required_pages, priority)).first->second;
+            UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_hash, UploadedChunk(ChunkRef(chunk), chunk_hash, buffer_offset, buffer_offset + required_pages, priority)).first->second;
             m_allocated_chunk_heap.addItem(&uploaded_chunk);
         } else {
             // if allocation failed, add to pending heap and exit
-            UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_hash, UploadedChunk(Weak<Chunk>(chunk), chunk_hash, priority)).first->second;
+            UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_hash, UploadedChunk(ChunkRef(chunk), chunk_hash, priority)).first->second;
             m_pending_chunk_heap.addItem(&uploaded_chunk);
             return;
         }
@@ -316,22 +303,22 @@ void ChunkBuffer::uploadChunk(const Shared<Chunk>& chunk, i64 priority) {
 
     if (buffer_offset != -1) {
         // copy chunk buffer to shader buffer
-        m_upload_request_queue.push({ Weak<Chunk>(chunk), buffer_offset, required_pages });
+        m_upload_request_queue.push({ ChunkRef(chunk), buffer_offset, required_pages });
 
         // update map buffer
         m_map_buffer[map_index] = buffer_offset * m_page_size;
     }
 }
 
-void ChunkBuffer::removeChunk(const Shared<Chunk>& chunk) {
+void ChunkBuffer::removeChunk(Chunk& chunk) {
     // remove chunk from map
-    const i32 map_index = getMapIndex(chunk->getPosition());
+    const i32 map_index = getMapIndex(chunk.getPosition());
     if (map_index != -1) {
         m_map_buffer[map_index] = -1;
     }
 
     // find uploaded chunk
-    u64 chunk_hash = reinterpret_cast<u64>(chunk.get());
+    u64 chunk_hash = reinterpret_cast<u64>(std::addressof(chunk));
     auto found = m_uploaded_chunks.find(chunk_hash);
     if (found != m_uploaded_chunks.end()) {
         UploadedChunk& uploaded_chunk = found->second;
@@ -417,12 +404,9 @@ i32 ChunkBuffer::allocatePageSpan(i32 page_count, u64 chunk_hash, i64 priority) 
         }
 
         // remove from map
-        Shared<Chunk> chunk = chunk_to_deallocate->chunk.lock();
-        if (chunk) {
-            i32 map_index = getMapIndex(chunk->getPosition());
-            if (map_index >= 0) {
-                m_map_buffer[map_index] = -1;
-            }
+        i32 map_index = getMapIndex(chunk_to_deallocate->chunk_ref.position());
+        if (map_index >= 0) {
+            m_map_buffer[map_index] = -1;
         }
     }
 }

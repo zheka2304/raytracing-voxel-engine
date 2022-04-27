@@ -39,7 +39,7 @@ class WorldRenderer : public ChunkSourceListener {
     std::atomic<bool> m_request_fetched_chunks = true;
     i64 m_chunk_fetch_priority = 0;
 
-    threading::UniqueBlockingQueue<Shared<Chunk>> m_chunk_updates;
+    threading::UniqueBlockingQueue<ChunkRef> m_chunk_updates;
 
 public:
     WorldRenderer(Shared<ChunkSource> chunk_source, Unique<render::ChunkBuffer> chunk_buffer, WorldRendererSettings settings);
@@ -47,14 +47,14 @@ public:
     WorldRenderer(WorldRenderer&&) = delete;
     ~WorldRenderer();
 
-    void addChunkToUpdateQueue(const Shared<Chunk>& chunk);
+    void addChunkToUpdateQueue(ChunkRef chunk_ref);
     void setCameraPosition(math::Vec3f camera_position);
     void render(render::RenderContext& render_context);
     void onTick();
 
 private:
     void onChunkSourceTick(ChunkSource &chunk_source) override;
-    void onChunkUpdated(ChunkSource &chunk_source, const Shared<Chunk>& chunk) override;
+    void onChunkUpdated(ChunkSource &chunk_source, ChunkRef chunk_ref) override;
 
     void fetchRequestedChunks();
     void runChunkUpdates();

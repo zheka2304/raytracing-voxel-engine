@@ -11,16 +11,16 @@
 #include "voxel/common/utils/heap.h"
 #include "voxel/engine/shared/chunk_position.h"
 #include "voxel/engine/render/render_context.h"
+#include "voxel/engine/world/chunk.h"
 
 
 namespace voxel {
 
-class Chunk;
+class ChunkSource;
 
 namespace render {
 
 class ChunkBuffer;
-
 
 
 class FetchedChunksList {
@@ -78,7 +78,7 @@ private:
     i32 m_allocated_page_count = 0;
 
     struct UploadedChunk {
-        Weak<Chunk> chunk;
+        ChunkRef chunk_ref;
         u64 chunk_hash;
 
         bool allocated;
@@ -87,12 +87,12 @@ private:
         i32 index;
         i64 priority;
 
-        inline UploadedChunk(const Weak<Chunk>& chunk, u64 chunk_hash, i32 first, i32 second, i64 priority) :
-            chunk(chunk), chunk_hash(chunk_hash), first(first), second(second), priority(priority), allocated(true) {
+        inline UploadedChunk(const ChunkRef& ref, u64 chunk_hash, i32 first, i32 second, i64 priority) :
+            chunk_ref(ref), chunk_hash(chunk_hash), first(first), second(second), priority(priority), allocated(true) {
         }
 
-        inline UploadedChunk(const Weak<Chunk>& chunk, u64 chunk_hash, i64 priority) :
-                chunk(chunk), chunk_hash(chunk_hash), priority(priority), allocated(false) {
+        inline UploadedChunk(const ChunkRef& ref, u64 chunk_hash, i64 priority) :
+            chunk_ref(ref), chunk_hash(chunk_hash), priority(priority), allocated(false) {
         }
 
         struct Index {
@@ -119,7 +119,7 @@ private:
     Heap<UploadedChunk, UploadedChunk::Index, UploadedChunk::MaxValueFirst> m_pending_chunk_heap;
 
     struct UploadRequest {
-        Weak<Chunk> chunk;
+        ChunkRef chunk_ref;
         i32 offset_page;
         i32 allocated_page_count;
     };
@@ -150,7 +150,7 @@ public:
     void prepareAndBind(RenderContext& ctx);
 
     // runs all queued chunk uploads, if chunk is locked, skips it and queues for next frame
-    void runUploadQueue();
+    void runUploadQueue(ChunkSource& chunk_source);
 
     // gets raw data from fetch buffer into given fetch list
     void getFetchedChunks(FetchedChunksList& fetched_chunks_list);
@@ -161,15 +161,15 @@ public:
     // uploads or updates uploaded chunk:
     // - if not uploaded, uploads, if allocation fails, places it into pending heap
     // - if uploaded, updates priority
-    void uploadChunk(const Shared<Chunk>& chunk, i64 priority);
+    void uploadChunk(Chunk& chunk, i64 priority);
 
     // for already uploaded chunk:
     // - update chunk priority
     // - if chunk is not allocated, tries to allocate it
-    void updateChunkPriority(const Shared<Chunk>& chunk, i64 priority);
+    void updateChunkPriority(Chunk& chunk, i64 priority);
 
     // completely removes chunk from all heaps and lookup map
-    void removeChunk(const Shared<Chunk>& chunk);
+    void removeChunk(Chunk& chunk);
 
     // iterates over all chunks and updates it for new offset
     void rebuildChunkMap(math::Vec3i offset);

@@ -10,7 +10,7 @@
 namespace voxel {
 
 void ChunkSourceListener::onChunkSourceTick(ChunkSource& chunk_source) {}
-void ChunkSourceListener::onChunkUpdated(ChunkSource& chunk_source, const Shared<Chunk>& chunk) {}
+void ChunkSourceListener::onChunkUpdated(ChunkSource& chunk_source, ChunkRef chunk_ref) {}
 
 
 ChunkSource::LoadingRegion::LoadingRegion(ChunkSource* chunk_source, math::Vec3i position, i32 loading_level) :
@@ -91,67 +91,66 @@ void ChunkSource::tryCreateNewChunk(ChunkPosition position) {
         ThreadLock lock(m_chunks_mutex);
         if (m_chunks.find(position) == m_chunks.end()) {
             chunk->fetch();
-            m_chunks.emplace(position, Shared<Chunk>(chunk.release()));
+            m_chunks.emplace(position, std::move(chunk));
         }
     }
 }
 
-void ChunkSource::tryLoadLazyChunk(const Shared<Chunk>& chunk) {
-    chunk->setState(CHUNK_LOADED);
-    chunk->fetch();
+void ChunkSource::tryLoadLazyChunk(Chunk& chunk) {
+    chunk.setState(CHUNK_LOADED);
+    chunk.fetch();
     fireEventChunkUpdated(chunk);
 }
 
-void ChunkSource::startUpdatingChunk(const Shared<Chunk>& chunk) {
-    m_updates_queue.push(Weak<Chunk>(chunk));
+void ChunkSource::startUpdatingChunk(Chunk& chunk) {
+    m_updates_queue.push(ChunkRef(chunk));
 }
 
-bool ChunkSource::updateChunk(const Shared<Chunk>& chunk) {
+bool ChunkSource::updateChunk(const ChunkRef& ref) {
     bool continue_updating = true;
-    if (chunk->tryLock()) {
-        auto state = chunk->getState();
+    accessChunk<chunk_access_policy_weak>(ref, [&](Chunk& chunk) {
+        auto state = chunk.getState();
         if (state == CHUNK_LOADED) {
-            if (chunk->getTimeSinceLastFetch() > m_settings.chunk_unload_timeout &&
-                getLoadingLevelForPosition(chunk->getPosition()) < LoadingRegion::LEVEL_LOAD) {
-                chunk->setState(CHUNK_LAZY);
+            if (chunk.getTimeSinceLastFetch() > m_settings.chunk_unload_timeout &&
+                getLoadingLevelForPosition(chunk.getPosition()) < LoadingRegion::LEVEL_LOAD) {
+                chunk.setState(CHUNK_LAZY);
                 fireEventChunkUpdated(chunk);
             }
         } else if (state == CHUNK_LAZY) {
-            if (chunk->getTimeSinceLastFetch() > m_settings.chunk_unload_timeout &&
-                getLoadingLevelForPosition(chunk->getPosition()) < LoadingRegion::LEVEL_LAZY) {
-                chunk->setState(CHUNK_STORING);
+            if (chunk.getTimeSinceLastFetch() > m_settings.chunk_unload_timeout &&
+                getLoadingLevelForPosition(chunk.getPosition()) < LoadingRegion::LEVEL_LAZY) {
+                chunk.setState(CHUNK_STORING);
                 fireEventChunkUpdated(chunk);
             }
         } else if (state == CHUNK_STORING) {
-            if (m_storage->tryStoreChunk(*this, *chunk)) {
-                chunk->setState(CHUNK_UNLOADING);
+            if (m_storage->tryStoreChunk(*this, chunk)) {
+                chunk.setState(CHUNK_UNLOADING);
             } else {
-                chunk->setState(CHUNK_LAZY);
+                chunk.setState(CHUNK_LAZY);
             }
         } else if (state == CHUNK_UNLOADING) {
             runChunkUnload(chunk);
             continue_updating = false;
         }
-        chunk->unlock();
-    }
+    });
     return continue_updating;
 }
 
-void ChunkSource::handleLazyChunk(const Shared<Chunk>& chunk) {
+void ChunkSource::handleLazyChunk(Chunk& chunk) {
     if (m_state == STATE_UNLOADED) {
-        chunk->setState(CHUNK_STORING);
+        chunk.setState(CHUNK_STORING);
     } else {
-        if (chunk->getTimeSinceLastFetch() < 1000) {
+        if (chunk.getTimeSinceLastFetch() < 1000) {
             tryLoadLazyChunk(chunk);
         }
     }
 }
 
-void ChunkSource::handleChunkLoading(const Shared<Chunk>& chunk) {
-    ChunkState state = chunk->getState();
+void ChunkSource::handleChunkLoading(Chunk& chunk) {
+    ChunkState state = chunk.getState();
     if (state == CHUNK_PENDING) {
-        if (m_storage->tryLoadChunk(*this, *chunk)) {
-            chunk->setState(CHUNK_PROCESSED);
+        if (m_storage->tryLoadChunk(*this, chunk)) {
+            chunk.setState(CHUNK_PROCESSED);
             runChunkLoad(chunk);
         } else {
             runChunkBuild(chunk);
@@ -165,32 +164,31 @@ void ChunkSource::handleChunkLoading(const Shared<Chunk>& chunk) {
     }
 }
 
-void ChunkSource::runChunkBuild(const Shared<Chunk>& chunk) {
-    if (m_provider->buildChunk(*this, *chunk)) {
-        chunk->setState(CHUNK_BUILT);
+void ChunkSource::runChunkBuild(Chunk& chunk) {
+    if (m_provider->buildChunk(*this, chunk)) {
+        chunk.setState(CHUNK_BUILT);
     }
 }
 
-void ChunkSource::runChunkProcessing(const Shared<Chunk>& chunk) {
-    if (m_provider->processChunk(*this, *chunk)) {
-        chunk->setState(CHUNK_PROCESSED);
+void ChunkSource::runChunkProcessing(Chunk& chunk) {
+    if (m_provider->processChunk(*this, chunk)) {
+        chunk.setState(CHUNK_PROCESSED);
     }
 }
 
-void ChunkSource::runChunkLoad(const Shared<Chunk>& chunk) {
-    chunk->setState(CHUNK_LOADED);
-    chunk->fetch();
+void ChunkSource::runChunkLoad(Chunk& chunk) {
+    chunk.setState(CHUNK_LOADED);
+    chunk.fetch();
     startUpdatingChunk(chunk);
     fireEventChunkUpdated(chunk);
 }
 
-void ChunkSource::runChunkUnload(const Shared<Chunk>& chunk) {
+void ChunkSource::runChunkUnload(Chunk& chunk) {
     ThreadLock lock(m_chunks_mutex);
-    m_chunks.erase(chunk->getPosition());
+    chunk.deleteAllBuffers();
+    chunk.setState(CHUNK_FINALIZED);
+    m_chunks.erase(chunk.getPosition());
     lock.unlock();
-
-    chunk->deleteAllBuffers();
-    chunk->setState(CHUNK_FINALIZED);
 }
 
 
@@ -202,8 +200,7 @@ void ChunkSource::onTick() {
         for (i32 i = 0; i < updates_count; i++) {
             auto popped = m_updates_queue.tryPop();
             if (popped.has_value()) {
-                Shared<Chunk> chunk = popped->lock();
-                if (chunk && updateChunk(chunk)) {
+                if (updateChunk(popped.value())) {
                     m_updates_queue.push(popped.value());
                 }
             }
@@ -219,50 +216,18 @@ void ChunkSource::runChunkTask(ChunkTask task) {
             break;
         }
         case TASK_LOAD: {
-            Shared<Chunk> chunk = getChunkAt(task.position);
-            if (chunk) {
-                ChunkState state = chunk->getState();
+            accessChunk<chunk_access_policy_weak>(ChunkRef(task.position), [&] (Chunk& chunk) {
+                ChunkState state = chunk.getState();
                 if (state == CHUNK_LOADED) {
                 } else if (state == CHUNK_LAZY) {
                     tryLoadLazyChunk(chunk);
                 } else {
-                    if (chunk->tryLock()) {
-                        handleChunkLoading(chunk);
-                        chunk->unlock();
-                    }
+                    handleChunkLoading(chunk);
                 }
-            }
+            });
             break;
         }
     }
-
-}
-
-Shared<Chunk> ChunkSource::getChunkAt(ChunkPosition position) {
-    ThreadLock lock(m_chunks_mutex);
-    auto it = m_chunks.find(position);
-    if (it != m_chunks.end()) {
-        return it->second;
-    } else {
-        return nullptr;
-    }
-}
-
-Shared<Chunk> ChunkSource::fetchChunkAt(ChunkPosition position, i64 priority) {
-    Shared<Chunk> chunk = getChunkAt(position);
-    if (chunk) {
-        chunk->fetch();
-        auto chunk_state = chunk->getState();
-        if (chunk_state == CHUNK_LOADED) {
-        } else if (chunk_state == CHUNK_LAZY) {
-            tryLoadLazyChunk(chunk);
-        } else {
-            m_chunk_task_queue.push({ position, TASK_LOAD, priority });
-        }
-    } else if (m_provider->canFetchChunk(*this, position)) {
-        m_chunk_task_queue.push({ position, TASK_CREATE, priority });
-    }
-    return chunk;
 }
 
 const Shared<ChunkSource::LoadingRegion>& ChunkSource::addLoadingRegion(math::Vec3i position, i32 loading_level) {
@@ -297,7 +262,7 @@ void ChunkSource::fireEventTick() {
     }
 }
 
-void ChunkSource::fireEventChunkUpdated(const Shared<Chunk>& chunk) {
+void ChunkSource::fireEventChunkUpdated(Chunk& chunk) {
     for (auto listener : m_listeners) {
         listener->onChunkUpdated(*this, chunk);
     }

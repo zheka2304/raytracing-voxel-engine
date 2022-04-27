@@ -90,11 +90,28 @@ public:
     void deleteAllBuffers();
 };
 
+struct ChunkRef {
+    inline ChunkRef() : m_pos(ChunkPosition::invalid()) {};
+    inline ChunkRef(const Chunk& chunk) : m_pos(chunk.getPosition()) {};
+    inline ChunkRef(const ChunkPosition& pos) : m_pos(pos) {};
+
+    inline const ChunkPosition& position() const { return m_pos; }
+    inline bool operator==(const ChunkRef& other) const { return m_pos == other.m_pos; }
+private:
+    ChunkPosition m_pos;
+};
+
 } // voxel
 
 namespace std {
 std::string to_string(voxel::ChunkState state);
 } // std
 
+template<>
+struct std::hash<voxel::ChunkRef> {
+    std::size_t operator()(const voxel::ChunkRef& r) const {
+        return std::hash<voxel::ChunkPosition>()(r.position());
+    }
+};
 
 #endif //VOXEL_ENGINE_CHUNK_H

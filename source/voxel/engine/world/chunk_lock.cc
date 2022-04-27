@@ -2,52 +2,52 @@
 
 #include "chunk_lock.h"
 #include "voxel/engine/world/chunk.h"
+#include "voxel/engine/world/chunk_source.h"
 
 
 namespace voxel {
 
 class Chunk;
 
-ChunkLock::ChunkLock(const std::vector<Shared<Chunk>>& chunks, bool owns_lock) : m_chunks(chunks), m_owns_lock(owns_lock) {
+ChunkLock::ChunkLock(const Shared<ChunkSource>& chunk_source, const std::vector<ChunkRef>& chunks) : m_chunk_source(chunk_source), m_chunks(chunks) {
 }
 
-ChunkLock::ChunkLock(std::vector<Shared<Chunk>>&& chunks, bool owns_lock) : m_chunks(std::move(chunks)), m_owns_lock(owns_lock) {
+ChunkLock::ChunkLock(const Shared<ChunkSource>& chunk_source, std::vector<ChunkRef>&& chunks) : m_chunk_source(chunk_source), m_chunks(std::move(chunks)) {
 }
 
 ChunkLock::~ChunkLock() {
-    if (m_owns_lock) {
-        std::cerr << "ChunkLock was not released before destruction, this must not occur";
-    }
+    assert(m_owned_chunks.empty());
 }
 
 bool ChunkLock::tryLock() {
-    if (m_owns_lock) {
-        return false;
+    ChunkSource& chunk_source = *m_chunk_source;
+    m_owned_chunks.clear();
+    m_owned_chunks.reserve(m_chunks.size());
+
+    for (i32 i = 0; i < m_chunks.size(); i++) {
+        auto& chunk_ref = m_chunks[i];
+        chunk_source.accessChunk<chunk_access_policy_map_only>(chunk_ref, [&](Chunk& chunk) {
+            if (chunk.tryLock()) {
+                m_owned_chunks.emplace_back(std::addressof(chunk));
+            } else {
+                for (Chunk* owned : m_owned_chunks) {
+                    owned->unlock();
+                }
+                m_owned_chunks.clear();
+            };
+        });
     }
 
-    i32 chunk_count = m_chunks.size();
-    for (i32 i = 0; i < chunk_count; i++) {
-        auto& chunk = m_chunks[i];
-        if (!chunk->tryLock()) {
-            for (i32 j = 0; j < i; i++) {
-                m_chunks[i]->unlock();
-            }
-            return false;
-        }
-    }
-    m_owns_lock = true;
     return true;
 }
 
 bool ChunkLock::isLockOwned() {
-    return m_owns_lock;
+    return m_owned_chunks.size() > 0;
 }
 
 void ChunkLock::unlock() {
-    if (m_owns_lock) {
-        for (auto& chunk : m_chunks) {
-            chunk->unlock();
-        }
+    for (auto& chunk : m_owned_chunks) {
+        chunk->unlock();
     }
 }
 
