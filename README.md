@@ -14,6 +14,10 @@ Lighting supports soft shadows and colored light from multiple light sources, us
 Optimizing lighting is one of the main goals of this project. In a nutshell, this is achieved by tracking movement of pixels on screen and accumulating light value each frame, 
 then applying additional filtering to the result. Pixel tracking done by creating spatial buffer, that stores all pixel positions in world space.
 
+# Build & Requirements
+
+Built with CMake, requires C++17. OpenGL version must be at least 4.2. For the executable to load everything and run correctly, the working directory must be set to the root of the project.
+
 # Screenshots
 
 ![figure 1](https://github.com/zheka2304/raytracing-voxel-engine/blob/master/assets/screenshots/2.png?raw=true)
