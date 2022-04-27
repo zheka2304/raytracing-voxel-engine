@@ -91,12 +91,16 @@ public:
 };
 
 struct ChunkRef {
-    inline ChunkRef() : m_pos(ChunkPosition::invalid()) {};
+    inline constexpr ChunkRef() : m_pos(ChunkPosition::invalid()) {};
     inline ChunkRef(const Chunk& chunk) : m_pos(chunk.getPosition()) {};
-    inline ChunkRef(const ChunkPosition& pos) : m_pos(pos) {};
+    inline constexpr ChunkRef(const ChunkPosition& pos) : m_pos(pos) {};
 
-    inline const ChunkPosition& position() const { return m_pos; }
-    inline bool operator==(const ChunkRef& other) const { return m_pos == other.m_pos; }
+    inline constexpr const ChunkPosition& position() const { return m_pos; }
+    inline constexpr bool operator==(const ChunkRef& other) const { return m_pos == other.m_pos; }
+    inline constexpr bool operator!=(const ChunkRef& other) const { return m_pos != other.m_pos; }
+    inline constexpr bool valid() const { return m_pos != ChunkPosition::invalid(); }
+
+    inline static constexpr ChunkRef invalid() { return ChunkRef(ChunkPosition::invalid()); }
 private:
     ChunkPosition m_pos;
 };

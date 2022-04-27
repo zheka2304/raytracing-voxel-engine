@@ -74,12 +74,11 @@ public:
 private:
     i32 m_page_size;
 
-    std::vector<u64> m_chunk_by_page;
+    std::vector<ChunkRef> m_chunk_by_page;
     i32 m_allocated_page_count = 0;
 
     struct UploadedChunk {
         ChunkRef chunk_ref;
-        u64 chunk_hash;
 
         bool allocated;
         i32 first, second;
@@ -87,12 +86,12 @@ private:
         i32 index;
         i64 priority;
 
-        inline UploadedChunk(const ChunkRef& ref, u64 chunk_hash, i32 first, i32 second, i64 priority) :
-            chunk_ref(ref), chunk_hash(chunk_hash), first(first), second(second), priority(priority), allocated(true) {
+        inline UploadedChunk(const ChunkRef& ref, i32 first, i32 second, i64 priority) :
+            chunk_ref(ref), first(first), second(second), priority(priority), allocated(true) {
         }
 
-        inline UploadedChunk(const ChunkRef& ref, u64 chunk_hash, i64 priority) :
-            chunk_ref(ref), chunk_hash(chunk_hash), priority(priority), allocated(false) {
+        inline UploadedChunk(const ChunkRef& ref, i64 priority) :
+            chunk_ref(ref), priority(priority), allocated(false) {
         }
 
         struct Index {
@@ -114,7 +113,7 @@ private:
         };
     };
 
-    std::unordered_map<u64, UploadedChunk> m_uploaded_chunks;
+    std::unordered_map<ChunkRef, UploadedChunk> m_uploaded_chunks;
     Heap<UploadedChunk, UploadedChunk::Index, UploadedChunk::MinValueFirst> m_allocated_chunk_heap;
     Heap<UploadedChunk, UploadedChunk::Index, UploadedChunk::MaxValueFirst> m_pending_chunk_heap;
 
@@ -169,7 +168,7 @@ public:
     void updateChunkPriority(Chunk& chunk, i64 priority);
 
     // completely removes chunk from all heaps and lookup map
-    void removeChunk(Chunk& chunk);
+    void removeChunk(ChunkRef chunk_ref);
 
     // iterates over all chunks and updates it for new offset
     void rebuildChunkMap(math::Vec3i offset);
@@ -181,8 +180,8 @@ public:
 
 private:
     i32 getMapIndex(ChunkPosition position);
-    i32 tryAllocatePageSpan(i32 page_count, u64 chunk);
-    i32 allocatePageSpan(i32 page_count, u64 chunk_hash, i64 priority);
+    i32 tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref);
+    i32 allocatePageSpan(i32 page_count, ChunkRef chunk_ref, i64 priority);
 };
 
 } // render

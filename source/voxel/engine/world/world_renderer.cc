@@ -94,13 +94,14 @@ void WorldRenderer::runChunkUpdates() {
                 if (chunk.getState() == CHUNK_LOADED) {
                     m_chunk_buffer->uploadChunk(chunk, 0);
                 } else {
-                    m_chunk_buffer->removeChunk(chunk);
+                    m_chunk_buffer->removeChunk(chunk_ref);
                 }
             }, [&] (bool exists) {
                 if (exists) {
                     m_chunk_updates.push(chunk_ref);
-                }
-                // TODO: remove chunk if it does not exist
+                } else {
+                    m_chunk_buffer->removeChunk(chunk_ref);
+                };
             });
         } else {
             break;

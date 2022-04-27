@@ -16,6 +16,10 @@ struct ChunkPosition {
         return x == other.x && y == other.y && z == other.z;
     }
 
+    inline bool constexpr operator!=(const ChunkPosition& other) const {
+        return !this->operator==(other);
+    }
+
     inline static constexpr ChunkPosition invalid() { return ChunkPosition( 0x7fffffff, 0x7fffffff, 0x7fffffff ); }
 };
 
