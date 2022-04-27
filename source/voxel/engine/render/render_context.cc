@@ -6,8 +6,8 @@
 namespace voxel {
 namespace render {
 
-RenderContext::RenderContext(Weak<Engine> engine) :
-        m_logger(engine.lock()->getLogger()),
+RenderContext::RenderContext(Engine& engine) :
+        m_logger(engine.getLogger()),
         // TODO: shaders directory must be acquired from engine config
         m_shader_manager("shaders/", m_logger) {
 }

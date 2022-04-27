@@ -36,8 +36,8 @@ public:
     };
 
 public:
-    std::vector<Shared<VoxelModel>> read(std::istream& istream) override;
-    virtual std::vector<Shared<VoxelModel>> readRiff(RiffFile& riff_file);
+    std::vector<VoxelModel> read(std::istream& istream) override;
+    virtual std::vector<VoxelModel> readRiff(RiffFile& riff_file);
 
 private:
     RiffChunk _readRiffChunkRecursive(std::istream& istream, i32 depth = 0);

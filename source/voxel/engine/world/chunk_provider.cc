@@ -10,15 +10,15 @@ bool ChunkProvider::canFetchChunk(ChunkSource& chunk_source, ChunkPosition posit
     return false;
 }
 
-Shared<Chunk> ChunkProvider::createChunk(ChunkSource& chunk_source, ChunkPosition position) {
-    return Shared<Chunk>();
+Unique<Chunk> ChunkProvider::createChunk(ChunkSource& chunk_source, ChunkPosition position) {
+    return nullptr;
 }
 
-bool ChunkProvider::buildChunk(ChunkSource& chunk_source, Shared<Chunk> chunk) {
+bool ChunkProvider::buildChunk(ChunkSource& chunk_source, Chunk& chunk) {
     return true;
 }
 
-bool ChunkProvider::processChunk(ChunkSource& chunk_source, Shared<Chunk> chunk) {
+bool ChunkProvider::processChunk(ChunkSource& chunk_source, Chunk& chunk) {
     return true;
 }
 

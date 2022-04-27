@@ -20,7 +20,7 @@ class ChunkSource;
 class ChunkSourceListener {
 public:
     virtual void onChunkSourceTick(ChunkSource& chunk_source);
-    virtual void onChunkUpdated(ChunkSource& chunk_source, Shared<Chunk> chunk);
+    virtual void onChunkUpdated(ChunkSource& chunk_source, const Shared<Chunk>& chunk);
 };
 
 class ChunkSource {
@@ -86,8 +86,8 @@ private:
         }
     };
 
-    Shared<ChunkProvider> m_provider;
-    Shared<ChunkStorage> m_storage;
+    Unique<ChunkProvider> m_provider;
+    Unique<ChunkStorage> m_storage;
 
     ChunkSourceState m_state;
     std::vector<ChunkSourceListener*> m_listeners;
@@ -104,8 +104,8 @@ private:
     std::vector<Shared<LoadingRegion>> m_loaded_regions;
 
 public:
-    ChunkSource(Shared<ChunkProvider> provider,
-                Shared<ChunkStorage> storage,
+    ChunkSource(Unique<ChunkProvider> provider,
+                Unique<ChunkStorage> storage,
                 Settings settings,
                 ChunkSourceState initial_state = STATE_LOADED);
     ChunkSource(const ChunkSource&) = delete;
@@ -121,24 +121,24 @@ public:
     Shared<Chunk> getChunkAt(ChunkPosition position);
     Shared<Chunk> fetchChunkAt(ChunkPosition position, i64 priority);
 
-    Shared<LoadingRegion> addLoadingRegion(math::Vec3i position, i32 loading_level);
-    void removeLoadingRegion(Shared<LoadingRegion> loading_region);
+    const Shared<LoadingRegion>& addLoadingRegion(math::Vec3i position, i32 loading_level);
+    void removeLoadingRegion(const Shared<LoadingRegion>& loading_region);
     i32 getLoadingLevelForPosition(ChunkPosition position);
 
 private:
     void runChunkTask(ChunkTask task);
 
     void tryCreateNewChunk(ChunkPosition position);
-    void tryLoadLazyChunk(Shared<Chunk> chunk);
-    void handleChunkLoading(Shared<Chunk> chunk);
-    void handleLazyChunk(Shared<Chunk> chunk);
-    void startUpdatingChunk(Shared<Chunk> chunk);
-    bool updateChunk(Shared<Chunk> chunk);
+    void tryLoadLazyChunk(const Shared<Chunk>& chunk);
+    void handleChunkLoading(const Shared<Chunk>& chunk);
+    void handleLazyChunk(const Shared<Chunk>& chunk);
+    void startUpdatingChunk(const Shared<Chunk>& chunk);
+    bool updateChunk(const Shared<Chunk>& chunk);
 
-    void runChunkBuild(Shared<Chunk> chunk);
-    void runChunkProcessing(Shared<Chunk> chunk);
-    void runChunkLoad(Shared<Chunk> chunk);
-    void runChunkUnload(Shared<Chunk> chunk);
+    void runChunkBuild(const Shared<Chunk>& chunk);
+    void runChunkProcessing(const Shared<Chunk>& chunk);
+    void runChunkLoad(const Shared<Chunk>& chunk);
+    void runChunkUnload(const Shared<Chunk>& chunk);
 
     void fireEventTick();
     void fireEventChunkUpdated(const Shared<Chunk>& chunk);

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <functional>
+#include <optional>
 
 
 using f32 = float;

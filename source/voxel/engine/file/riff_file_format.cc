@@ -62,7 +62,7 @@ RiffStyleFileFormat::RiffChunk RiffStyleFileFormat::_readRiffChunkRecursive(std:
     return chunk;
 }
 
-std::vector<Shared<VoxelModel>> RiffStyleFileFormat::read(std::istream& istream) {
+std::vector<VoxelModel> RiffStyleFileFormat::read(std::istream& istream) {
     RiffStyleFileFormat::RiffFile riff_file;
 
     // read type
@@ -88,8 +88,8 @@ std::vector<Shared<VoxelModel>> RiffStyleFileFormat::read(std::istream& istream)
     return readRiff(riff_file);
 }
 
-std::vector<Shared<VoxelModel>> RiffStyleFileFormat::readRiff(RiffFile& riff_file) {
-    return std::vector<Shared<VoxelModel>>();
+std::vector<VoxelModel> RiffStyleFileFormat::readRiff(RiffFile& riff_file) {
+    return {};
 }
 
 } // format

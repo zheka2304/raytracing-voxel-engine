@@ -32,17 +32,17 @@ public:
 
     template<typename T>
     T awaitResult(const Task<T>& task) {
-        Shared<std::optional<T>> result = CreateShared<std::optional<T>>();
-        Shared<std::condition_variable> cv = CreateShared<std::condition_variable>();
-        queue([=]() -> void {
-            *result = task();
-            cv->notify_all();
+        std::optional<T> result;
+        std::condition_variable cv;
+        queue([&]() -> void {
+            result = task();
+            cv.notify_all();
         });
 
         std::mutex mutex;
         std::unique_lock<std::mutex> lock(mutex);
-        cv->wait(lock);
-        return result->value();
+        cv.wait(lock);
+        return result.value();
     }
 
     BlockingQueue<std::function<void()>>& getQueue();

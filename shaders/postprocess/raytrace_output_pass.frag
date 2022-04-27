@@ -6,8 +6,8 @@
 uniform sampler2D IN_TEXTURE_COLOR;
 uniform sampler2D IN_TEXTURE_LIGHT;
 
-varying vec2 uv;
-
+in vec2 uv;
+out vec4 out_color;
 
 #define PACK_H2F(X) uintBitsToFloat(packHalf2x16(X))
 #define UNPACK_H2F(X) unpackHalf2x16(floatBitsToUint(X))
@@ -35,17 +35,17 @@ void main() {
     // write result
     vec4 result = vec4(1.0);
     result.rgb = mix(colors.color1.rgb, colors.color2.rgb, 1.0 - light_value);
-    gl_FragColor = result;
+    out_color = result;
 
     // -- DEBUG START --
-//    gl_FragColor.rgb = colors.color1.rgb * light_value;
-//    gl_FragColor.rgb = vec3(color_data.rg, color_data.b);
-//    gl_FragColor.rgb = vec3(light_value, light_value, color_data.b);
-//    gl_FragColor.rgb = vec3(light_value, color_data.b - 1.0, fract(color_data.b));
-//    gl_FragColor.rgb = vec3(light_value, light_value, 0.0);
-//    gl_FragColor.rgb = vec3(abs(color_data.rg), 0.0);
-//    gl_FragColor.rgb = vec3(light_value);
-//    gl_FragColor.rgb = vec3(depth_data.r);
-//    gl_FragColor.rgb = vec3(UNPACK_H2F(light_data.g) / 5.0, 0.0);
+//    out_color.rgb = colors.color1.rgb * light_value;
+//    out_color.rgb = vec3(color_data.rg, color_data.b);
+//    out_color.rgb = vec3(light_value, light_value, color_data.b);
+//    out_color.rgb = vec3(light_value, color_data.b - 1.0, fract(color_data.b));
+//    out_color.rgb = vec3(light_value, light_value, 0.0);
+//    out_color.rgb = vec3(abs(color_data.rg), 0.0);
+//    out_color.rgb = vec3(light_value);
+//    out_color.rgb = vec3(depth_data.r);
+//    out_color.rgb = vec3(UNPACK_H2F(light_data.g) / 5.0, 0.0);
     // -- DEBUG END --
 }

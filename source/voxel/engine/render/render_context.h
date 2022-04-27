@@ -18,7 +18,7 @@ class RenderContext {
     opengl::ShaderManager m_shader_manager;
 
 public:
-    RenderContext(Weak<Engine> engine);
+    RenderContext(Engine& engine);
     RenderContext(RenderContext const& other) = delete;
     RenderContext(RenderContext&& other) = delete;
     ~RenderContext();

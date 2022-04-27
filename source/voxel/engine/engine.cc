@@ -2,6 +2,7 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include "voxel/engine/world.h"
 
 
 namespace voxel {
@@ -49,23 +50,21 @@ namespace voxel {
         return m_logger;
     }
 
-    Shared<Context> Engine::newContext(const std::string& context_name) {
-        Shared<Context> context = CreateShared<Context>(weak_from_this(), context_name);
-        m_contexts.emplace_back(context);
-        return context;
+    Context& Engine::newContext(const std::string& context_name) {
+        return *m_contexts.emplace_back(CreateUnique<Context>(*this, context_name));
     }
 
     void Engine::joinAllEventLoops() {
-        for (Shared<Context>& ctx : m_contexts) {
+        for (auto& ctx : m_contexts) {
             ctx->joinEventLoop();
         }
     }
 
 
-    Context::Context(Weak<Engine> engine, const std::string& context_name) :
+    Context::Context(Engine& engine, const std::string& context_name) :
             m_context_name(context_name),
             m_engine(engine),
-            m_logger(engine.lock()->getLogger()),
+            m_logger(engine.getLogger()),
             m_event_loop_thread(&Context::eventLoop, this) {
     }
 
@@ -78,7 +77,7 @@ namespace voxel {
     }
 
     Engine& Context::getEngine() {
-        return *m_engine.lock().get();
+        return m_engine;
     }
 
     Logger& Context::getLogger() {
@@ -128,7 +127,7 @@ namespace voxel {
         m_destroy_callback = callback;
     }
 
-    void Context::initWindow(WindowParameters parameters, Shared<Context> shared_context) {
+    void Context::initWindow(WindowParameters parameters, Context* shared_context) {
         std::unique_lock<std::mutex> lock(m_event_loop_mutex);
 
         if (m_termination_pending) {
@@ -152,7 +151,7 @@ namespace voxel {
                     parameters.height,
                     parameters.title,
                     nullptr,
-                    shared_context.get() != nullptr ? shared_context->awaitGlfwWindow() : nullptr);
+                    shared_context != nullptr ? shared_context->awaitGlfwWindow() : nullptr);
 
             // initialized with window
             m_has_window = true;
@@ -161,7 +160,7 @@ namespace voxel {
         };
     }
 
-    void Context::initNoWindow(Shared<Context> shared_context) {
+    void Context::initNoWindow(Context* shared_context) {
         std::unique_lock<std::mutex> lock(m_event_loop_mutex);
 
         if (m_termination_pending) {
@@ -180,7 +179,7 @@ namespace voxel {
             glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
             m_window = glfwCreateWindow(640, 480, "hidden", nullptr,
-                                        shared_context.get() != nullptr ? shared_context->awaitGlfwWindow() : nullptr);
+                                        shared_context != nullptr ? shared_context->awaitGlfwWindow() : nullptr);
 
             // initialized without window
             m_has_window = false;
@@ -189,7 +188,7 @@ namespace voxel {
         };
     }
 
-    void Context::initializeRenderContext(Shared<Context> shared_context) {
+    void Context::initializeRenderContext(Context* shared_context) {
         if (m_render_context != nullptr) {
             m_logger.message(Logger::flag_error, "Context-" + m_context_name, "render context is already initialized");
             return;

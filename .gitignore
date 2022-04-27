@@ -1,5 +1,1 @@
-# Ignore content built with CMake
-cmake-build-debug/
-cmake-build-debug-coverage/
-
-libraries/glsl_optimizer/
+build/

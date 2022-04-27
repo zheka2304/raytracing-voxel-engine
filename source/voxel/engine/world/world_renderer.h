@@ -27,7 +27,7 @@ struct WorldRendererSettings {
 
 class WorldRenderer : public ChunkSourceListener {
     Shared<ChunkSource> m_chunk_source;
-    Shared<render::ChunkBuffer> m_chunk_buffer;
+    Unique<render::ChunkBuffer> m_chunk_buffer;
 
     math::Vec3f m_camera_position = math::Vec3f(0.0);
     math::Vec3i m_chunk_map_offset_position = math::Vec3i(0);
@@ -42,19 +42,19 @@ class WorldRenderer : public ChunkSourceListener {
     threading::UniqueBlockingQueue<Shared<Chunk>> m_chunk_updates;
 
 public:
-    WorldRenderer(Shared<ChunkSource> chunk_source, Shared<render::ChunkBuffer> chunk_buffer, WorldRendererSettings settings);
+    WorldRenderer(Shared<ChunkSource> chunk_source, Unique<render::ChunkBuffer> chunk_buffer, WorldRendererSettings settings);
     WorldRenderer(const WorldRenderer&) = delete;
     WorldRenderer(WorldRenderer&&) = delete;
     ~WorldRenderer();
 
-    void addChunkToUpdateQueue(Shared<Chunk> chunk);
+    void addChunkToUpdateQueue(const Shared<Chunk>& chunk);
     void setCameraPosition(math::Vec3f camera_position);
     void render(render::RenderContext& render_context);
     void onTick();
 
 private:
     void onChunkSourceTick(ChunkSource &chunk_source) override;
-    void onChunkUpdated(ChunkSource &chunk_source, Shared<Chunk> chunk) override;
+    void onChunkUpdated(ChunkSource &chunk_source, const Shared<Chunk>& chunk) override;
 
     void fetchRequestedChunks();
     void runChunkUpdates();

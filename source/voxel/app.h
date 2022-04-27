@@ -16,14 +16,6 @@
 namespace voxel {
 
 class VoxelEngineApp {
-    Unique<Engine> m_engine;
-    Shared<Context> m_context;
-    Unique<World> m_world;
-
-    Unique<WorldRenderer> m_world_renderer;
-    Unique<render::RenderTarget> m_render_target;
-    Unique<opengl::FullScreenQuad> m_full_screen_quad;
-
 public:
     VoxelEngineApp();
     ~VoxelEngineApp();
@@ -46,6 +38,15 @@ protected:
 
     void renderMainCamera(render::RenderContext& render_context, render::Camera& camera);
     void setRenderTargetSize(i32 width, i32 height);
+
+private:
+    Engine m_engine;
+    Context* m_context;
+    Unique<World> m_world;
+
+    Unique<WorldRenderer> m_world_renderer;
+    Unique<render::RenderTarget> m_render_target;
+    Unique<opengl::FullScreenQuad> m_full_screen_quad;
 };
 
 class BasicVoxelEngineApp : public VoxelEngineApp {

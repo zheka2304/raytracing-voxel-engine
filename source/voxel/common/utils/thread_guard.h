@@ -2,6 +2,7 @@
 #define VOXEL_ENGINE_THREAD_GUARD_H
 
 #include <thread>
+#include <cassert>
 
 
 namespace voxel {
@@ -45,9 +46,7 @@ public:
 
     inline void guard() {
 #ifndef VOXEL_ENGINE_DISABLE_THREAD_GUARD
-        if (std::this_thread::get_id() != m_id) {
-            throw std::runtime_error("thread guard check failed");
-        }
+        assert(std::this_thread::get_id() == m_id);
 #endif
     }
 };

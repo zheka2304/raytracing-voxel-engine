@@ -8,9 +8,9 @@
 
 namespace voxel {
 
-Shared<VoxelModel> loadVoxelModelFromVoxFile(const std::string& filename);
+Unique<VoxelModel> loadVoxelModelFromVoxFile(const std::string& filename);
 
-Unique<World> createWorldFromModel(Shared<VoxelModel> model, Voxel ground_voxel);
+Unique<World> createWorldFromModel(Unique<VoxelModel> model, Voxel ground_voxel);
 
 } // voxel
 

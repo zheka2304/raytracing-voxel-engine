@@ -13,7 +13,7 @@ namespace format {
 
 class FileFormat {
 public:
-    virtual std::vector<Shared<VoxelModel>> read(std::istream& istream) = 0;
+    virtual std::vector<VoxelModel> read(std::istream& istream) = 0;
 };
 
 } // format

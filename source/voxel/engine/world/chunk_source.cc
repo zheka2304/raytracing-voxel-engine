@@ -10,7 +10,7 @@
 namespace voxel {
 
 void ChunkSourceListener::onChunkSourceTick(ChunkSource& chunk_source) {}
-void ChunkSourceListener::onChunkUpdated(ChunkSource& chunk_source, Shared<Chunk> chunk) {}
+void ChunkSourceListener::onChunkUpdated(ChunkSource& chunk_source, const Shared<Chunk>& chunk) {}
 
 
 ChunkSource::LoadingRegion::LoadingRegion(ChunkSource* chunk_source, math::Vec3i position, i32 loading_level) :
@@ -30,11 +30,11 @@ i32 ChunkSource::LoadingRegion::getLoadingLevel() {
 }
 
 ChunkSource::ChunkSource(
-        Shared<ChunkProvider> provider,
-        Shared<ChunkStorage> storage,
+        Unique<ChunkProvider> provider,
+        Unique<ChunkStorage> storage,
         Settings settings,
         ChunkSourceState initial_state) :
-        m_provider(provider), m_storage(storage), m_settings(settings), m_state(initial_state),
+        m_provider(std::move(provider)), m_storage(std::move(storage)), m_settings(settings), m_state(initial_state),
         m_chunk_task_executor(
                 [this] () -> ChunkTask { return m_chunk_task_queue.pop(); },
                 [this] (ChunkTask task) -> void { runChunkTask(task); },
@@ -81,7 +81,7 @@ void ChunkSource::tryCreateNewChunk(ChunkPosition position) {
         }
     }
 
-    Shared<Chunk> chunk = m_provider->createChunk(*this, position);
+    Unique<Chunk> chunk = m_provider->createChunk(*this, position);
     if (!chunk) {
         return;
     }
@@ -91,22 +91,22 @@ void ChunkSource::tryCreateNewChunk(ChunkPosition position) {
         ThreadLock lock(m_chunks_mutex);
         if (m_chunks.find(position) == m_chunks.end()) {
             chunk->fetch();
-            m_chunks.emplace(position, chunk);
+            m_chunks.emplace(position, Shared<Chunk>(chunk.release()));
         }
     }
 }
 
-void ChunkSource::tryLoadLazyChunk(Shared<Chunk> chunk) {
+void ChunkSource::tryLoadLazyChunk(const Shared<Chunk>& chunk) {
     chunk->setState(CHUNK_LOADED);
     chunk->fetch();
     fireEventChunkUpdated(chunk);
 }
 
-void ChunkSource::startUpdatingChunk(Shared<Chunk> chunk) {
+void ChunkSource::startUpdatingChunk(const Shared<Chunk>& chunk) {
     m_updates_queue.push(Weak<Chunk>(chunk));
 }
 
-bool ChunkSource::updateChunk(Shared<Chunk> chunk) {
+bool ChunkSource::updateChunk(const Shared<Chunk>& chunk) {
     bool continue_updating = true;
     if (chunk->tryLock()) {
         auto state = chunk->getState();
@@ -123,7 +123,7 @@ bool ChunkSource::updateChunk(Shared<Chunk> chunk) {
                 fireEventChunkUpdated(chunk);
             }
         } else if (state == CHUNK_STORING) {
-            if (m_storage->tryStoreChunk(*this, chunk)) {
+            if (m_storage->tryStoreChunk(*this, *chunk)) {
                 chunk->setState(CHUNK_UNLOADING);
             } else {
                 chunk->setState(CHUNK_LAZY);
@@ -137,7 +137,7 @@ bool ChunkSource::updateChunk(Shared<Chunk> chunk) {
     return continue_updating;
 }
 
-void ChunkSource::handleLazyChunk(Shared<Chunk> chunk) {
+void ChunkSource::handleLazyChunk(const Shared<Chunk>& chunk) {
     if (m_state == STATE_UNLOADED) {
         chunk->setState(CHUNK_STORING);
     } else {
@@ -147,10 +147,10 @@ void ChunkSource::handleLazyChunk(Shared<Chunk> chunk) {
     }
 }
 
-void ChunkSource::handleChunkLoading(Shared<Chunk> chunk) {
+void ChunkSource::handleChunkLoading(const Shared<Chunk>& chunk) {
     ChunkState state = chunk->getState();
     if (state == CHUNK_PENDING) {
-        if (m_storage->tryLoadChunk(*this, chunk)) {
+        if (m_storage->tryLoadChunk(*this, *chunk)) {
             chunk->setState(CHUNK_PROCESSED);
             runChunkLoad(chunk);
         } else {
@@ -165,26 +165,26 @@ void ChunkSource::handleChunkLoading(Shared<Chunk> chunk) {
     }
 }
 
-void ChunkSource::runChunkBuild(Shared<Chunk> chunk) {
-    if (m_provider->buildChunk(*this, chunk)) {
+void ChunkSource::runChunkBuild(const Shared<Chunk>& chunk) {
+    if (m_provider->buildChunk(*this, *chunk)) {
         chunk->setState(CHUNK_BUILT);
     }
 }
 
-void ChunkSource::runChunkProcessing(Shared<Chunk> chunk) {
-    if (m_provider->processChunk(*this, chunk)) {
+void ChunkSource::runChunkProcessing(const Shared<Chunk>& chunk) {
+    if (m_provider->processChunk(*this, *chunk)) {
         chunk->setState(CHUNK_PROCESSED);
     }
 }
 
-void ChunkSource::runChunkLoad(Shared<Chunk> chunk) {
+void ChunkSource::runChunkLoad(const Shared<Chunk>& chunk) {
     chunk->setState(CHUNK_LOADED);
     chunk->fetch();
     startUpdatingChunk(chunk);
     fireEventChunkUpdated(chunk);
 }
 
-void ChunkSource::runChunkUnload(Shared<Chunk> chunk) {
+void ChunkSource::runChunkUnload(const Shared<Chunk>& chunk) {
     ThreadLock lock(m_chunks_mutex);
     m_chunks.erase(chunk->getPosition());
     lock.unlock();
@@ -244,7 +244,7 @@ Shared<Chunk> ChunkSource::getChunkAt(ChunkPosition position) {
     if (it != m_chunks.end()) {
         return it->second;
     } else {
-        return Shared<Chunk>();
+        return nullptr;
     }
 }
 
@@ -265,14 +265,12 @@ Shared<Chunk> ChunkSource::fetchChunkAt(ChunkPosition position, i64 priority) {
     return chunk;
 }
 
-Shared<ChunkSource::LoadingRegion> ChunkSource::addLoadingRegion(math::Vec3i position, i32 loading_level) {
+const Shared<ChunkSource::LoadingRegion>& ChunkSource::addLoadingRegion(math::Vec3i position, i32 loading_level) {
     ThreadLock lock(m_loaded_regions_mutex);
-    Shared<ChunkSource::LoadingRegion> loading_region = CreateShared<LoadingRegion>(this, position, loading_level);
-    m_loaded_regions.emplace_back(loading_region);
-    return loading_region;
+    return m_loaded_regions.emplace_back(CreateShared<LoadingRegion>(this, position, loading_level));
 }
 
-void ChunkSource::removeLoadingRegion(Shared<LoadingRegion> loading_region) {
+void ChunkSource::removeLoadingRegion(const Shared<LoadingRegion>& loading_region) {
     ThreadLock lock(m_loaded_regions_mutex);
     loading_region->m_chunk_source = nullptr;
     auto it = std::find(m_loaded_regions.begin(), m_loaded_regions.end(), loading_region);

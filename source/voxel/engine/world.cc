@@ -1,13 +1,16 @@
 #include "world.h"
+#include "voxel/engine/world/chunk_provider.h"
+#include "voxel/engine/world/chunk_storage.h"
+#include "voxel/engine/world/chunk_source.h"
+
 
 namespace voxel {
 
-World::World(Shared<ChunkProvider> chunk_provider,
-             Shared<ChunkStorage> chunk_storage,
+World::World(Unique<ChunkProvider> chunk_provider,
+             Unique<ChunkStorage> chunk_storage,
              const threading::TickingThread::Scheduler& tick_scheduler,
              ChunkSource::Settings chunk_source_settings) :
-
-             m_chunk_source(CreateShared<ChunkSource>(chunk_provider, chunk_storage, chunk_source_settings)),
+             m_chunk_source(CreateShared<ChunkSource>(std::move(chunk_provider), std::move(chunk_storage), chunk_source_settings)),
              m_ticking_thread(tick_scheduler, std::bind(&World::onTick, this)) {
 }
 

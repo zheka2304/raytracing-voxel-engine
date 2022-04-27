@@ -16,13 +16,13 @@ public:
     virtual bool canFetchChunk(ChunkSource& chunk_source, ChunkPosition position);
 
     // Create new empty chunk for position, can perform more heavy check, than canFetchChunk and return empty pointer
-    virtual Shared<Chunk> createChunk(ChunkSource& chunk_source, ChunkPosition position);
+    virtual Unique<Chunk> createChunk(ChunkSource& chunk_source, ChunkPosition position);
 
     // Handle chunk build task, return true, if succeeded
-    virtual bool buildChunk(ChunkSource& chunk_source, Shared<Chunk> chunk);
+    virtual bool buildChunk(ChunkSource& chunk_source, Chunk& chunk);
 
     // Handle chunk processing task, return true, if succeeded
-    virtual bool processChunk(ChunkSource& chunk_source, Shared<Chunk> chunk);
+    virtual bool processChunk(ChunkSource& chunk_source, Chunk& chunk);
 };
 
 }

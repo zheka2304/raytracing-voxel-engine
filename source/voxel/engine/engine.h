@@ -36,7 +36,7 @@ class Engine : public std::enable_shared_from_this<Engine> {
     Logger m_logger;
 
     // list of all spawned contexts
-    std::vector<Shared<Context>> m_contexts;
+    std::vector<Unique<Context>> m_contexts;
 
     // thread for initializing glfw contexts and other glfw-related work
     threading::WorkerThread m_glfw_thread;
@@ -58,7 +58,7 @@ public:
     Logger& getLogger();
 
     // creates and initializes new context from this engine
-    Shared<Context> newContext(const std::string& context_name);
+    Context& newContext(const std::string& context_name);
 
     // joins all active contexts event loops, consider using this in main after doing all initialization and starting all event loops
     void joinAllEventLoops();
@@ -76,8 +76,8 @@ public:
 
 private:
     std::string m_context_name;
-    Weak<Engine> m_engine;
-    Shared<World> m_world;
+    Engine& m_engine;
+    Unique<World> m_world;
     Shared<render::RenderContext> m_render_context;
 
     Logger m_logger;
@@ -110,7 +110,7 @@ private:
     std::function<void(Context&)> m_destroy_callback;
 
 public:
-    Context(Weak<Engine> engine, const std::string& context_name);
+    Context(Engine& engine, const std::string& context_name);
     Context(const Context& other) = delete;
     Context(Context&& other) = delete;
     ~Context();
@@ -131,10 +131,10 @@ public:
     void setDestroyCallback(const std::function<void(Context&)>& callback);
 
     // creates and initializes window with given parameters
-    void initWindow(WindowParameters parameters, Shared<Context> shared_context = nullptr);
+    void initWindow(WindowParameters parameters, Context* shared_context = nullptr);
 
     // initializes context without window (invisible window is used, because in GLFW window = context)
-    void initNoWindow(Shared<Context> shared_context = nullptr);
+    void initNoWindow(Context* shared_context = nullptr);
 
     // starts window event loop
     void runEventLoop();
@@ -148,7 +148,7 @@ public:
 
 private:
     bool initializeGlad();
-    void initializeRenderContext(Shared<Context> shared_context);
+    void initializeRenderContext(Context* shared_context);
 
     void eventLoop();
     void processEvents();

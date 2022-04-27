@@ -6,8 +6,8 @@
 
 namespace voxel {
 
-WorldRenderer::WorldRenderer(Shared<ChunkSource> chunk_source, Shared<render::ChunkBuffer> chunk_buffer, WorldRendererSettings settings) :
-    m_chunk_source(chunk_source), m_chunk_buffer(chunk_buffer), m_settings(settings) {
+WorldRenderer::WorldRenderer(Shared<ChunkSource> chunk_source, Unique<render::ChunkBuffer> chunk_buffer, WorldRendererSettings settings) :
+    m_chunk_source(chunk_source), m_chunk_buffer(std::move(chunk_buffer)), m_settings(settings) {
     m_chunk_source->addListener(this);
     m_chunk_buffer->rebuildChunkMap(m_chunk_map_offset_position);
     m_camera_loading_region = m_chunk_source->addLoadingRegion(m_chunk_map_offset_position, m_settings.chunk_loading_level);
@@ -28,7 +28,7 @@ void WorldRenderer::setCameraPosition(math::Vec3f camera_position) {
     }
 }
 
-void WorldRenderer::addChunkToUpdateQueue(Shared<Chunk> chunk) {
+void WorldRenderer::addChunkToUpdateQueue(const Shared<Chunk>& chunk) {
     m_chunk_updates.push(chunk);
 }
 
@@ -111,7 +111,7 @@ void WorldRenderer::onChunkSourceTick(ChunkSource& chunk_source) {
     onTick();
 }
 
-void WorldRenderer::onChunkUpdated(ChunkSource& chunk_source, Shared<Chunk> chunk) {
+void WorldRenderer::onChunkUpdated(ChunkSource& chunk_source, const Shared<Chunk>& chunk) {
     addChunkToUpdateQueue(chunk);
 }
 

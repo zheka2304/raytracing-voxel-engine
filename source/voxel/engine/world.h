@@ -13,8 +13,8 @@ class World {
     threading::TickingThread m_ticking_thread;
 
 public:
-    World(Shared<ChunkProvider> chunk_provider,
-          Shared<ChunkStorage> chunk_storage,
+    World(Unique<ChunkProvider> chunk_provider,
+          Unique<ChunkStorage> chunk_storage,
           const threading::TickingThread::Scheduler& tick_scheduler,
           ChunkSource::Settings chunk_source_settings);
     World(const World&) = delete;

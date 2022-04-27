@@ -161,15 +161,15 @@ public:
     // uploads or updates uploaded chunk:
     // - if not uploaded, uploads, if allocation fails, places it into pending heap
     // - if uploaded, updates priority
-    void uploadChunk(Shared<Chunk> chunk, i64 priority);
+    void uploadChunk(const Shared<Chunk>& chunk, i64 priority);
 
     // for already uploaded chunk:
     // - update chunk priority
     // - if chunk is not allocated, tries to allocate it
-    void updateChunkPriority(Shared<Chunk> chunk, i64 priority);
+    void updateChunkPriority(const Shared<Chunk>& chunk, i64 priority);
 
     // completely removes chunk from all heaps and lookup map
-    void removeChunk(Shared<Chunk> chunk);
+    void removeChunk(const Shared<Chunk>& chunk);
 
     // iterates over all chunks and updates it for new offset
     void rebuildChunkMap(math::Vec3i offset);

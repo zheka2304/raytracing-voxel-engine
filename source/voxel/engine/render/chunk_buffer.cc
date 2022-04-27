@@ -179,7 +179,7 @@ void ChunkBuffer::getFetchedChunks(FetchedChunksList& fetched_chunks_list) {
     m_fetch_shader_buffer.getDataSpan(0, m_fetch_buffer_size * sizeof(u32), &fetched_chunks_list.m_raw_data[0]);
 }
 
-void ChunkBuffer::updateChunkPriority(Shared<Chunk> chunk, i64 priority) {
+void ChunkBuffer::updateChunkPriority(const Shared<Chunk>& chunk, i64 priority) {
     const u64 chunk_hash = reinterpret_cast<u64>(chunk.get());
     auto found = m_uploaded_chunks.find(chunk_hash);
     if (found != m_uploaded_chunks.end()) {
@@ -223,7 +223,7 @@ void ChunkBuffer::updateChunkPriority(Shared<Chunk> chunk, i64 priority) {
     }
 }
 
-void ChunkBuffer::uploadChunk(Shared<Chunk> chunk, i64 priority) {
+void ChunkBuffer::uploadChunk(const Shared<Chunk>& chunk, i64 priority) {
     const u64 chunk_hash = reinterpret_cast<u64>(chunk.get());
     const i32 map_index = getMapIndex(chunk->getPosition());
     if (map_index == -1) {
@@ -323,7 +323,7 @@ void ChunkBuffer::uploadChunk(Shared<Chunk> chunk, i64 priority) {
     }
 }
 
-void ChunkBuffer::removeChunk(Shared<Chunk> chunk) {
+void ChunkBuffer::removeChunk(const Shared<Chunk>& chunk) {
     // remove chunk from map
     const i32 map_index = getMapIndex(chunk->getPosition());
     if (map_index != -1) {

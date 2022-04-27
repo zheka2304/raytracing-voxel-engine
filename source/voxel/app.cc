@@ -13,10 +13,9 @@ VoxelEngineApp::~VoxelEngineApp() {
 }
 
 void VoxelEngineApp::init() {
-    m_engine = CreateUnique<Engine>();
-    m_engine->initialize();
+    m_engine.initialize();
 
-    m_context = m_engine->newContext("APP");
+    m_context = std::addressof(m_engine.newContext("APP"));
     m_context->setInitCallback([this] (Context& context, render::RenderContext& render_context) -> void { onInit(context, render_context); });
     m_context->setFrameHandleCallback([this] (Context& context, render::RenderContext& render_context) -> void { onFrame(context, render_context); });
     m_context->setEventProcessingCallback([this] (Context& context, WindowHandler& window_handler) -> void { onProcessEvents(context, window_handler); });
@@ -34,7 +33,7 @@ void VoxelEngineApp::run() {
 }
 
 void VoxelEngineApp::joinEventLoopAndFinish() {
-    m_engine->joinAllEventLoops();
+    m_engine.joinAllEventLoops();
     m_world->setTicking(false);
     m_world->joinTickingThread();
     m_world.release();
@@ -42,15 +41,15 @@ void VoxelEngineApp::joinEventLoopAndFinish() {
 
 
 Unique<World> VoxelEngineApp::createWorld() {
-    throw std::runtime_error("VoxelEngineApp::createWorld is not implemented");
+    return nullptr;
 }
 
 void VoxelEngineApp::createWindow(Context& context) {
-    throw std::runtime_error("VoxelEngineApp::createWindow is not implemented");
+
 }
 
 Unique<WorldRenderer> VoxelEngineApp::createWorldRenderer(Shared<ChunkSource> chunk_source) {
-    throw std::runtime_error("VoxelEngineApp::createWorldRenderer is not implemented");
+    return nullptr;
 }
 
 
@@ -126,7 +125,7 @@ void BasicVoxelEngineApp::updateCameraDimensions(render::Camera& camera, i32 wid
 }
 
 Unique<WorldRenderer> BasicVoxelEngineApp::createWorldRenderer(Shared<ChunkSource> chunk_source) {
-    return CreateUnique<WorldRenderer>(chunk_source, CreateShared<render::ChunkBuffer>(4096, 65536, math::Vec3i(32)), WorldRendererSettings());
+    return CreateUnique<WorldRenderer>(chunk_source, CreateUnique<render::ChunkBuffer>(4096, 65536, math::Vec3i(32)), WorldRendererSettings());
 }
 
 void BasicVoxelEngineApp::createWindow(Context& context) {
