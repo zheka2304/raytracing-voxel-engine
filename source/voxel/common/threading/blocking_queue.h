@@ -115,7 +115,7 @@ public:
 template<typename T>
 class UniqueBlockingQueue {
     std::deque<T> m_queue;
-    std::unordered_set<T> m_item_set;
+    flat_hash_set<T> m_item_set;
 
     std::mutex m_mutex;
     std::condition_variable m_condition;

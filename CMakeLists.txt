@@ -49,3 +49,6 @@ set(JSON_CPP_DIR "${LIB_DIR}/jsoncpp")
 add_subdirectory("${JSON_CPP_DIR}")
 target_link_libraries(${PROJECT_NAME} "jsoncpp_static")
 target_include_directories(${PROJECT_NAME} PRIVATE "${JSONCPP_INCLUDE_DIR}")
+
+# parallel hashmap
+target_include_directories(${PROJECT_NAME} PRIVATE "${LIB_DIR}/phmap")

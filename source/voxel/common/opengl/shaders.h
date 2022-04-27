@@ -172,7 +172,7 @@ public:
 
             // emplace shader_type and unique_ptr of newly created fallback shader into map,
             // from returning pair<iterator, bool> get iterator, get unique_ptr,
-            // get pointer, cast it to T* and then return reference, fuck c++
+            // get pointer, cast it to T* and then return reference
             return *static_cast<T*>(m_shader_fallback_map.emplace(shader_type, CreateUnique<T>(shader_name)).first->second.get());
         }
     }

@@ -25,7 +25,7 @@ struct hash<voxel::ChunkPosition> {
     std::size_t operator()(const voxel::ChunkPosition& p) const {
         using namespace voxel;
         const i32 k = 1103515245;
-        return ((p.x * k + ((p.y << 1) ^ (p.z << 2))) * k) ^ ((p.z * k + ((p.x << 1) ^ (p.y << 2))) * k);
+        return ((u64(p.x) * k + (u64(p.y << 1) ^ u64(p.z << 2))) * k) ^ ((u64(p.z) * k + (u64(p.x << 1) ^ u64(p.y << 2))) * k);
     }
 };
 } // std

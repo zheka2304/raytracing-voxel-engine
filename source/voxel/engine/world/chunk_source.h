@@ -94,7 +94,7 @@ private:
     Settings m_settings;
 
     std::mutex m_chunks_mutex;
-    std::unordered_map<ChunkPosition, Shared<Chunk>> m_chunks;
+    flat_hash_map<ChunkPosition, Shared<Chunk>> m_chunks;
     threading::BlockingQueue<Weak<Chunk>> m_updates_queue;
 
     threading::PriorityQueue<ChunkTask> m_chunk_task_queue;

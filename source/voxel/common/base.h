@@ -5,6 +5,7 @@
 #include <memory>
 #include <functional>
 #include <optional>
+#include <phmap/phmap.h>
 
 
 using f32 = float;
@@ -50,6 +51,21 @@ public:
         return std::hash<T>()(x.first) ^ std::hash<U>()(x.second);
     }
 };
+
+
+// parallel hashmap and hasset aliases
+
+template<typename... T>
+using flat_hash_map = phmap::flat_hash_map<T...>;
+
+template<typename... T>
+using flat_hash_set = phmap::flat_hash_set<T...>;
+
+template<typename... T>
+using parallel_flat_hash_map = phmap::parallel_flat_hash_map<T...>;
+
+template<typename... T>
+using parallel_flat_hash_set = phmap::parallel_flat_hash_set<T...>;
 
 } // voxel
 
