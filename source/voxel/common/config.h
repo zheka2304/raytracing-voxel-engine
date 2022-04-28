@@ -7,7 +7,7 @@
 #define VOXEL_ENGINE_ENABLE_PROFILER 1
 
 // enable additional logging
-#define VOXEL_ENGINE_ENABLE_DEBUG_VERBOSE 1
+#define VOXEL_ENGINE_ENABLE_DEBUG_VERBOSE 0
 
 // enable thread guards
 #define VOXEL_ENGINE_ENABLE_THREAD_GUARD 1
