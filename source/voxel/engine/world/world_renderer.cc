@@ -92,7 +92,7 @@ void WorldRenderer::runChunkUpdates() {
             ChunkRef chunk_ref = next.value();
             m_chunk_source->accessChunk<chunk_access_policy_weak>(chunk_ref, [&](Chunk& chunk) {
                 if (chunk.getState() == CHUNK_LOADED) {
-                    m_chunk_buffer->uploadChunk(chunk, 0);
+                    m_chunk_buffer->uploadChunk(chunk, /* minimal non-zero priority */ 1);
                 } else {
                     m_chunk_buffer->removeChunk(chunk_ref);
                 }

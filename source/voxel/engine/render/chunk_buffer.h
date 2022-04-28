@@ -8,7 +8,6 @@
 #include "voxel/common/define.h"
 #include "voxel/common/threading.h"
 #include "voxel/common/math/vec.h"
-#include "voxel/common/utils/heap.h"
 #include "voxel/engine/shared/chunk_position.h"
 #include "voxel/engine/render/render_context.h"
 #include "voxel/engine/world/chunk.h"
@@ -44,7 +43,7 @@ private:
 
     std::vector<u32> m_raw_data;
     std::vector<ChunkPosAndWeight> m_fetched_chunks;
-    std::vector<ChunkPosAndWeight>::iterator m_fetched_chunks_iter = m_fetched_chunks.begin();
+    std::size_t m_iteration_index = 0;
 
 public:
     FetchedChunksList() = default;
@@ -72,51 +71,29 @@ public:
     };
 
 private:
+    // page data
     i32 m_page_size;
-
-    std::vector<ChunkRef> m_chunk_by_page;
     i32 m_allocated_page_count = 0;
+    std::vector<ChunkRef> m_chunk_by_page;
 
-    struct UploadedChunk {
+    // represents chunk, that was paged in gpu buffer
+    // PagedChunk with invalid chunk_ref is considered a tombstone
+    struct PagedChunk {
         ChunkRef chunk_ref;
-
-        bool allocated;
-        i32 first, second;
-
-        i32 index;
-        i64 priority;
-
-        inline UploadedChunk(const ChunkRef& ref, i32 first, i32 second, i64 priority) :
-            chunk_ref(ref), first(first), second(second), priority(priority), allocated(true) {
-        }
-
-        inline UploadedChunk(const ChunkRef& ref, i64 priority) :
-            chunk_ref(ref), priority(priority), allocated(false) {
-        }
-
-        struct Index {
-            inline i32& operator()(UploadedChunk& x) {
-                return x.index;
-            }
-        };
-
-        struct MaxValueFirst {
-            inline i64 operator()(UploadedChunk& x) {
-                return x.priority;
-            }
-        };
-
-        struct MinValueFirst {
-            inline i64 operator()(UploadedChunk& x) {
-                return -x.priority;
-            }
-        };
+        i32 begin_page, end_page;
+        i64 usage_priority = 0;
     };
 
-    std::unordered_map<ChunkRef, UploadedChunk> m_uploaded_chunks;
-    Heap<UploadedChunk, UploadedChunk::Index, UploadedChunk::MinValueFirst> m_allocated_chunk_heap;
-    Heap<UploadedChunk, UploadedChunk::Index, UploadedChunk::MaxValueFirst> m_pending_chunk_heap;
+    // stores all paged chunks, both valid and tombstones
+    std::vector<PagedChunk> m_paged_chunks;
+    // for each valid paged chunk, allows to lookup it by ChunkRef
+    flat_hash_map<ChunkRef, i32> m_paged_chunk_by_ref;
+    // stores all indices of PagedChunk tombstones to reuse them
+    std::vector<i32> m_paged_chunks_to_reuse;
+    // used in clock memory allocation algorithm, to deallocate unused chunks
+    i32 m_clock_index = 0;
 
+    // chunk upload queue
     struct UploadRequest {
         ChunkRef chunk_ref;
         i32 offset_page;
@@ -124,6 +101,7 @@ private:
     };
     threading::BlockingQueue<UploadRequest> m_upload_request_queue;
 
+    // GPU buffers
     i32 m_data_buffer_size;
     i32 m_fetch_buffer_size;
     i32 m_map_buffer_size;
@@ -180,8 +158,11 @@ public:
 
 private:
     i32 getMapIndex(ChunkPosition position);
-    i32 tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref);
+    i32 tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref, i32 search_offset = 0);
     i32 allocatePageSpan(i32 page_count, ChunkRef chunk_ref, i64 priority);
+
+    i32 addPagedChunk(const PagedChunk& paged_chunk);
+    void releasePagedChunk(const PagedChunk& paged_chunk);
 };
 
 } // render

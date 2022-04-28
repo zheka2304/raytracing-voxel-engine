@@ -39,19 +39,19 @@ std::vector<FetchedChunksList::ChunkPosAndWeight>& FetchedChunksList::getChunksT
 }
 
 void FetchedChunksList::beginIteration() {
-    m_fetched_chunks_iter = m_fetched_chunks.begin();
+    m_iteration_index = 0;
 }
 
 void FetchedChunksList::endIteration() {
-    m_fetched_chunks_iter = m_fetched_chunks.end();
+    m_iteration_index = m_fetched_chunks.size();
 }
 
 FetchedChunksList::ChunkPosAndWeight FetchedChunksList::next() {
-    return *(m_fetched_chunks_iter++);
+    return m_fetched_chunks[m_iteration_index++];
 }
 
 bool FetchedChunksList::hasNext() {
-    return m_fetched_chunks_iter != m_fetched_chunks.end();
+    return m_iteration_index != m_fetched_chunks.size();
 }
 
 
@@ -127,32 +127,36 @@ void ChunkBuffer::rebuildChunkMap(math::Vec3i offset) {
     m_map_buffer[5] = m_map_buffer_dimensions.z;
 
     // iterate over all chunks
-    for (auto it = m_uploaded_chunks.begin(); it != m_uploaded_chunks.end();) {
-        UploadedChunk& uploaded_chunk = it->second;
+    i32 successful_chunk_count = 0;
+    i32 valid_chunk_count = 0;
+    for (PagedChunk& paged_chunk : m_paged_chunks) {
+        // skip released chunks
+        if (!paged_chunk.chunk_ref.valid())
+            continue;
 
         // get map index
-        i32 map_index = getMapIndex(uploaded_chunk.chunk_ref.position());
+        i32 map_index = getMapIndex(paged_chunk.chunk_ref.position());
 
-        if (uploaded_chunk.allocated) {
-            // if chunk is allocated, check if chunk is in map
-            if (map_index == -1) {
-                // if it is not in map, deallocate chunk memory
-                for (i32 i = uploaded_chunk.first; i < uploaded_chunk.second; i++) {
-                    m_chunk_by_page[i] = ChunkRef::invalid();
-                    m_allocated_page_count--;
-                }
-
-                // move chunk to pending heap
-                m_allocated_chunk_heap.removeItem(&uploaded_chunk);
-                uploaded_chunk.allocated = false;
-                m_pending_chunk_heap.addItem(&uploaded_chunk);
-            } else {
-                // else, write chunk to map
-                m_map_buffer[map_index] = uploaded_chunk.first * m_page_size;
+        // check if chunk is in the map
+        if (map_index == -1) {
+            // if it is not in map, deallocate chunk memory
+            for (i32 i = paged_chunk.begin_page; i < paged_chunk.end_page; i++) {
+                m_chunk_by_page[i] = ChunkRef::invalid();
+                m_allocated_page_count--;
             }
+
+            // release chunk (this will not add or remove elements to m_paged_chunks)
+            releasePagedChunk(paged_chunk);
+        } else {
+            // else, write chunk to map
+            m_map_buffer[map_index] = paged_chunk.begin_page * m_page_size;
+            successful_chunk_count++;
         }
-        it++;
+        valid_chunk_count++;
     }
+#if DEBUG_VERBOSE
+    std::cout << "chunk map rebuilt: " << successful_chunk_count << "/" << valid_chunk_count << "(" << m_paged_chunks.size() << ")\n";
+#endif
 }
 
 void ChunkBuffer::getFetchedChunks(FetchedChunksList& fetched_chunks_list) {
@@ -167,45 +171,11 @@ void ChunkBuffer::getFetchedChunks(FetchedChunksList& fetched_chunks_list) {
 }
 
 void ChunkBuffer::updateChunkPriority(Chunk& chunk, i64 priority) {
-    auto found = m_uploaded_chunks.find(ChunkRef(chunk));
-    if (found != m_uploaded_chunks.end()) {
-        // get chunk and update its priority
-        UploadedChunk& uploaded_chunk = found->second;
-        uploaded_chunk.priority = priority;
-
-        if (uploaded_chunk.allocated) {
-            // if chunk is already allocated, just update it in allocated chunks heap and exit
-            m_allocated_chunk_heap.updateItem(&uploaded_chunk);
-            return;
-        } else {
-            UploadedChunk* min_priority_chunk = m_allocated_chunk_heap.getFirst();
-            if (!min_priority_chunk || priority > min_priority_chunk->priority) {
-                // if chunk has enough priority to be in allocated queue
-
-                // check, if chunk inside map
-                i32 map_index = getMapIndex(chunk.getPosition());
-                if (map_index >= 0) {
-                    // try allocate chunk
-                    const i32 required_pages = (chunk.getBufferSize() + m_page_size - 1) / m_page_size;
-                    i32 allocated_span = allocatePageSpan(required_pages, ChunkRef(chunk), priority);
-
-                    // if allocation succeeds, upload chunk and move from pending chunk heap to allocated chunk heap
-                    if (allocated_span >= 0) {
-                        m_pending_chunk_heap.removeItem(&uploaded_chunk);
-                        uploaded_chunk.allocated = true;
-                        uploaded_chunk.first = allocated_span;
-                        uploaded_chunk.second = allocated_span + required_pages;
-                        m_allocated_chunk_heap.addItem(&uploaded_chunk);
-                        m_upload_request_queue.push({ChunkRef(chunk), allocated_span, required_pages});
-                        m_map_buffer[map_index] = allocated_span * m_page_size;
-                        return;
-                    }
-                }
-            }
-        }
-
-        // if anything else failed, update chunk in pending chunks heap
-        m_pending_chunk_heap.updateItem(&uploaded_chunk);
+    if (auto found = m_paged_chunk_by_ref.find(ChunkRef(chunk)); found != m_paged_chunk_by_ref.end()) {
+        PagedChunk& paged_chunk = m_paged_chunks[found->second];
+        paged_chunk.usage_priority = priority;
+    } else {
+        uploadChunk(chunk, priority);
     }
 }
 
@@ -215,88 +185,77 @@ void ChunkBuffer::uploadChunk(Chunk& chunk, i64 priority) {
     const i32 map_index = getMapIndex(chunk.getPosition());
     if (map_index == -1) {
         // chunk is not in range, covered by map, it will not be visible in any case
-        // add it to pending queue
-        UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_ref, UploadedChunk(chunk_ref, priority)).first->second;
-        m_pending_chunk_heap.addItem(&uploaded_chunk);
         return;
     }
 
     i32 buffer_offset;
     const i32 required_pages = (chunk.getBufferSize() + m_page_size - 1) / m_page_size;
 
-    auto found = m_uploaded_chunks.find(chunk_ref);
-    if (found != m_uploaded_chunks.end()) {
+    if (auto found = m_paged_chunk_by_ref.find(chunk_ref); found != m_paged_chunk_by_ref.end()) {
         // if the chunk is already allocated, reallocate it:
-        UploadedChunk& uploaded_chunk = found->second;
+        PagedChunk& paged_chunk = m_paged_chunks[found->second];
 
-        if (!uploaded_chunk.allocated) {
-            // if chunk is not allocated, this will allocate it, if it has enough priority
-            updateChunkPriority(chunk, priority);
-            return;
-        } else {
-            // chunk is already allocated
-
-            // update chunk priority
-            uploaded_chunk.priority = priority;
-            m_allocated_chunk_heap.updateItem(&uploaded_chunk);
-
-            // if we require more pages, than we have allocated
-            if (uploaded_chunk.second - uploaded_chunk.first > required_pages) {
-                // check, if we have enough space after already allocated memory
-                bool can_reallocate_in_place = true;
-                for (i32 i = uploaded_chunk.second; i < uploaded_chunk.first + required_pages; i++) {
-                    ChunkRef chunk_by_page = m_chunk_by_page[i];
-                    if (chunk_by_page.valid() && chunk_by_page != chunk_ref) {
-                        can_reallocate_in_place = false;
-                        break;
-                    }
-                }
-
-                if (can_reallocate_in_place) {
-                    // if we can, just mark new pages to belong to this chunk
-                    buffer_offset = uploaded_chunk.first;
-                    for (i32 i = uploaded_chunk.second; i < uploaded_chunk.first + required_pages; i++) {
-                        m_chunk_by_page[i] = chunk_ref;
-                        m_allocated_page_count++;
-                    }
-                } else {
-                    // if we cant do this, fully free previous allocation
-                    for (i32 i = uploaded_chunk.first; i < uploaded_chunk.second; i++) {
-                        m_chunk_by_page[i] = ChunkRef::invalid();
-                        m_allocated_page_count--;
-                    }
-
-                    // then allocate a new span
-                    buffer_offset = allocatePageSpan(required_pages, chunk_ref, priority);
-                    if (buffer_offset == -1) {
-                        // if new allocation failed - remove all info about this chunk and return
-                        return;
-                    }
-                    uploaded_chunk.first = buffer_offset;
-                }
-            } else {
-                // if we require less (or equal) amount pages we already have, free excess pages of previous allocation
-                buffer_offset = uploaded_chunk.first;
-                for (i32 i = uploaded_chunk.first + required_pages; i < uploaded_chunk.second; i++) {
-                    m_chunk_by_page[i] = ChunkRef::invalid();
-                    m_allocated_page_count--;
+        // if we require more pages, than we have allocated
+        if (paged_chunk.end_page - paged_chunk.begin_page < required_pages) {
+            // check, if we have enough space after already allocated memory
+            bool can_reallocate_in_place = true;
+            for (i32 i = paged_chunk.end_page; i < paged_chunk.begin_page + required_pages; i++) {
+                ChunkRef chunk_by_page = m_chunk_by_page[i];
+                if (chunk_by_page.valid() && chunk_by_page != chunk_ref) {
+                    can_reallocate_in_place = false;
+                    break;
                 }
             }
 
-            // at this point in any case, span.first will contain offset of the valid reallocated span, exactly required_pages length
-            uploaded_chunk.second = uploaded_chunk.first + required_pages;
+            if (can_reallocate_in_place) {
+                // if we can, just mark new pages to belong to this chunk
+                buffer_offset = paged_chunk.begin_page;
+                for (i32 i = paged_chunk.end_page; i < paged_chunk.begin_page + required_pages; i++) {
+                    m_chunk_by_page[i] = chunk_ref;
+                    m_allocated_page_count++;
+                }
+            } else {
+                // if we can't do this, fully free previous allocation
+                for (i32 i = paged_chunk.begin_page; i < paged_chunk.end_page; i++) {
+                    m_chunk_by_page[i] = ChunkRef::invalid();
+                    m_allocated_page_count--;
+                }
+
+                // temporary mark current chunk as released, so it will be ignored during memory allocation
+                paged_chunk.chunk_ref = ChunkRef::invalid();
+
+                // then allocate a new span
+                buffer_offset = allocatePageSpan(required_pages, chunk_ref, priority);
+                if (buffer_offset == -1) {
+                    // if new allocation failed - release paged chunk and return
+                    paged_chunk.chunk_ref = chunk_ref;
+                    releasePagedChunk(paged_chunk);
+                    return;
+                }
+
+                // restore current chunk ref
+                paged_chunk.chunk_ref = chunk_ref;
+            }
+        } else {
+            // if we require less (or equal) amount pages we already have, free excess pages of previous allocation
+            buffer_offset = paged_chunk.begin_page;
+            for (i32 i = paged_chunk.begin_page + required_pages; i < paged_chunk.end_page; i++) {
+                m_chunk_by_page[i] = ChunkRef::invalid();
+                m_allocated_page_count--;
+            }
         }
+
+        // if allocation succeeds, update paged chunk
+        paged_chunk.begin_page = buffer_offset;
+        paged_chunk.end_page = buffer_offset + required_pages;
     } else {
         // if chunk was not yet allocated, just allocate a new span
         buffer_offset = allocatePageSpan(required_pages, chunk_ref, priority);
         if (buffer_offset != -1) {
-            // if allocated successfully, add to allocated heap
-            UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_ref, UploadedChunk(chunk_ref, buffer_offset, buffer_offset + required_pages, priority)).first->second;
-            m_allocated_chunk_heap.addItem(&uploaded_chunk);
+            // if allocated successfully, add new paged chunk
+            addPagedChunk({chunk_ref, buffer_offset, buffer_offset + required_pages, priority});
         } else {
-            // if allocation failed, add to pending heap and exit
-            UploadedChunk& uploaded_chunk = m_uploaded_chunks.emplace(chunk_ref, UploadedChunk(chunk_ref, priority)).first->second;
-            m_pending_chunk_heap.addItem(&uploaded_chunk);
+            // if allocation failed, exit
             return;
         }
     }
@@ -317,36 +276,24 @@ void ChunkBuffer::removeChunk(ChunkRef chunk_ref) {
         m_map_buffer[map_index] = -1;
     }
 
-    // find uploaded chunk
-    auto found = m_uploaded_chunks.find(chunk_ref);
-    if (found != m_uploaded_chunks.end()) {
-        UploadedChunk& uploaded_chunk = found->second;
+    if (auto found = m_paged_chunk_by_ref.find(chunk_ref); found != m_paged_chunk_by_ref.end()) {
+        PagedChunk& paged_chunk = m_paged_chunks[found->second];
 
-        if (uploaded_chunk.allocated) {
-            // if allocated, deallocate chunk span
-            for (i32 i = uploaded_chunk.first; i < uploaded_chunk.second; i++) {
-                m_chunk_by_page[i] = ChunkRef::invalid();
-                m_allocated_page_count--;
-            }
-
-            // remove it from allocated heap
-            m_allocated_chunk_heap.removeItem(&uploaded_chunk);
-        } else {
-            // if deallocated, remove it from deallocated heap
-            m_pending_chunk_heap.removeItem(&uploaded_chunk);
+        for (i32 i = paged_chunk.begin_page; i < paged_chunk.end_page; i++) {
+            m_chunk_by_page[i] = ChunkRef::invalid();
+            m_allocated_page_count--;
         }
 
-        // remove from lookup map
-        m_uploaded_chunks.erase(found);
+        releasePagedChunk(paged_chunk);
     }
 }
 
-i32 ChunkBuffer::tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref) {
+i32 ChunkBuffer::tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref, i32 search_offset) {
     const i32 max_page = m_data_buffer_size / m_page_size;
 
     i32 offset_page = -1;
-    for (i32 page = 0; page < max_page; page++) {
-        ChunkRef chunk_by_page = m_chunk_by_page[page];
+    for (i32 page = search_offset; page < max_page; page++) {
+        const ChunkRef& chunk_by_page = m_chunk_by_page[page];
         if (!chunk_by_page.valid()) {
             if (offset_page == -1)
                 offset_page = page;
@@ -363,7 +310,7 @@ i32 ChunkBuffer::tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref) {
     }
 
 #if DEBUG_VERBOSE
-    std::cout << "allocated chunk buffer span " << offset_page << ":" << offset_page + page_count << " total_allocated_pages=" << m_allocated_page_count << '\n';
+    std::cout << "allocated chunk buffer span " << offset_page << ":" << offset_page + page_count << " (" << page_count << ")" << " total_allocated_pages=" << m_allocated_page_count << '\n';
 #endif
     for (i32 page = offset_page; page < offset_page + page_count; page++) {
         m_chunk_by_page[page] = chunk_ref;
@@ -373,40 +320,71 @@ i32 ChunkBuffer::tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref) {
 }
 
 i32 ChunkBuffer::allocatePageSpan(i32 page_count, ChunkRef chunk_ref, i64 priority) {
-    while (true) {
-        // try allocate memory span and return it
-        i32 span = tryAllocatePageSpan(page_count, chunk_ref);
-        if (span >= 0) {
-            return span;
-        }
+    // try to allocate memory span and return it
+    i32 span = tryAllocatePageSpan(page_count, chunk_ref);
+    if (span >= 0) {
+        return span;
+    }
 
-        // if allocation failed, get allocated chunk with min priority
-        UploadedChunk* chunk_to_deallocate = m_allocated_chunk_heap.getFirst();
-        if (!chunk_to_deallocate || chunk_to_deallocate->priority > priority || chunk_to_deallocate->chunk_ref == chunk_ref) {
-            // allocation failed, if:
-            // - no more chunks are allocated
-            // - min priority is still greater, that ours
-            // - deallocated chunk equals to chunk, we are trying to allocate
-            return -1;
-        }
-        // deallocate next chunk
+    // run clock algorithm
+    i32 clock_iteration_count = m_paged_chunks.size();
+    for (i32 i = 0; i < clock_iteration_count; i++) {
+        m_clock_index %= m_paged_chunks.size();
+        PagedChunk& paged_chunk = m_paged_chunks[m_clock_index++];
+        if (paged_chunk.usage_priority < priority && paged_chunk.chunk_ref.valid()) {
+            // if usage priority is less, than new priority, deallocate this chunk
 
-        // move it from allocated heap to pending heap
-        chunk_to_deallocate = m_allocated_chunk_heap.popFirst();
-        chunk_to_deallocate->allocated = false;
-        m_pending_chunk_heap.addItem(chunk_to_deallocate);
+            // deallocate pages
+            paged_chunk.usage_priority = priority;
+            for (i32 page = paged_chunk.begin_page; page < paged_chunk.end_page; page++) {
+                m_chunk_by_page[page] = ChunkRef::invalid();
+                m_allocated_page_count--;
+            }
 
-        // deallocate span
-        for (i32 page = chunk_to_deallocate->first; page < chunk_to_deallocate->second; page++) {
-            m_chunk_by_page[page] = ChunkRef::invalid();
-            m_allocated_page_count--;
-        }
+            // remove from map
+            i32 map_index = getMapIndex(paged_chunk.chunk_ref.position());
+            if (map_index >= 0) {
+                m_map_buffer[map_index] = -1;
+            }
 
-        // remove from map
-        i32 map_index = getMapIndex(chunk_to_deallocate->chunk_ref.position());
-        if (map_index >= 0) {
-            m_map_buffer[map_index] = -1;
+            // release paged chunk
+            // this will not add or remove elements to paged chunk vector, just remove it from the map
+            releasePagedChunk(paged_chunk);
+
+            // try to allocate new span
+            span = tryAllocatePageSpan(page_count, chunk_ref, paged_chunk.begin_page);
+            if (span >= 0) {
+                return span;
+            }
+        } else {
+            paged_chunk.usage_priority = 0;
         }
+    }
+
+    // we failed to allocate memory
+    return -1;
+}
+
+i32 ChunkBuffer::addPagedChunk(const PagedChunk& paged_chunk) {
+    i32 index;
+    if (m_paged_chunks_to_reuse.empty()) {
+        index = i32(m_paged_chunks.size());
+        m_paged_chunks.emplace_back(paged_chunk);
+    } else {
+        index = m_paged_chunks_to_reuse.back();
+        m_paged_chunks_to_reuse.pop_back();
+        m_paged_chunks[index] = paged_chunk;
+    }
+    m_paged_chunk_by_ref[paged_chunk.chunk_ref] = index;
+    return index;
+}
+
+void ChunkBuffer::releasePagedChunk(const PagedChunk& paged_chunk) {
+    if (auto found = m_paged_chunk_by_ref.find(paged_chunk.chunk_ref); found != m_paged_chunk_by_ref.end()) {
+        i32 index = found->second;
+        m_paged_chunk_by_ref.erase(found);
+        m_paged_chunks[index].chunk_ref = ChunkRef::invalid();
+        m_paged_chunks[index].usage_priority = -1;
     }
 }
 
