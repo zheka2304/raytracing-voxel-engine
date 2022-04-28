@@ -9,8 +9,6 @@
 #include <chrono>
 #include "voxel/common/base.h"
 
-#define VOXEL_ENGINE_PROFILER_ENABLE 1
-
 
 namespace voxel {
 
@@ -64,7 +62,7 @@ public:
 } // voxel
 
 
-#if VOXEL_ENGINE_PROFILER_ENABLE
+#if VOXEL_ENGINE_ENABLE_PROFILER
 
 #define VOXEL_ENGINE_PROFILE_SCOPE0(name, gpu_scope) \
     static voxel::Profiler::ScopeInfo* profiler_scope_info_ ## name = nullptr; \

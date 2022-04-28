@@ -6,6 +6,7 @@
 #include <functional>
 #include <optional>
 #include <phmap/phmap.h>
+#include "voxel/common/config.h"
 
 
 using f32 = float;

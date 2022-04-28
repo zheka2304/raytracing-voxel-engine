@@ -1,6 +1,10 @@
 #ifndef VOXEL_ENGINE_HEAP_H
 #define VOXEL_ENGINE_HEAP_H
 
+#include <vector>
+#include "voxel/common/base.h"
+
+
 namespace voxel {
 
 template<typename T, typename Index, typename Value>

@@ -35,7 +35,7 @@ i32 TaskExecutor::getProcessingThreadCount() {
 }
 
 i32 TaskExecutor::getEstimatedRemainingTasks() {
-    return m_tasks.getDeque().size();
+    return m_tasks.getUnderlyingQueue().size();
 }
 
 } // threading

@@ -16,7 +16,7 @@ ChunkLock::ChunkLock(const Shared<ChunkSource>& chunk_source, std::vector<ChunkR
 }
 
 ChunkLock::~ChunkLock() {
-    assert(m_owned_chunks.empty());
+    VOXEL_ENGINE_ASSERT(m_owned_chunks.empty());
 }
 
 bool ChunkLock::tryLock() {

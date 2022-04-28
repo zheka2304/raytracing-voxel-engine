@@ -1,9 +1,7 @@
 #include <iostream>
 #include "riff_file_format.h"
 
-#define DEBUG_VERBOSE_RIFF 1
-
-#if DEBUG_VERBOSE_RIFF
+#if VOXEL_ENGINE_ENABLE_DEBUG_VERBOSE
 #define VERBOSE(X) X
 #else
 #define VERBOSE(X)

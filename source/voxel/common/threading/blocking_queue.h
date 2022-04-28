@@ -2,13 +2,12 @@
 #define VOXEL_ENGINE_BLOCKING_QUEUE_H
 
 #include <queue>
-#include <deque>
 #include <atomic>
 #include <mutex>
 #include <optional>
 #include <condition_variable>
-#include <unordered_set>
 #include "voxel/common/base.h"
+#include "voxel/common/utils/queue.h"
 
 
 namespace voxel {
@@ -19,28 +18,27 @@ class BlockingQueue {
 private:
     std::mutex m_mutex;
     std::condition_variable m_condition;
-    std::deque<T> m_queue;
+    Queue<T> m_queue;
 
     std::atomic<bool> m_released = false;
 
 public:
     void push(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_queue.push_front(value);
+        m_queue.emplace_back(value);
         m_condition.notify_one();
     }
 
     void shift(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_queue.push_back(value);
+        m_queue.emplace_front(value);
         m_condition.notify_one();
     }
 
     T pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_condition.wait(lock, [=] { return !m_queue.empty(); });
-        T result(std::move(m_queue.back()));
-        m_queue.pop_back();
+        T result(std::move(m_queue.pop_front()));
         return result;
     }
 
@@ -51,15 +49,13 @@ public:
             if (m_released) {
                 return std::optional<T>();
             }
-            std::optional<T> result = std::move(m_queue.back());
-            m_queue.pop_back();
+            std::optional<T> result(std::move(m_queue.pop_front()));
             return result;
         } else {
             if (m_queue.empty()) {
                 return std::optional<T>();
             } else {
-                std::optional<T> result = std::move(m_queue.back());
-                m_queue.pop_back();
+                std::optional<T> result(std::move(m_queue.pop_front()));
                 return result;
             }
         }
@@ -80,7 +76,7 @@ public:
         return m_queue.size();
     }
 
-    std::deque<T>& getDeque() {
+    Queue<T>& getUnderlyingQueue() {
         return m_queue;
     }
 
@@ -125,7 +121,7 @@ public:
 
 template<typename T>
 class UniqueBlockingQueue {
-    std::deque<T> m_queue;
+    Queue<T> m_queue;
     flat_hash_set<T> m_item_set;
 
     std::mutex m_mutex;
@@ -136,7 +132,7 @@ public:
     void push(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
         if (m_item_set.find(value) == m_item_set.end()) {
-            m_queue.push_front(value);
+            m_queue.emplace_back(value);
             m_item_set.insert(value);
             m_condition.notify_one();
         }
@@ -145,7 +141,7 @@ public:
     void shift(const T& value) {
         std::unique_lock<std::mutex> lock(m_mutex);
         if (m_item_set.find(value) == m_item_set.end()) {
-            m_queue.push_back(value);
+            m_queue.emplace_front(value);
             m_item_set.insert(value);
             m_condition.notify_one();
         }
@@ -154,8 +150,7 @@ public:
     T pop() {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_condition.wait(lock, [=] { return !m_queue.empty(); });
-        T result(std::move(m_queue.back()));
-        m_queue.pop_back();
+        T result(std::move(m_queue.pop_front()));
         m_item_set.erase(result);
         return result;
     }
@@ -167,16 +162,14 @@ public:
             if (m_released) {
                 return std::optional<T>();
             }
-            std::optional<T> result = std::move(m_queue.back());
-            m_queue.pop_back();
+            std::optional<T> result(std::move(m_queue.pop_front()));
             m_item_set.erase(result.value());
             return result;
         } else {
             if (m_queue.empty()) {
                 return std::optional<T>();
             } else {
-                std::optional<T> result = std::move(m_queue.back());
-                m_queue.pop_back();
+                std::optional<T> result(std::move(m_queue.pop_front()));
                 m_item_set.erase(result.value());
                 return result;
             }
@@ -194,7 +187,7 @@ public:
         m_item_set.clear();
     }
 
-    std::deque<T>& getDeque() {
+    Queue<T>& getUnderlyingQueue() {
         return m_queue;
     }
 

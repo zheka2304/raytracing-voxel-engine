@@ -5,8 +5,6 @@
 #include "voxel/engine/world/chunk.h"
 #include "voxel/engine/world/chunk_source.h"
 
-#define DEBUG_VERBOSE 0
-
 
 namespace voxel {
 namespace render {
@@ -154,7 +152,7 @@ void ChunkBuffer::rebuildChunkMap(math::Vec3i offset) {
         }
         valid_chunk_count++;
     }
-#if DEBUG_VERBOSE
+#if VOXEL_ENGINE_ENABLE_DEBUG_VERBOSE
     std::cout << "chunk map rebuilt: " << successful_chunk_count << "/" << valid_chunk_count << "(" << m_paged_chunks.size() << ")\n";
 #endif
 }
@@ -309,7 +307,7 @@ i32 ChunkBuffer::tryAllocatePageSpan(i32 page_count, ChunkRef chunk_ref, i32 sea
         return -1;
     }
 
-#if DEBUG_VERBOSE
+#if VOXEL_ENGINE_ENABLE_DEBUG_VERBOSE
     std::cout << "allocated chunk buffer span " << offset_page << ":" << offset_page + page_count << " (" << page_count << ")" << " total_allocated_pages=" << m_allocated_page_count << '\n';
 #endif
     for (i32 page = offset_page; page < offset_page + page_count; page++) {
@@ -352,7 +350,7 @@ i32 ChunkBuffer::allocatePageSpan(i32 page_count, ChunkRef chunk_ref, i64 priori
             releasePagedChunk(paged_chunk);
 
             // try to allocate new span
-            span = tryAllocatePageSpan(page_count, chunk_ref, paged_chunk.begin_page);
+            span = tryAllocatePageSpan(page_count, chunk_ref);
             if (span >= 0) {
                 return span;
             }
