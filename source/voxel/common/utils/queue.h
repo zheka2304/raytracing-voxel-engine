@@ -99,12 +99,14 @@ public:
     }
 
     void clear() {
-        for (size_type i = m_start; i != m_end; i = (i + 1) % m_capacity) {
-            alloc_traits::destroy(m_allocator, m_buffer + i);
+        if (m_buffer != nullptr) {
+            for (size_type i = m_start; i != m_end; i = (i + 1) % m_capacity) {
+                alloc_traits::destroy(m_allocator, m_buffer + i);
+            }
+            alloc_traits::deallocate(m_allocator, m_buffer, m_capacity);
+            m_start = m_end = m_capacity = 0;
+            m_buffer = nullptr;
         }
-        alloc_traits::deallocate(m_allocator, m_buffer, m_capacity);
-        m_start = m_end = m_capacity = 0;
-        m_buffer = nullptr;
     }
 
     size_type size() {
