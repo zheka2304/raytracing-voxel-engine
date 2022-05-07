@@ -268,15 +268,12 @@ bool raycastVoxelChunk(
     while (result.steps++ < MAX_STEPS_PER_RAY) {
         bool on_mat_to_air_edge = false;
 
-        // T value of current cube corner.
+        // T value of current parent voxel cube corner.
         vec3 t_corner_v = pos * t_coef + t_bias;
         float t_corner_max = min(t_corner_v.x, min(t_corner_v.y, t_corner_v.z));
 
-        // Get max t value of current cube.
-        float t_voxel_max = min(current.t_max, t_corner_max);
-
-        // Check t span is non-empty.
-        if (t_min < t_voxel_max) {
+        // Check we intersect the parent voxel
+        if (t_min < current.t_max) {
             // Get voxel header integer at the current voxel pointer.
             uint voxel_header = u_voxel_buffer.data[current.voxel_pointer];
 
@@ -311,8 +308,11 @@ bool raycastVoxelChunk(
                 on_mat_to_air_edge = true;
             }
 
-            // If voxel is marked as tree node and we are not out of stack space.
-            if (scale_i > 0 && (voxel_header & 0x80000000u) != 0u) {
+            // Get max t value of current child voxel cube.
+            float t_voxel_max = min(current.t_max, t_corner_max);
+
+            // If voxel has children and we intersect the current child
+            if ((voxel_header & 0x80000000u) != 0u && t_min < t_voxel_max && scale_i > 0) {
                 // PUSH
 
                 // Get child pointer for current idx and check it exists.
