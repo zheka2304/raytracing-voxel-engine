@@ -272,173 +272,169 @@ bool raycastVoxelChunk(
         vec3 t_corner_v = pos * t_coef + t_bias;
         float t_corner_max = min(t_corner_v.x, min(t_corner_v.y, t_corner_v.z));
 
-        // Get voxel header integer at the current voxel pointer.
-        uint voxel_header = u_voxel_buffer.data[current.voxel_pointer];
-
-        // If voxel marked as full, we hit it.
-        if ((voxel_header & 0xC0000000u) == 0x40000000u) {
-            material_data.in_voxel = true;
-
-            // Get voxel material and check for material change
-            uvec2 voxel_material = uvec2(voxel_header, u_voxel_buffer.data[current.voxel_pointer + 1u]);
-            if (voxel_material != material_data.last_mat.xy) {
-                // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
-                vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
-
-                // If last material is not 0, add span of it
-                if (material_data.last_mat.x != 0u) {
-                    _addRaycastSpan(result, ray, t_side_v, material_data.t_last_side_v, current.voxel_pointer, material_data.last_mat);
-                }
-
-                // If we have reached span limit, or voxel is fully opaque with blend mode 0,
-                // add last material with zero-length span and return true (ray end has been reached).
-                if ((voxel_material & uvec2(0x3E000000u, 0x000000Fu)) == uvec2(31u << 25u, 0u) || result.count >= max_spans - 1) {
-                    _addRaycastSpan(result, ray, t_side_v, t_side_v, current.voxel_pointer, uvec3(voxel_material, scale_i << 3));
-                    return true;
-                }
-
-                // Update last material
-                material_data.last_mat = uvec3(voxel_material, scale_i << 3);
-                material_data.t_last_side_v = t_side_v;
-            }
-        // If we were in voxel, it means we advanced out of it
-        } else if (material_data.in_voxel) {
-            on_mat_to_air_edge = true;
-        }
+        // Get max t value of current cube.
+        float t_voxel_max = min(current.t_max, t_corner_max);
 
         // Check t span is non-empty.
-        if (t_min < current.t_max) {
-            // Get max t value of current cube.
-            float t_voxel_max = min(current.t_max, t_corner_max);
-            float half_scale = scale_exp * 0.5f;
+        if (t_min < t_voxel_max) {
+            // Get voxel header integer at the current voxel pointer.
+            uint voxel_header = u_voxel_buffer.data[current.voxel_pointer];
 
-            // Again check t span is non-empty.
-            if (t_min < t_voxel_max) {
-                // If voxel is marked as tree node and we are not out of stack space.
-                if (scale_i > 0 && (voxel_header & 0x80000000u) != 0u) {
-                    // PUSH
+            // If voxel marked as full, we hit it.
+            if ((voxel_header & 0xC0000000u) == 0x40000000u) {
+                material_data.in_voxel = true;
 
-                    // Get child pointer for current idx and check it exists.
-                    uint child = u_voxel_buffer.data[current.voxel_pointer + 2u + uint(idx ^ octant_mask)];
-                    if (child != 0u) {
-                        // Put current voxel_pointer and t_max on stack at the current scale
-                        #ifdef OPTIMIZE_RAYTRACE_STACK
-                            // We use binary search to reduce search time of required index, search LOCAL ARRAY OPTIMIZATION
-                            if (scale_i > 12) {
-                                if (scale_i > 18) {
-                                    if (scale_i > 21) {
-                                        if (scale_i > 22) {
-                                            stack[23] = current;
-                                        } else {
-                                            stack[22] = current;
-                                        }
+                // Get voxel material and check for material change
+                uvec2 voxel_material = uvec2(voxel_header, u_voxel_buffer.data[current.voxel_pointer + 1u]);
+                if (voxel_material != material_data.last_mat.xy) {
+                    // Calculate t value at the highest corner of the cube, from this side the ray is going at the cube.
+                    vec3 t_side_v = (pos + scale_exp) * t_coef + t_bias;
+
+                    // If last material is not 0, add span of it
+                    if (material_data.last_mat.x != 0u) {
+                        _addRaycastSpan(result, ray, t_side_v, material_data.t_last_side_v, current.voxel_pointer, material_data.last_mat);
+                    }
+
+                    // If we have reached span limit, or voxel is fully opaque with blend mode 0,
+                    // add last material with zero-length span and return true (ray end has been reached).
+                    if ((voxel_material & uvec2(0x3E000000u, 0x000000Fu)) == uvec2(31u << 25u, 0u) || result.count >= max_spans - 1) {
+                        _addRaycastSpan(result, ray, t_side_v, t_side_v, current.voxel_pointer, uvec3(voxel_material, scale_i << 3));
+                        return true;
+                    }
+
+                    // Update last material
+                    material_data.last_mat = uvec3(voxel_material, scale_i << 3);
+                    material_data.t_last_side_v = t_side_v;
+                }
+            // If we were in voxel, it means we advanced out of it
+            } else if (material_data.in_voxel) {
+                on_mat_to_air_edge = true;
+            }
+
+            // If voxel is marked as tree node and we are not out of stack space.
+            if (scale_i > 0 && (voxel_header & 0x80000000u) != 0u) {
+                // PUSH
+
+                // Get child pointer for current idx and check it exists.
+                uint child = u_voxel_buffer.data[current.voxel_pointer + 2u + uint(idx ^ octant_mask)];
+                if (child != 0u) {
+                    // Put current voxel_pointer and t_max on stack at the current scale
+                    #ifdef OPTIMIZE_RAYTRACE_STACK
+                        // We use binary search to reduce search time of required index, search LOCAL ARRAY OPTIMIZATION
+                        if (scale_i > 12) {
+                            if (scale_i > 18) {
+                                if (scale_i > 21) {
+                                    if (scale_i > 22) {
+                                        stack[23] = current;
                                     } else {
-                                        if (scale_i > 20) {
-                                            stack[21] = current;
-                                        } else {
-                                            if (scale_i > 19) {
-                                                stack[20] = current;
-                                            } else {
-                                                stack[19] = current;
-                                            }
-                                        }
+                                        stack[22] = current;
                                     }
                                 } else {
-                                    if (scale_i > 16) {
-                                        if (scale_i > 17) {
-                                            stack[18] = current;
-                                        } else {
-                                            stack[17] = current;
-                                        }
+                                    if (scale_i > 20) {
+                                        stack[21] = current;
                                     } else {
-                                        if (scale_i > 14) {
-                                            if (scale_i > 15) {
-                                                stack[16] = current;
-                                            } else {
-                                                stack[15] = current;
-                                            }
+                                        if (scale_i > 19) {
+                                            stack[20] = current;
                                         } else {
-                                            if (scale_i > 13) {
-                                                stack[14] = current;
-                                            } else {
-                                                stack[13] = current;
-                                            }
+                                            stack[19] = current;
                                         }
                                     }
                                 }
                             } else {
-                                if (scale_i > 6) {
-                                    if (scale_i > 10) {
-                                        if (scale_i > 11) {
-                                            stack[12] = current;
-                                        } else {
-                                            stack[11] = current;
-                                        }
+                                if (scale_i > 16) {
+                                    if (scale_i > 17) {
+                                        stack[18] = current;
                                     } else {
-                                        if (scale_i > 8) {
-                                            if (scale_i > 9) {
-                                                stack[10] = current;
-                                            } else {
-                                                stack[9] = current;
-                                            }
-                                        } else {
-                                            if (scale_i > 7) {
-                                                stack[8] = current;
-                                            } else {
-                                                stack[7] = current;
-                                            }
-                                        }
+                                        stack[17] = current;
                                     }
                                 } else {
-                                    #ifndef OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
-                                    if (scale_i > 4) {
-                                        if (scale_i > 5) {
-                                            stack[6] = current;
+                                    if (scale_i > 14) {
+                                        if (scale_i > 15) {
+                                            stack[16] = current;
                                         } else {
-                                            stack[5] = current;
+                                            stack[15] = current;
                                         }
                                     } else {
-                                        if (scale_i > 2) {
-                                            if (scale_i > 3) {
-                                                stack[4] = current;
-                                            } else {
-                                                stack[3] = current;
-                                            }
+                                        if (scale_i > 13) {
+                                            stack[14] = current;
                                         } else {
-                                            if (scale_i > 1) {
-                                                stack[2] = current;
-                                            } else if (scale_i > 0) {
-                                                stack[1] = current;
-                                            } else {
-                                                stack[0] = current;
-                                            }
+                                            stack[13] = current;
                                         }
                                     }
-                                    #endif
                                 }
                             }
-                        #else
-                            stack[scale_i] = current;
-                        #endif
-                        current.voxel_pointer += child;
+                        } else {
+                            if (scale_i > 6) {
+                                if (scale_i > 10) {
+                                    if (scale_i > 11) {
+                                        stack[12] = current;
+                                    } else {
+                                        stack[11] = current;
+                                    }
+                                } else {
+                                    if (scale_i > 8) {
+                                        if (scale_i > 9) {
+                                            stack[10] = current;
+                                        } else {
+                                            stack[9] = current;
+                                        }
+                                    } else {
+                                        if (scale_i > 7) {
+                                            stack[8] = current;
+                                        } else {
+                                            stack[7] = current;
+                                        }
+                                    }
+                                }
+                            } else {
+                                #ifndef OPTIMIZE_RAYTRACE_STACK_DISABLE_LOW_SCALES
+                                if (scale_i > 4) {
+                                    if (scale_i > 5) {
+                                        stack[6] = current;
+                                    } else {
+                                        stack[5] = current;
+                                    }
+                                } else {
+                                    if (scale_i > 2) {
+                                        if (scale_i > 3) {
+                                            stack[4] = current;
+                                        } else {
+                                            stack[3] = current;
+                                        }
+                                    } else {
+                                        if (scale_i > 1) {
+                                            stack[2] = current;
+                                        } else if (scale_i > 0) {
+                                            stack[1] = current;
+                                        } else {
+                                            stack[0] = current;
+                                        }
+                                    }
+                                }
+                                #endif
+                            }
+                        }
+                    #else
+                        stack[scale_i] = current;
+                    #endif
+                    current.voxel_pointer += child;
 
-                        // Go down 1 scale and reset idx.
-                        scale_i--;
-                        scale_exp = half_scale;
-                        idx = 0;
+                    // Go down 1 scale and reset idx.
+                    scale_i--;
+                    scale_exp = scale_exp * 0.5f;
+                    idx = 0;
 
-                        // Get t values of the center of the current cube for each axis. T_min is evaluated at the lowest cube corner,
-                        // if for some axis t value is larger than t_min, it means that for this axis it has greater offset.
-                        // Considering this, calculate new idx and position of the cube, we entered.
-                        vec3 t_center_v = half_scale * t_coef + t_corner_v; // (pos + scale_exp * .5) * t_coef + t_bias;
-                        if (t_center_v.x > t_min) { idx ^= 1; pos.x += scale_exp; }
-                        if (t_center_v.y > t_min) { idx ^= 2; pos.y += scale_exp; }
-                        if (t_center_v.z > t_min) { idx ^= 4; pos.z += scale_exp; }
+                    // Get t values of the center of the current cube for each axis. T_min is evaluated at the lowest cube corner,
+                    // if for some axis t value is larger than t_min, it means that for this axis it has greater offset.
+                    // Considering this, calculate new idx and position of the cube, we entered.
+                    vec3 t_center_v = scale_exp * t_coef + t_corner_v; // (pos + scale_exp * .5) * t_coef + t_bias;
+                    if (t_center_v.x > t_min) { idx ^= 1; pos.x += scale_exp; }
+                    if (t_center_v.y > t_min) { idx ^= 2; pos.y += scale_exp; }
+                    if (t_center_v.z > t_min) { idx ^= 4; pos.z += scale_exp; }
 
-                        // Update t max and continue.
-                        current.t_max = t_voxel_max;
-                        continue;
-                    }
+                    // Update t max and continue.
+                    current.t_max = t_voxel_max;
+                    continue;
                 }
             }
         }
