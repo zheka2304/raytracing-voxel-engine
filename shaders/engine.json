@@ -41,7 +41,7 @@
     "spatial_buffer_pass": {
       "type": "compute",
       "source": "buffer/spatial_buffer_pass.compute",
-      "defines": ["D_USE_SPINLOCK"]
+      "defines": ["D_NO_USE_SPINLOCK"]
     },
 
     "spatial_buffer_postprocess_interpolate": {

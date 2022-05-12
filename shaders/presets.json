@@ -3,9 +3,6 @@
     // default size of compute work group used in textures
     "common.texture_work_group_size": 24,
 
-    // voxel chunk lookup map size, NOTE: must be power of 2
-    "raytrace.voxel_chunk_map_size": 16384,
-
     // voxel chunk lookup map unit capacity
     "raytrace.voxel_chunk_map_unit_capacity": 16,
 
@@ -35,7 +32,7 @@
 
     // general blur parameters
     "lighting.blur_depth_factor": 0.025,                              // greater values mean pixels with greater spatial difference (normal + distance from camera) will be blurred together
-    "lighting.blur_value_factor": 1.5,                                // greater values will make different colors to blur less
+    "lighting.blur_value_factor": 0.5,                                // greater values will make different colors to blur less
 
     // interpolation parameters
     "lighting.interpolate_blend_rate_min": 0.05,                      // minimum blend rate between stored light value and new light value

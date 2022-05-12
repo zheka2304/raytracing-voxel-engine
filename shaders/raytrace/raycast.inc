@@ -96,7 +96,7 @@ uint lookupVoxelChunk(ivec3 position, ivec3 map_offset, ivec3 map_size, int fetc
     if (position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x < map_size.x && position.y < map_size.y && position.z < map_size.z) {
         int index = position.x + map_size.x * (position.y + map_size.y * position.z);
         if (fetch_weight > 0) {
-            atomicMax(u_voxel_fetch_map.data[index], uint(fetch_weight));
+            u_voxel_fetch_map.data[index] = max(u_voxel_fetch_map.data[index], uint(fetch_weight));
         }
         return uint(u_voxel_chunk_map.data[index + 6]);
     }
